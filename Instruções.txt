@@ -1,0 +1,205 @@
+
+# Descrição do Problema – Sistema de Gestão de Ouvidorias (ARTESP)
+
+Criar sistema web para gestão de ouvidorias da ARTESP.
+
+---
+
+# 1. Ouvidoria
+
+* Número do processo SEI.
+* Pode conter **múltiplas reclamações itemizadas**.
+* Cadastrada por usuário inicial.
+* Pode ser atribuída a **um ou vários usuários técnicos respondedores**.
+* Possui **prazo de resposta** (padrão 15 dias, editável manualmente).
+* Possui **controle de status por etapa**.
+
+## Status possíveis
+
+1. Aguardando ações
+2. Aguardando resposta da permissionária
+3. Em análise técnica
+4. Retorno técnico
+5. Concluído
+
+## Regra de negócio
+
+* Ao enviar para técnicos → status = Em análise técnica.
+* Se houver múltiplos técnicos → permanece em análise até todos responderem.
+* Após todas as respostas → muda automaticamente para Retorno técnico.
+* Usuário inicial finaliza manualmente → Concluído.
+
+---
+
+# 2. Controle de Acesso
+
+## Usuário inicial
+
+* Visualiza todas as ouvidorias.
+* Define prazo manualmente.
+* Insere e itemiza reclamações.
+* Distribui para um ou mais técnicos.
+* Conclui a ouvidoria.
+* Interface administrativa para:
+
+  * Cadastro de usuários técnicos
+  * Cadastro de categorias de reclamação
+
+## Usuário técnico
+
+* Visualiza apenas ouvidorias atribuídas a ele.
+* Registra resposta técnica.
+* Informa nº do documento SEI.
+* Sistema registra automaticamente a data.
+* Vinculado a:
+
+  * Gerência
+  * Coordenação
+
+---
+
+# 3. Reclamações
+
+* Pertencem a uma ouvidoria.
+* São itemizadas.
+* Classificadas conforme categorias cadastradas.
+* Devem registrar:
+
+  * Local de embarque
+  * Local de desembarque
+* Devem permitir vinculação a Autos de linha.
+
+## Associação com Autos
+
+Pode ser vinculada a:
+
+* Um Auto específico
+* Múltiplos Autos
+* Todos os Autos
+* Todos os Autos de uma empresa
+* Autos de determinado trecho (Cidade A → Cidade B)
+* Múltiplos trechos simultaneamente
+* O usuário pesquisa o trecho e os autos encontrados vem pré preenchidos. Caso o usuario queira apenas alguns autos do trecho, ele pode escolher.
+
+
+O sistema deve permitir aplicar o filtro por trecho mais de uma vez, acumulando Autos.
+
+## Regra de usabilidade
+
+* Ao filtrar trecho (Cidade A → Cidade B):
+
+  * Embarque e desembarque são pré-preenchidos.
+* Usuário pode editar manualmente.
+
+---
+
+# 4. Regra de Pontuação (Base para Dashboard de Qualidade)
+
+* Cada **reclamação vale 1 ponto**.
+* Se vinculada a múltiplos Autos, o ponto é **dividido igualmente** entre eles.
+
+Exemplo:
+
+* Reclamação vinculada a 3 Autos → cada Auto recebe 0,33 pontos.
+* Reclamação sobre trecho A → B com Autos 1, 2 e 3 → cada Auto recebe 0,33.
+
+Essa pontuação será usada no dashboard de qualidade/fiscalização.
+
+---
+
+# 5. Autos de Linha
+
+Base inicial: secoes.xlsx
+
+Colunas:
+
+* Nº do Autos
+* Itinerário
+* Cidade inicial
+* Cidade final
+
+---
+
+# 6. Dashboard 1 – Produtividade da Equipe
+
+Foco: desempenho interno.
+
+## Indicadores
+
+* Total por status
+* Volume por mês/ano
+* Volume por gerência
+* Volume por coordenação
+* Percentual dentro do prazo
+* Percentual fora do prazo
+* Tempo médio de resposta
+* Ouvidorias em atraso
+* Gargalos na etapa “Em análise técnica”
+
+## Filtros
+
+* Período
+* Status
+* Gerência
+* Coordenação
+* Empresa
+
+Objetivo: avaliar cumprimento de prazo e desempenho das áreas.
+
+---
+
+# 7. Dashboard 2 – Qualidade do Sistema (Fiscalização)
+
+Foco: apoio à equipe de fiscalização para definir onde fiscalizar.
+
+Baseado na **soma de pontos de reclamação por Auto e por empresa**.
+
+## Métricas
+
+* Pontuação total por Auto de linha
+* Pontuação total por empresa (soma dos Autos dela)
+* Ranking de Autos com maior pontuação
+* Ranking de empresas com maior pontuação
+* Evolução mensal de pontos
+* Pontos por categoria de reclamação
+* Pontos por cidade de embarque
+
+## Filtros
+
+* Empresa (soma dos pontos dos Autos dela)
+* Período (mês a mês, múltiplos meses)
+* Cidade de embarque
+* Categoria de reclamação
+* Trecho
+
+## Objetivo gerencial
+
+Permitir identificar:
+
+* Trechos mais problemáticos
+* Empresas com maior volume proporcional de reclamações
+* Categorias mais recorrentes
+* Cidades com maior incidência
+* Tendência de crescimento de problemas ao longo do tempo
+
+Esse dashboard orienta planejamento de ações de fiscalização.
+
+---
+
+# 8. Estrutura de Dados Necessária
+
+Tabelas principais:
+
+* Ouvidorias
+* Reclamações
+* Categorias
+* Usuários
+* Gerências
+* Coordenações
+* Empresas
+* Autos de linha
+* Relação Reclamação ↔ Autos (N:N com campo de pontuação calculável)
+* Relação Ouvidoria ↔ Técnicos (N:N)
+* Respostas técnicas
+* Controle de prazo
+* Controle de status
