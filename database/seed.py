@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 from database.connection import init_db, db_session, get_session
-from models import Permissionaria, AutoLinha, ParadaAutoLinha, Usuario, TipoUsuario
+from models import Permissionaria, AutoLinha, ParadaAutoLinha, Usuario, TipoUsuario, TipoServico
 import auth
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -98,7 +98,24 @@ def importar_autos():
     df_ativas = df_ativas.dropna(subset=["numero"])
     df_ativas = df_ativas[~df_ativas["numero"].str.lower().isin(["nan", "none", ""])]
 
-    print(f"  Total de autos no CSV Ativas: {len(df_ativas)}")
+    print(f"  Total de autos no CSV Ativas (bruto): {len(df_ativas)}")
+
+    # Detecta coluna Característica e filtra itinerários E/L de rodoviários
+    col_caract = _col(df_ativas, "Característica", "Caracteristica") or \
+                 next((c for c in df_ativas.columns if "caracter" in c.lower()), None)
+    if col_caract:
+        df_ativas = df_ativas.rename(columns={col_caract: "caracteristica"})
+        df_ativas["caracteristica"] = df_ativas["caracteristica"].str.strip()
+        mask_rodoviario = df_ativas["caracteristica"].str.startswith("Rodoviári", na=False) | \
+                          df_ativas["caracteristica"].str.startswith("Rodoviário", na=False)
+        mask_iti_excluir = df_ativas["iti"].isin(["E", "L"])
+        excluidos = df_ativas[mask_rodoviario & mask_iti_excluir]
+        print(f"  Excluindo {len(excluidos)} autos rodoviários com itinerário E/L")
+        df_ativas = df_ativas[~(mask_rodoviario & mask_iti_excluir)]
+    else:
+        print("  AVISO: Coluna 'Característica' não encontrada — filtro de itinerário E/L não aplicado")
+
+    print(f"  Total de autos após filtro: {len(df_ativas)}")
 
     # Normaliza CSV de pontos
     df_pontos = df_pontos.rename(columns={col_p_autos: "n_autos", col_p_iti: "iti"})
@@ -171,6 +188,7 @@ def importar_autos():
 
             auto = AutoLinha(
                 numero=numero,
+                tipo=TipoServico.REGULAR_INTERMUNICIPAL,
                 itinerario=itinerario,
                 cidade_inicial=cidade_ini,
                 cidade_final=cidade_fim,

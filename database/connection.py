@@ -12,10 +12,13 @@ DATABASE_URL = (
     f"{os.getenv('POSTGRES_PASSWORD', '')}@"
     f"{os.getenv('POSTGRES_HOST', 'localhost')}:"
     f"{os.getenv('POSTGRES_PORT', '5432')}/"
-    f"{os.getenv('POSTGRES_DB', 'sistema_de_ouvidoria')}"
+    f"{os.getenv('POSTGRES_DB', 'processos')}"
 )
 
-engine = create_engine(DATABASE_URL, echo=False)
+_schema = os.getenv("POSTGRES_SCHEMA", "")
+_connect_args = {"options": f"-c search_path={_schema},public"} if _schema else {}
+
+engine = create_engine(DATABASE_URL, echo=False, connect_args=_connect_args)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 

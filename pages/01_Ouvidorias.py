@@ -1,15 +1,26 @@
 """Lista de Ouvidorias – visão geral com filtros."""
-import streamlit as st
+
+import os
+import sys
 from datetime import date
-import sys, os
+
+import streamlit as st
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth
 from auth import usuario_logado
-from database.connection import get_session, db_session
-from models import Ouvidoria, StatusOuvidoria, Usuario, TipoUsuario, OuvidoriaTecnico
+from database.connection import db_session, get_session
+from models import (
+    Ouvidoria,
+    OuvidoriaTecnico,
+    StatusOuvidoria,
+    TipoUsuario,
+    Usuario,
+)
 
 st.set_page_config(page_title="Ouvidorias", page_icon="📋", layout="wide")
+st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
 auth.require_auth()
 
 u = usuario_logado()
@@ -23,13 +34,13 @@ STATUS_EMOJI = {
 }
 
 
-def cor_prazo(prazo: date) -> str:
+def prazo_circle_label(prazo: date | None) -> tuple[str, str]:
+    """Retorna (label_curto, tooltip) para prazo. label_curto ex: '🟢 5d', tooltip: 'DD/MM/AAAA'."""
+    if prazo is None:
+        return "---", ""
     dias = (prazo - date.today()).days
-    if dias < 0:
-        return "🔴"
-    if dias <= 3:
-        return "🟡"
-    return "🟢"
+    emoji = "🟢" if dias >= 0 else "🔴"
+    return f"{emoji} {dias}d", prazo.strftime("%d/%m/%Y")
 
 
 def carregar_ouvidorias(filtro_status=None, filtro_periodo=None, ocultar_concluidos=True):
@@ -70,7 +81,6 @@ def carregar_ouvidorias(filtro_status=None, filtro_periodo=None, ocultar_conclui
                         if not at.respondido:
                             pendentes.append(tec.nome)
                             todos_responderam = False
-                # Após retorno técnico, volta para SUCOL
                 if todos_responderam:
                     coord_ger = "SUCOL - Ouvidoria"
                 else:
@@ -82,15 +92,46 @@ def carregar_ouvidorias(filtro_status=None, filtro_periodo=None, ocultar_conclui
 
             resultado.append({
                 "id": o.id,
-                "numero_sei": o.numero_sei,
+                "protocolo": o.protocolo or "–",
                 "status": o.status,
                 "prazo": o.prazo,
+                "prazo_permissionaria": o.prazo_permissionaria,
                 "coord_ger": coord_ger,
                 "responsaveis": responsaveis,
             })
         return resultado
     finally:
         session.close()
+
+
+@st.cache_data(ttl=300)
+def carregar_tecnicos_disponiveis():
+    """Retorna lista de técnicos ativos: [(id, nome)]."""
+    session = get_session()
+    try:
+        tecs = (
+            session.query(Usuario)
+            .filter_by(tipo=TipoUsuario.tecnico, ativo=True)
+            .order_by(Usuario.nome)
+            .all()
+        )
+        return [(t.id, t.nome) for t in tecs]
+    finally:
+        session.close()
+
+
+def atribuir_tecnico(ouvidoria_id: int, tecnico_id: int):
+    with db_session() as s:
+        existe = s.query(OuvidoriaTecnico).filter_by(
+            ouvidoria_id=ouvidoria_id, tecnico_id=tecnico_id
+        ).first()
+        if existe:
+            return False
+        s.add(OuvidoriaTecnico(ouvidoria_id=ouvidoria_id, tecnico_id=tecnico_id))
+        o = s.query(Ouvidoria).filter_by(id=ouvidoria_id).first()
+        if o and o.status == StatusOuvidoria.AGUARDANDO_ACOES:
+            o.status = StatusOuvidoria.EM_ANALISE_TECNICA
+    return True
 
 
 def excluir_ouvidoria(oid: int):
@@ -153,58 +194,95 @@ st.divider()
 if not ouvidorias:
     st.info("Nenhuma ouvidoria encontrada com os filtros aplicados.")
 else:
-    # Cabeçalho
+    # Cabeçalho — Prazo Perm. antes de Prazo Resp., ambos com círculo+tooltip
     if u.tipo == TipoUsuario.gestor:
-        col_sizes = [1, 3, 3, 3, 3, 2, 1, 1, 1, 1]
-        cols_header = st.columns(col_sizes)
-        headers = ["**#**", "**Nº SEI**", "**Status**", "**Coord./Gerência**",
-                    "**Responsáveis**", "**Prazo**", "**Dias**", "", "", ""]
+        col_sizes = [0.5, 2.5, 2.5, 2.5, 2.5, 1.5, 1.5, 0.5, 0.5, 0.8, 0.5]
+        headers = ["**#**", "**Protocolo**", "**Status**", "**Coord./Gerência**",
+                    "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**",
+                    "", "", "", ""]
     else:
-        col_sizes = [1, 3, 3, 3, 3, 2, 1, 1, 1]
-        cols_header = st.columns(col_sizes)
-        headers = ["**#**", "**Nº SEI**", "**Status**", "**Coord./Gerência**",
-                    "**Responsáveis**", "**Prazo**", "**Dias**", "", ""]
+        col_sizes = [0.5, 2.5, 2.5, 2.5, 2.5, 1.5, 1.5, 0.5, 0.8]
+        headers = ["**#**", "**Protocolo**", "**Status**", "**Coord./Gerência**",
+                    "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**",
+                    "", ""]
+
+    cols_header = st.columns(col_sizes)
     for idx, h in enumerate(headers):
         if h:
             cols_header[idx].markdown(h)
     st.divider()
 
+    # Pré-carregar técnicos para o popover de atribuição
+    if u.tipo == TipoUsuario.gestor:
+        todos_tecs = carregar_tecnicos_disponiveis()
+
     for o in ouvidorias:
-        dias_restantes = (o["prazo"] - date.today()).days
         emoji_status = STATUS_EMOJI.get(o["status"], "")
         status_label = f"{emoji_status} {o['status'].value}"
-        label_dias = f"{cor_prazo(o['prazo'])} {dias_restantes}d"
+
+        # Prazo Permissionária (círculo + dias, tooltip com data)
+        perm_label, perm_tip = prazo_circle_label(o["prazo_permissionaria"])
+        # Prazo de Resposta (círculo + dias, tooltip com data)
+        resp_label, resp_tip = prazo_circle_label(o["prazo"])
 
         confirmar_key = f"confirmar_excluir_{o['id']}"
 
         cols = st.columns(col_sizes)
 
         cols[0].write(o["id"])
-        cols[1].write(o["numero_sei"])
+        cols[1].write(o["protocolo"])
         cols[2].write(status_label)
         cols[3].write(o["coord_ger"])
         cols[4].write(o["responsaveis"])
-        cols[5].write(o["prazo"].strftime("%d/%m/%Y"))
-        cols[6].write(label_dias)
 
-        # Botão Abrir (ícone)
+        # Prazo Perm. — botão desabilitado com tooltip
+        if perm_tip:
+            cols[5].button(perm_label, key=f"pperm_{o['id']}", disabled=True, help=perm_tip)
+        else:
+            cols[5].write(perm_label)
+
+        # Prazo Resp. — botão desabilitado com tooltip
+        cols[6].button(resp_label, key=f"presp_{o['id']}", disabled=True, help=resp_tip)
+
+        # Botão Abrir (lupa)
         if cols[7].button("🔍", key=f"abrir_{o['id']}", help="Abrir detalhe"):
             st.session_state["ouvidoria_id"] = o["id"]
             st.switch_page("pages/03_Detalhe_Ouvidoria.py")
 
-        # Botão Responder (ícone)
-        if cols[8].button("✍️", key=f"resp_{o['id']}", help="Responder"):
-            st.session_state["ouvidoria_id"] = o["id"]
-            # Limpa estado anterior de edição de resposta
-            st.session_state.pop("resp_recs_edit", None)
-            st.session_state.pop("resp_autos_checklist", None)
-            st.session_state.pop("resp_rec_alvo_anterior", None)
-            st.switch_page("pages/04_Responder.py")
-
+        # Botão Responder (popover com 2 opções)
         if u.tipo == TipoUsuario.gestor:
-            with cols[9]:
-                pode_concluir = o["status"] == StatusOuvidoria.RETORNO_TECNICO
+            with cols[8]:
+                with st.popover("✍️"):
+                    if st.button("Resposta Técnico", key=f"resp_tec_{o['id']}"):
+                        st.session_state["ouvidoria_id"] = o["id"]
+                        st.session_state.pop("resp_recs_edit", None)
+                        st.session_state.pop("resp_autos_checklist", None)
+                        st.session_state.pop("resp_rec_alvo_anterior", None)
+                        st.switch_page("pages/05_Responder.py")
+                    if st.button("Resposta Permissionária", key=f"resp_perm_{o['id']}"):
+                        st.session_state["ouvidoria_id"] = o["id"]
+                        st.switch_page("pages/04_Resposta_Permissionaria.py")
 
+            # Botão atribuir técnico (pessoa)
+            with cols[9]:
+                with st.popover("👤"):
+                    if todos_tecs:
+                        tec_nomes = [n for _, n in todos_tecs]
+                        tec_sel = st.selectbox("Técnico", tec_nomes, key=f"atr_tec_{o['id']}")
+                        tec_id = dict([(n, tid) for tid, n in todos_tecs]).get(tec_sel)
+                        if st.button("Atribuir", key=f"atr_btn_{o['id']}"):
+                            ok = atribuir_tecnico(o["id"], tec_id)
+                            if ok:
+                                st.toast(f"Técnico {tec_sel} atribuído!", icon="✅")
+                                st.rerun()
+                            else:
+                                st.warning("Técnico já atribuído.")
+                    else:
+                        st.write("Nenhum técnico disponível.")
+
+            # Botão engrenagem (concluir/excluir)
+            with cols[10]:
+                pode_concluir = o["status"] == StatusOuvidoria.RETORNO_TECNICO
                 with st.popover("⚙"):
                     if pode_concluir:
                         if st.button("✅ Concluir", key=f"concluir_{o['id']}"):
@@ -226,3 +304,11 @@ else:
                         if st.button("Não", key=f"nao_excluir_{o['id']}"):
                             st.session_state.pop(confirmar_key, None)
                             st.rerun()
+        else:
+            # Técnico: botão responder direto
+            if cols[8].button("✍️", key=f"resp_{o['id']}", help="Responder"):
+                st.session_state["ouvidoria_id"] = o["id"]
+                st.session_state.pop("resp_recs_edit", None)
+                st.session_state.pop("resp_autos_checklist", None)
+                st.session_state.pop("resp_rec_alvo_anterior", None)
+                st.switch_page("pages/05_Responder.py")

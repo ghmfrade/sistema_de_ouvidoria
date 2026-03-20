@@ -40,9 +40,9 @@
 
 ### Dashboard 2 – Qualidade / Fiscalização
 
-- [ ] Autos com maior número de reclamações (top N)
+- [ ] Autos com maior número de reclamações (pontuação) (top N)
 - [ ] Permissionárias com maior volume de reclamações
-- [ ] Mapa de reclamações por trecho (cidade A → cidade B)
+- [ ] Mapa de reclamações por municipio de embarque ou desembarque
 - [ ] Reclamações por categoria
 - [ ] Pontuação acumulada por auto de linha (soma das pontuações de `reclamacao_autos`)
 - [ ] Filtros: período, gerência, categoria, permissionária

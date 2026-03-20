@@ -12,6 +12,7 @@ class Categoria(Base):
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     reclamacoes: Mapped[list["Reclamacao"]] = relationship(back_populates="categoria")  # noqa: F821
+    subcategorias: Mapped[list["Subcategoria"]] = relationship(back_populates="categoria", cascade="all, delete-orphan")  # noqa: F821
 
     def __repr__(self) -> str:
         return f"<Categoria {self.nome}>"

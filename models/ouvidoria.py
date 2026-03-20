@@ -1,6 +1,6 @@
 import enum
 from datetime import date, datetime
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, func
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
 
@@ -17,8 +17,10 @@ class Ouvidoria(Base):
     __tablename__ = "ouvidorias"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    numero_sei: Mapped[str] = mapped_column(String(100), nullable=False)
+    protocolo: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    conteudo: Mapped[str] = mapped_column(Text, nullable=False)
     prazo: Mapped[date] = mapped_column(Date, nullable=False)
+    prazo_permissionaria: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[StatusOuvidoria] = mapped_column(
         Enum(StatusOuvidoria, values_callable=lambda x: [e.value for e in x]),
         default=StatusOuvidoria.AGUARDANDO_ACOES,
@@ -42,6 +44,12 @@ class Ouvidoria(Base):
     respostas: Mapped[list["RespostaTecnica"]] = relationship(  # noqa: F821
         back_populates="ouvidoria", cascade="all, delete-orphan"
     )
+    respostas_permissionaria: Mapped[list["RespostaPermissionaria"]] = relationship(  # noqa: F821
+        back_populates="ouvidoria", cascade="all, delete-orphan"
+    )
+    anexos: Mapped[list["AnexoOuvidoria"]] = relationship(  # noqa: F821
+        back_populates="ouvidoria", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
-        return f"<Ouvidoria SEI={self.numero_sei} status={self.status}>"
+        return f"<Ouvidoria id={self.id} status={self.status}>"

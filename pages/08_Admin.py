@@ -6,9 +6,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import auth
 from auth import usuario_logado
 from database.connection import db_session, get_session
-from models import Usuario, TipoUsuario, Categoria, Gerencia, Coordenacao
+from models import Usuario, TipoUsuario, Categoria, Subcategoria, Gerencia, Coordenacao
 
 st.set_page_config(page_title="Administração", page_icon="⚙️", layout="wide")
+st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
 auth.require_gestor()
 
 u = usuario_logado()
@@ -26,8 +27,8 @@ with st.sidebar:
 
 st.title("⚙️ Administração")
 
-tab_users, tab_cats, tab_ger, tab_coord = st.tabs(
-    ["Usuários", "Categorias", "Gerências", "Coordenações"]
+tab_users, tab_cats, tab_subcats, tab_ger, tab_coord = st.tabs(
+    ["Usuários", "Categorias", "Subcategorias", "Gerências", "Coordenações"]
 )
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -215,6 +216,91 @@ with tab_cats:
             st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
+# Tab: Subcategorias
+# ════════════════════════════════════════════════════════════════════════════
+with tab_subcats:
+    st.subheader("Subcategorias de Reclamação")
+
+    def listar_subcats():
+        s = get_session()
+        try:
+            subcats = (
+                s.query(Subcategoria)
+                .join(Categoria)
+                .order_by(Categoria.nome, Subcategoria.nome)
+                .all()
+            )
+            return [{
+                "id": sc.id,
+                "nome": sc.nome,
+                "categoria": sc.categoria.nome if sc.categoria else "–",
+                "ativo": "✅" if sc.ativo else "❌",
+            } for sc in subcats]
+        finally:
+            s.close()
+
+    subcats = listar_subcats()
+    if subcats:
+        import pandas as pd
+        df_sc = pd.DataFrame(subcats).rename(columns={
+            "id": "ID", "nome": "Nome", "categoria": "Categoria", "ativo": "Ativo"
+        })
+        st.dataframe(df_sc.drop(columns=["ID"]), use_container_width=True, hide_index=True)
+
+    st.divider()
+    st.markdown("#### Nova Subcategoria")
+
+    def carregar_cats_ativas():
+        s = get_session()
+        try:
+            cs = s.query(Categoria).filter_by(ativo=True).order_by(Categoria.nome).all()
+            return [(c.id, c.nome) for c in cs]
+        finally:
+            s.close()
+
+    cats_ativas = carregar_cats_ativas()
+    if not cats_ativas:
+        st.warning("Cadastre ao menos uma Categoria ativa primeiro.")
+    else:
+        cat_map_sub = {n: cid for cid, n in cats_ativas}
+        with st.form("form_subcat"):
+            subcat_cat = st.selectbox("Categoria *", [n for _, n in cats_ativas], key="subcat_cat")
+            subcat_nome = st.text_input("Nome da Subcategoria *")
+            criar_subcat = st.form_submit_button("➕ Criar", type="primary")
+
+        if criar_subcat:
+            if not subcat_nome.strip():
+                st.error("Informe o nome da subcategoria.")
+            else:
+                with db_session() as s:
+                    s.add(Subcategoria(
+                        nome=subcat_nome.strip(),
+                        categoria_id=cat_map_sub[subcat_cat],
+                    ))
+                st.success("Subcategoria criada.")
+                st.rerun()
+
+    if subcats:
+        st.divider()
+        st.markdown("#### Ativar / Desativar Subcategoria")
+        subcat_labels = [f"{sc['nome']} ({sc['categoria']})" for sc in subcats]
+        subcat_sel_label = st.selectbox("Subcategoria", subcat_labels, key="toggle_subcat")
+        subcat_sel_id = subcats[subcat_labels.index(subcat_sel_label)]["id"]
+        sc1, sc2 = st.columns(2)
+        if sc1.button("Ativar subcat."):
+            with db_session() as s:
+                sc = s.query(Subcategoria).filter_by(id=subcat_sel_id).first()
+                sc.ativo = True
+            st.success("Ativada.")
+            st.rerun()
+        if sc2.button("Desativar subcat."):
+            with db_session() as s:
+                sc = s.query(Subcategoria).filter_by(id=subcat_sel_id).first()
+                sc.ativo = False
+            st.success("Desativada.")
+            st.rerun()
+
+# ════════════════════════════════════════════════════════════════════════════
 # Tab: Gerências
 # ════════════════════════════════════════════════════════════════════════════
 with tab_ger:
@@ -224,7 +310,7 @@ with tab_ger:
         s = get_session()
         try:
             gs = s.query(Gerencia).order_by(Gerencia.nome).all()
-            return [{"id": g.id, "nome": g.nome} for g in gs]
+            return [{"id": g.id, "nome": g.nome, "ativo": "✅" if g.ativo else "❌"} for g in gs]
         finally:
             s.close()
 
@@ -232,7 +318,7 @@ with tab_ger:
     if gers:
         import pandas as pd
         st.dataframe(
-            pd.DataFrame(gers).rename(columns={"id": "ID", "nome": "Nome"}).drop(columns=["ID"]),
+            pd.DataFrame(gers).rename(columns={"id": "ID", "nome": "Nome", "ativo": "Ativo"}).drop(columns=["ID"]),
             use_container_width=True,
             hide_index=True,
         )
@@ -250,6 +336,26 @@ with tab_ger:
             st.success("Gerência criada.")
             st.rerun()
 
+    if gers:
+        st.divider()
+        st.markdown("#### Ativar / Desativar Gerência")
+        ger_labels = [g["nome"] for g in gers]
+        ger_sel_nome = st.selectbox("Gerência", ger_labels, key="toggle_ger")
+        ger_sel_id = gers[ger_labels.index(ger_sel_nome)]["id"]
+        g1, g2 = st.columns(2)
+        if g1.button("Ativar ger."):
+            with db_session() as s:
+                ger = s.query(Gerencia).filter_by(id=ger_sel_id).first()
+                ger.ativo = True
+            st.success("Ativada.")
+            st.rerun()
+        if g2.button("Desativar ger."):
+            with db_session() as s:
+                ger = s.query(Gerencia).filter_by(id=ger_sel_id).first()
+                ger.ativo = False
+            st.success("Desativada.")
+            st.rerun()
+
 # ════════════════════════════════════════════════════════════════════════════
 # Tab: Coordenações
 # ════════════════════════════════════════════════════════════════════════════
@@ -260,7 +366,7 @@ with tab_coord:
         s = get_session()
         try:
             cs = s.query(Coordenacao).order_by(Coordenacao.nome).all()
-            return [{"id": c.id, "nome": c.nome, "gerencia": c.gerencia.nome if c.gerencia else "–"} for c in cs]
+            return [{"id": c.id, "nome": c.nome, "gerencia": c.gerencia.nome if c.gerencia else "–", "ativo": "✅" if c.ativo else "❌"} for c in cs]
         finally:
             s.close()
 
@@ -268,7 +374,7 @@ with tab_coord:
     if coords:
         import pandas as pd
         st.dataframe(
-            pd.DataFrame(coords).rename(columns={"id": "ID", "nome": "Nome", "gerencia": "Gerência"}).drop(columns=["ID"]),
+            pd.DataFrame(coords).rename(columns={"id": "ID", "nome": "Nome", "gerencia": "Gerência", "ativo": "Ativo"}).drop(columns=["ID"]),
             use_container_width=True,
             hide_index=True,
         )
@@ -300,3 +406,23 @@ with tab_coord:
                         s.add(Coordenacao(nome=coord_nome.strip(), gerencia_id=ger_map_form[ger_coord]))
                     st.success("Coordenação criada.")
                     st.rerun()
+
+    if coords:
+        st.divider()
+        st.markdown("#### Ativar / Desativar Coordenação")
+        coord_labels = [f"{c['nome']} ({c['gerencia']})" for c in coords]
+        coord_sel_label = st.selectbox("Coordenação", coord_labels, key="toggle_coord")
+        coord_sel_id = coords[coord_labels.index(coord_sel_label)]["id"]
+        cc1, cc2 = st.columns(2)
+        if cc1.button("Ativar coord."):
+            with db_session() as s:
+                coord = s.query(Coordenacao).filter_by(id=coord_sel_id).first()
+                coord.ativo = True
+            st.success("Ativada.")
+            st.rerun()
+        if cc2.button("Desativar coord."):
+            with db_session() as s:
+                coord = s.query(Coordenacao).filter_by(id=coord_sel_id).first()
+                coord.ativo = False
+            st.success("Desativada.")
+            st.rerun()
