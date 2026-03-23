@@ -6,6 +6,7 @@ from datetime import date, datetime
 
 import streamlit as st
 from sqlalchemy import exists
+from sqlalchemy.orm import aliased
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -100,35 +101,77 @@ def carregar_subcategorias(categoria_id: int):
 
 @st.cache_data(ttl=300)
 def carregar_cidades_por_tipo(tipo_servico: str):
-    """Retorna lista ordenada de cidades únicas filtradas pelo tipo de serviço."""
+    """Retorna cidades de origem via nome IBGE (municipio.nome), filtradas pelo tipo de serviço.
+    Fretamento: todos os municípios SP. Regular: apenas cidades com paradas ativas."""
     session = get_session()
     try:
+        if "Fretamento" in tipo_servico:
+            rows = session.query(Municipio.nome).filter_by(estado="SP").order_by(Municipio.nome).all()
+            return [r[0] for r in rows]
         q = (
-            session.query(ParadaAutoLinha.cidade)
-            .join(AutoLinha, ParadaAutoLinha.auto_id == AutoLinha.id)
+            session.query(Municipio.nome)
+            .join(ParadaAutoLinha, ParadaAutoLinha.municipio_id == Municipio.id)
+            .join(AutoLinha, AutoLinha.id == ParadaAutoLinha.auto_id)
             .filter(AutoLinha.tipo == tipo_servico, AutoLinha.ativo == True)
         )
-        rows = q.distinct().all()
-        return sorted({r[0].strip() for r in rows if r[0]})
+        return sorted({r[0] for r in q.distinct().all() if r[0]})
     finally:
         session.close()
 
 
 @st.cache_data(ttl=300)
 def carregar_cidades(tipo_servico: str, perm_id: int | None = None, regiao: str | None = None):
+    """Retorna cidades via nome IBGE para busca por trecho, com filtros opcionais."""
     session = get_session()
     try:
         q = (
-            session.query(ParadaAutoLinha.cidade)
-            .join(AutoLinha, ParadaAutoLinha.auto_id == AutoLinha.id)
+            session.query(Municipio.nome)
+            .join(ParadaAutoLinha, ParadaAutoLinha.municipio_id == Municipio.id)
+            .join(AutoLinha, AutoLinha.id == ParadaAutoLinha.auto_id)
             .filter(AutoLinha.tipo == tipo_servico, AutoLinha.ativo == True)
         )
         if perm_id is not None:
             q = q.filter(AutoLinha.permissionaria_id == perm_id)
         if regiao is not None:
             q = q.filter(AutoLinha.regiao_metropolitana == regiao)
-        rows = q.distinct().all()
-        return sorted({r[0].strip() for r in rows if r[0]})
+        return sorted({r[0] for r in q.distinct().all() if r[0]})
+    finally:
+        session.close()
+
+
+def carregar_cidades_destino(tipo_servico: str, nome_origem: str,
+                             perm_id: int | None = None, regiao: str | None = None):
+    """Retorna cidades alcançáveis a partir da origem via linhas do tipo especificado."""
+    session = get_session()
+    try:
+        if "Fretamento" in tipo_servico:
+            rows = session.query(Municipio.nome).filter_by(estado="SP").order_by(Municipio.nome).all()
+            return [r[0] for r in rows if r[0] != nome_origem]
+
+        mun_id_orig = session.query(Municipio.id).filter_by(nome=nome_origem).scalar()
+        if not mun_id_orig:
+            return []
+
+        ParadaOrig = aliased(ParadaAutoLinha)
+        q = (
+            session.query(Municipio.nome)
+            .join(ParadaAutoLinha, ParadaAutoLinha.municipio_id == Municipio.id)
+            .join(AutoLinha, AutoLinha.id == ParadaAutoLinha.auto_id)
+            .filter(
+                AutoLinha.tipo == tipo_servico,
+                AutoLinha.ativo == True,
+                Municipio.id != mun_id_orig,
+                exists().where(
+                    (ParadaOrig.auto_id == AutoLinha.id) &
+                    (ParadaOrig.municipio_id == mun_id_orig)
+                ),
+            )
+        )
+        if perm_id is not None:
+            q = q.filter(AutoLinha.permissionaria_id == perm_id)
+        if regiao is not None:
+            q = q.filter(AutoLinha.regiao_metropolitana == regiao)
+        return sorted({r[0] for r in q.distinct().all() if r[0]})
     finally:
         session.close()
 
@@ -184,6 +227,7 @@ def carregar_regioes_metropolitanas():
 
 def buscar_autos_por_trecho(tipo_servico: str, cidade_a: str, cidade_b: str,
                             perm_id: int | None = None, regiao: str | None = None):
+    """Retorna autos que têm paradas em AMBAS as cidades (filtro por municipio_id)."""
     session = get_session()
     try:
         q = session.query(AutoLinha).filter(AutoLinha.tipo == tipo_servico, AutoLinha.ativo == True)
@@ -192,19 +236,19 @@ def buscar_autos_por_trecho(tipo_servico: str, cidade_a: str, cidade_b: str,
         if regiao is not None:
             q = q.filter(AutoLinha.regiao_metropolitana == regiao)
         if cidade_a:
-            q = q.filter(
-                exists().where(
+            mun_id_a = session.query(Municipio.id).filter_by(nome=cidade_a).scalar()
+            if mun_id_a:
+                q = q.filter(exists().where(
                     (ParadaAutoLinha.auto_id == AutoLinha.id) &
-                    (ParadaAutoLinha.cidade == cidade_a)
-                )
-            )
+                    (ParadaAutoLinha.municipio_id == mun_id_a)
+                ))
         if cidade_b:
-            q = q.filter(
-                exists().where(
+            mun_id_b = session.query(Municipio.id).filter_by(nome=cidade_b).scalar()
+            if mun_id_b:
+                q = q.filter(exists().where(
                     (ParadaAutoLinha.auto_id == AutoLinha.id) &
-                    (ParadaAutoLinha.cidade == cidade_b)
-                )
-            )
+                    (ParadaAutoLinha.municipio_id == mun_id_b)
+                ))
         autos = q.order_by(AutoLinha.numero).all()
         return [(a.id, a.numero, a.cidade_inicial or "", a.cidade_final or "",
                  a.permissionaria.nome if a.permissionaria else "") for a in autos]
@@ -384,7 +428,7 @@ for i, rec in enumerate(st.session_state["resp_recs_edit"]):
         TipoServico.FRETAMENTO_INTERMUNICIPAL.value: TipoServico.REGULAR_INTERMUNICIPAL.value,
         TipoServico.FRETAMENTO_METROPOLITANO.value: TipoServico.REGULAR_METROPOLITANO.value,
     }.get(tipo_label, tipo_label)
-    cidades_rec = carregar_cidades_por_tipo(tipo_base) if not is_fret else []
+    cidades_rec = carregar_cidades_por_tipo(tipo_base) if not is_fret else carregar_municipios()
 
     with st.expander(
         f"{rec['numero_item']} - {rec['categoria'] or 'Sem categoria'} - {tipo_label}",
@@ -437,19 +481,32 @@ for i, rec in enumerate(st.session_state["resp_recs_edit"]):
             )
             st.session_state["resp_recs_edit"][i]["empresa_fretamento"] = emp_fret or None
 
-        if not is_fret:
-            # Embarque / Desembarque (selectbox com cidades do tipo_servico)
-            emb_idx = 0
-            if rec["local_embarque"] and rec["local_embarque"] in cidades_rec:
-                emb_idx = cidades_rec.index(rec["local_embarque"]) + 1
-            emb_sel = st.selectbox(
-                "Local de Embarque", [OPCAO_NAO_INFORMADO] + cidades_rec,
-                index=emb_idx, key=f"resp_emb_{rec['id']}"
-            )
-            st.session_state["resp_recs_edit"][i]["local_embarque"] = (
-                None if emb_sel == OPCAO_NAO_INFORMADO else emb_sel
-            )
+        # Embarque — mesma lista independente de fret (cidades_rec já tem a lista certa)
+        emb_idx = 0
+        if rec["local_embarque"] and rec["local_embarque"] in cidades_rec:
+            emb_idx = cidades_rec.index(rec["local_embarque"]) + 1
+        emb_sel = st.selectbox(
+            "Local de Embarque", [OPCAO_NAO_INFORMADO] + cidades_rec,
+            index=emb_idx, key=f"resp_emb_{rec['id']}"
+        )
+        emb_val = None if emb_sel == OPCAO_NAO_INFORMADO else emb_sel
+        st.session_state["resp_recs_edit"][i]["local_embarque"] = emb_val
 
+        # Desembarque — filtra a partir da origem quando não é fretamento
+        if not is_fret and emb_val:
+            cidades_dest_rec = carregar_cidades_destino(tipo_base, emb_val)
+            if cidades_dest_rec:
+                des_idx = 0
+                if rec["local_desembarque"] and rec["local_desembarque"] in cidades_dest_rec:
+                    des_idx = cidades_dest_rec.index(rec["local_desembarque"]) + 1
+                des_sel = st.selectbox(
+                    "Local de Desembarque", [OPCAO_NAO_INFORMADO] + cidades_dest_rec,
+                    index=des_idx, key=f"resp_des_{rec['id']}"
+                )
+            else:
+                st.info("Sem atendimento a partir desta cidade.")
+                des_sel = OPCAO_NAO_INFORMADO
+        else:
             des_idx = 0
             if rec["local_desembarque"] and rec["local_desembarque"] in cidades_rec:
                 des_idx = cidades_rec.index(rec["local_desembarque"]) + 1
@@ -457,33 +514,9 @@ for i, rec in enumerate(st.session_state["resp_recs_edit"]):
                 "Local de Desembarque", [OPCAO_NAO_INFORMADO] + cidades_rec,
                 index=des_idx, key=f"resp_des_{rec['id']}"
             )
-            st.session_state["resp_recs_edit"][i]["local_desembarque"] = (
-                None if des_sel == OPCAO_NAO_INFORMADO else des_sel
-            )
-        else:
-            # Fretamento: usar municípios de SP para embarque/desembarque
-            municipios = carregar_municipios()
-            emb_idx = 0
-            if rec["local_embarque"] and rec["local_embarque"] in municipios:
-                emb_idx = municipios.index(rec["local_embarque"]) + 1
-            emb_sel = st.selectbox(
-                "Local de Embarque", [OPCAO_NAO_INFORMADO] + municipios,
-                index=emb_idx, key=f"resp_emb_{rec['id']}"
-            )
-            st.session_state["resp_recs_edit"][i]["local_embarque"] = (
-                None if emb_sel == OPCAO_NAO_INFORMADO else emb_sel
-            )
-
-            des_idx = 0
-            if rec["local_desembarque"] and rec["local_desembarque"] in municipios:
-                des_idx = municipios.index(rec["local_desembarque"]) + 1
-            des_sel = st.selectbox(
-                "Local de Desembarque", [OPCAO_NAO_INFORMADO] + municipios,
-                index=des_idx, key=f"resp_des_{rec['id']}"
-            )
-            st.session_state["resp_recs_edit"][i]["local_desembarque"] = (
-                None if des_sel == OPCAO_NAO_INFORMADO else des_sel
-            )
+        st.session_state["resp_recs_edit"][i]["local_desembarque"] = (
+            None if des_sel == OPCAO_NAO_INFORMADO else des_sel
+        )
 
         # Descrição
         desc = st.text_area("Descrição", value=rec["descricao"] or "", key=f"resp_desc_{rec['id']}", height=100)
@@ -572,16 +605,32 @@ if recs_nao_fret:
         idx_orig = 0
         if auto_fill_orig and auto_fill_orig in cidades:
             idx_orig = cidades.index(auto_fill_orig) + 1
-        idx_dest = 0
-        if auto_fill_dest and auto_fill_dest in cidades:
-            idx_dest = cidades.index(auto_fill_dest) + 1
 
         cidade_orig_sel = st.selectbox(
             "Cidade de Origem", [OPCAO_NAO_INFORMADO] + cidades, index=idx_orig, key="resp_trecho_orig"
         )
-        cidade_dest_sel = st.selectbox(
-            "Cidade de Destino", [OPCAO_NAO_INFORMADO] + cidades, index=idx_dest, key="resp_trecho_dest"
-        )
+
+        # Destino: filtra com base na origem escolhida
+        orig_val = None if cidade_orig_sel == OPCAO_NAO_INFORMADO else cidade_orig_sel
+        if orig_val:
+            destinos_trecho = carregar_cidades_destino(rec_tipo, orig_val, perm_id=perm_id_sel, regiao=regiao_sel_val)
+            if destinos_trecho:
+                idx_dest = 0
+                if auto_fill_dest and auto_fill_dest in destinos_trecho:
+                    idx_dest = destinos_trecho.index(auto_fill_dest) + 1
+                cidade_dest_sel = st.selectbox(
+                    "Cidade de Destino", [OPCAO_NAO_INFORMADO] + destinos_trecho, index=idx_dest, key="resp_trecho_dest"
+                )
+            else:
+                st.info("Sem atendimento a partir desta cidade.")
+                cidade_dest_sel = OPCAO_NAO_INFORMADO
+        else:
+            idx_dest = 0
+            if auto_fill_dest and auto_fill_dest in cidades:
+                idx_dest = cidades.index(auto_fill_dest) + 1
+            cidade_dest_sel = st.selectbox(
+                "Cidade de Destino", [OPCAO_NAO_INFORMADO] + cidades, index=idx_dest, key="resp_trecho_dest"
+            )
 
         buscar_disabled = trecho_disabled and cidade_orig_sel == OPCAO_NAO_INFORMADO and cidade_dest_sel == OPCAO_NAO_INFORMADO
         if st.button("🔍 Buscar por trecho", use_container_width=True, key="resp_btn_trecho", disabled=buscar_disabled):

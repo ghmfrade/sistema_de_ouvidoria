@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pandas as pd
 from database.connection import init_db, db_session, get_session
 from models import Permissionaria, AutoLinha, ParadaAutoLinha, TipoServico
+from database.normalize_municipio import construir_indices, resolver_municipio_id
 from sqlalchemy import text
 
 
@@ -186,7 +187,11 @@ def importar_linhas_metropolitanas():
                         rm_normalize[rm_mun_name] = rm_m
                         break
 
+        # Índices IBGE para resolução de municipio_id
+        ibge_exact, ibge_norm = construir_indices(session)
+
         paradas_criadas = 0
+        nao_resolvidas: set[str] = set()
         vistos: set[tuple] = set()  # (auto_id, cidade)
 
         for _, row in df_mun.iterrows():
@@ -210,10 +215,16 @@ def importar_linhas_metropolitanas():
                 continue
             vistos.add(chave_parada)
 
-            session.add(ParadaAutoLinha(auto_id=auto_id, cidade=cidade))
+            mun_id = resolver_municipio_id(cidade, ibge_exact, ibge_norm)
+            if mun_id is None:
+                nao_resolvidas.add(cidade)
+
+            session.add(ParadaAutoLinha(auto_id=auto_id, cidade=cidade, municipio_id=mun_id))
             paradas_criadas += 1
 
         print(f"  {paradas_criadas} paradas metropolitanas criadas.")
+        for c in sorted(nao_resolvidas):
+            print(f"  [AVISO] cidade nao resolvida (municipio_id=NULL): {c!r}")
 
 
 if __name__ == "__main__":

@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 from database.connection import init_db, db_session, get_session
-from models import Permissionaria, AutoLinha, ParadaAutoLinha, Usuario, TipoUsuario, TipoServico
+from models import Municipio, Permissionaria, AutoLinha, ParadaAutoLinha, Usuario, TipoUsuario, TipoServico
+from database.normalize_municipio import construir_indices, resolver_municipio_id
 import auth
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -208,7 +209,11 @@ def importar_autos():
             for _, r in df_ativas.iterrows():
                 ativas_map[(r["n_autos"], r["iti"])] = r["numero"]
 
+            # Índices IBGE para resolução de municipio_id
+            ibge_exact, ibge_norm = construir_indices(session)
+
             paradas_criadas = 0
+            nao_resolvidas: set[str] = set()
             vistos: set[tuple] = set()  # (auto_id, cidade)
 
             for _, row in df_pontos.iterrows():
@@ -230,10 +235,16 @@ def importar_autos():
                     continue
                 vistos.add(chave)
 
-                session.add(ParadaAutoLinha(auto_id=auto_id, cidade=cidade))
+                mun_id = resolver_municipio_id(cidade, ibge_exact, ibge_norm)
+                if mun_id is None:
+                    nao_resolvidas.add(cidade)
+
+                session.add(ParadaAutoLinha(auto_id=auto_id, cidade=cidade, municipio_id=mun_id))
                 paradas_criadas += 1
 
             print(f"  {paradas_criadas} paradas criadas.")
+            for c in sorted(nao_resolvidas):
+                print(f"  [AVISO] cidade nao resolvida (municipio_id=NULL): {c!r}")
         else:
             print("  Coluna 'Cidade Atendida' não encontrada — paradas não importadas.")
 
