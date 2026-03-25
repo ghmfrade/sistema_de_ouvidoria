@@ -9,11 +9,15 @@ import streamlit as st
 
 from database.connection import get_session
 from models import (
+    AutoLinha,
     Categoria,
     Coordenacao,
     Gerencia,
     Municipio,
+    ParadaAutoLinha,
+    Permissionaria,
     Subcategoria,
+    TipoServico,
     TipoUsuario,
     Usuario,
 )
@@ -94,6 +98,98 @@ def carregar_coordenacoes(gerencia_id: int | None = None):
             q = q.filter_by(gerencia_id=gerencia_id)
         cs = q.order_by(Coordenacao.nome).all()
         return [(c.id, c.nome) for c in cs]
+    finally:
+        s.close()
+
+
+@st.cache_data(ttl=300)
+def carregar_cidades_por_tipo(tipo_servico: str):
+    """Retorna cidades de origem via nome IBGE, filtradas pelo tipo de serviço.
+    Fretamento: todos os municípios SP. Regular: apenas cidades com paradas ativas."""
+    s = get_session()
+    try:
+        if "Fretamento" in tipo_servico:
+            rows = s.query(Municipio.nome).filter_by(estado="SP").order_by(Municipio.nome).all()
+            return [r[0] for r in rows]
+        q = (
+            s.query(Municipio.nome)
+            .join(ParadaAutoLinha, ParadaAutoLinha.municipio_id == Municipio.id)
+            .join(AutoLinha, AutoLinha.id == ParadaAutoLinha.auto_id)
+            .filter(AutoLinha.tipo == tipo_servico, AutoLinha.ativo == True)
+        )
+        return sorted({r[0] for r in q.distinct().all() if r[0]})
+    finally:
+        s.close()
+
+
+@st.cache_data(ttl=300)
+def carregar_cidades(tipo_servico: str, perm_id: int | None = None, regiao: str | None = None):
+    """Retorna cidades via nome IBGE para busca por trecho, com filtros opcionais."""
+    s = get_session()
+    try:
+        q = (
+            s.query(Municipio.nome)
+            .join(ParadaAutoLinha, ParadaAutoLinha.municipio_id == Municipio.id)
+            .join(AutoLinha, AutoLinha.id == ParadaAutoLinha.auto_id)
+            .filter(AutoLinha.tipo == tipo_servico, AutoLinha.ativo == True)
+        )
+        if perm_id is not None:
+            q = q.filter(AutoLinha.permissionaria_id == perm_id)
+        if regiao is not None:
+            q = q.filter(AutoLinha.regiao_metropolitana == regiao)
+        return sorted({r[0] for r in q.distinct().all() if r[0]})
+    finally:
+        s.close()
+
+
+@st.cache_data(ttl=300)
+def carregar_todos_autos(tipo_servico: str, perm_id: int | None = None, regiao: str | None = None):
+    """Retorna todos os autos filtrados: (id, numero, cidade_ini, cidade_fim, empresa)."""
+    s = get_session()
+    try:
+        q = s.query(AutoLinha).filter(AutoLinha.tipo == tipo_servico, AutoLinha.ativo == True)
+        if perm_id is not None:
+            q = q.filter(AutoLinha.permissionaria_id == perm_id)
+        if regiao is not None:
+            q = q.filter(AutoLinha.regiao_metropolitana == regiao)
+        autos = q.order_by(AutoLinha.numero).all()
+        return [(a.id, a.numero, a.cidade_inicial or "", a.cidade_final or "",
+                 a.permissionaria.nome if a.permissionaria else "") for a in autos]
+    finally:
+        s.close()
+
+
+@st.cache_data(ttl=300)
+def carregar_permissionarias(tipo_servico: str, regiao: str | None = None):
+    """Retorna permissionárias que possuem autos do tipo informado."""
+    s = get_session()
+    try:
+        q = (
+            s.query(Permissionaria)
+            .join(AutoLinha, AutoLinha.permissionaria_id == Permissionaria.id)
+            .filter(AutoLinha.tipo == tipo_servico, AutoLinha.ativo == True)
+        )
+        if regiao is not None:
+            q = q.filter(AutoLinha.regiao_metropolitana == regiao)
+        perms = q.distinct().order_by(Permissionaria.nome).all()
+        return [(p.id, p.nome) for p in perms]
+    finally:
+        s.close()
+
+
+@st.cache_data(ttl=300)
+def carregar_regioes_metropolitanas():
+    """Retorna lista de regiões metropolitanas distintas."""
+    s = get_session()
+    try:
+        rows = (
+            s.query(AutoLinha.regiao_metropolitana)
+            .filter(AutoLinha.tipo == TipoServico.REGULAR_METROPOLITANO.value, AutoLinha.ativo == True)
+            .filter(AutoLinha.regiao_metropolitana.isnot(None))
+            .distinct()
+            .all()
+        )
+        return sorted({r[0].strip() for r in rows if r[0]})
     finally:
         s.close()
 

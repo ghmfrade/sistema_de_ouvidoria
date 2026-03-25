@@ -8,6 +8,8 @@ from auth import usuario_logado
 from database.connection import db_session, get_session
 from models import Usuario, TipoUsuario, Categoria, Subcategoria, Gerencia, Coordenacao
 from utils.cache import (
+    carregar_coordenacoes,
+    carregar_gerencias,
     invalidar_cache_categorias,
     invalidar_cache_estrutura,
     invalidar_cache_usuarios,
@@ -75,25 +77,6 @@ with tab_users:
 
     st.divider()
     st.markdown("#### Novo Usuário / Editar Senha")
-
-    def carregar_gerencias():
-        s = get_session()
-        try:
-            gs = s.query(Gerencia).order_by(Gerencia.nome).all()
-            return [(g.id, g.nome) for g in gs]
-        finally:
-            s.close()
-
-    def carregar_coordenacoes(gerencia_id=None):
-        s = get_session()
-        try:
-            q = s.query(Coordenacao)
-            if gerencia_id:
-                q = q.filter_by(gerencia_id=gerencia_id)
-            cs = q.order_by(Coordenacao.nome).all()
-            return [(c.id, c.nome) for c in cs]
-        finally:
-            s.close()
 
     gerencias = carregar_gerencias()
     ger_map = {nome: gid for gid, nome in gerencias}
@@ -396,16 +379,8 @@ with tab_coord:
             hide_index=True,
         )
 
-    def carregar_ger_simples():
-        s = get_session()
-        try:
-            gs = s.query(Gerencia).order_by(Gerencia.nome).all()
-            return [(g.id, g.nome) for g in gs]
-        finally:
-            s.close()
-
     with st.form("form_coord"):
-        gs_form = carregar_ger_simples()
+        gs_form = carregar_gerencias()
         if not gs_form:
             st.warning("Cadastre ao menos uma Gerência primeiro.")
             st.form_submit_button("➕ Criar", disabled=True)
