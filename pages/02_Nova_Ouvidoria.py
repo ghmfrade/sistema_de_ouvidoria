@@ -18,7 +18,6 @@ from database.connection import db_session, get_session
 from models import (
     AnexoOuvidoria,
     AutoLinha,
-    Categoria,
     Municipio,
     Ouvidoria,
     ParadaAutoLinha,
@@ -26,9 +25,9 @@ from models import (
     Reclamacao,
     ReclamacaoAuto,
     StatusOuvidoria,
-    Subcategoria,
     TipoServico,
 )
+from utils.cache import carregar_categorias, carregar_municipios, carregar_subcategorias
 
 st.set_page_config(page_title="Nova Ouvidoria", page_icon="➕", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -60,42 +59,6 @@ with st.sidebar:
 OPCAO_TODAS = "Todas"
 OPCAO_QUALQUER = "Qualquer"
 OPCAO_NAO_INFORMADO = "Não informado"
-
-
-@st.cache_data(ttl=300)
-def carregar_municipios():
-    """Retorna lista de municípios de SP ordenados por nome: [(id, nome)]."""
-    session = get_session()
-    try:
-        munis = session.query(Municipio).filter_by(estado="SP").order_by(Municipio.nome).all()
-        return [m.nome for m in munis]
-    finally:
-        session.close()
-
-
-@st.cache_data(ttl=300)
-def carregar_categorias():
-    session = get_session()
-    try:
-        cats = session.query(Categoria).filter_by(ativo=True).order_by(Categoria.nome).all()
-        return [(c.id, c.nome) for c in cats]
-    finally:
-        session.close()
-
-
-@st.cache_data(ttl=300)
-def carregar_subcategorias(categoria_id: int):
-    session = get_session()
-    try:
-        subcats = (
-            session.query(Subcategoria)
-            .filter_by(categoria_id=categoria_id, ativo=True)
-            .order_by(Subcategoria.nome)
-            .all()
-        )
-        return [(sc.id, sc.nome) for sc in subcats]
-    finally:
-        session.close()
 
 
 @st.cache_data(ttl=300)

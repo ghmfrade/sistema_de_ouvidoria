@@ -7,6 +7,11 @@ import auth
 from auth import usuario_logado
 from database.connection import db_session, get_session
 from models import Usuario, TipoUsuario, Categoria, Subcategoria, Gerencia, Coordenacao
+from utils.cache import (
+    invalidar_cache_categorias,
+    invalidar_cache_estrutura,
+    invalidar_cache_usuarios,
+)
 
 st.set_page_config(page_title="Administração", page_icon="⚙️", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -137,6 +142,7 @@ with tab_users:
                         ativo=True,
                     ))
                 st.toast(f"Usuário {novo_email} criado com sucesso!", icon="✅")
+                invalidar_cache_usuarios()
                 st.rerun()
 
     st.divider()
@@ -151,12 +157,14 @@ with tab_users:
                 usr = s.query(Usuario).filter_by(id=sel_user_id).first()
                 usr.ativo = True
             st.toast("Usuário ativado!", icon="✅")
+            invalidar_cache_usuarios()
             st.rerun()
         if col_dat.button("Desativar"):
             with db_session() as s:
                 usr = s.query(Usuario).filter_by(id=sel_user_id).first()
                 usr.ativo = False
             st.toast("Usuário desativado!", icon="⛔")
+            invalidar_cache_usuarios()
             st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -193,6 +201,7 @@ with tab_cats:
             with db_session() as s:
                 s.add(Categoria(nome=cat_nome.strip(), descricao=cat_desc.strip() or None))
             st.success("Categoria criada.")
+            invalidar_cache_categorias()
             st.rerun()
 
     if cats:
@@ -207,12 +216,14 @@ with tab_cats:
                 cat = s.query(Categoria).filter_by(id=cat_sel_id).first()
                 cat.ativo = True
             st.success("Ativada.")
+            invalidar_cache_categorias()
             st.rerun()
         if c2.button("Desativar cat."):
             with db_session() as s:
                 cat = s.query(Categoria).filter_by(id=cat_sel_id).first()
                 cat.ativo = False
             st.success("Desativada.")
+            invalidar_cache_categorias()
             st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -278,6 +289,7 @@ with tab_subcats:
                         categoria_id=cat_map_sub[subcat_cat],
                     ))
                 st.success("Subcategoria criada.")
+                invalidar_cache_categorias()
                 st.rerun()
 
     if subcats:
@@ -292,12 +304,14 @@ with tab_subcats:
                 sc = s.query(Subcategoria).filter_by(id=subcat_sel_id).first()
                 sc.ativo = True
             st.success("Ativada.")
+            invalidar_cache_categorias()
             st.rerun()
         if sc2.button("Desativar subcat."):
             with db_session() as s:
                 sc = s.query(Subcategoria).filter_by(id=subcat_sel_id).first()
                 sc.ativo = False
             st.success("Desativada.")
+            invalidar_cache_categorias()
             st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -334,6 +348,7 @@ with tab_ger:
             with db_session() as s:
                 s.add(Gerencia(nome=ger_nome.strip()))
             st.success("Gerência criada.")
+            invalidar_cache_estrutura()
             st.rerun()
 
     if gers:
@@ -348,12 +363,14 @@ with tab_ger:
                 ger = s.query(Gerencia).filter_by(id=ger_sel_id).first()
                 ger.ativo = True
             st.success("Ativada.")
+            invalidar_cache_estrutura()
             st.rerun()
         if g2.button("Desativar ger."):
             with db_session() as s:
                 ger = s.query(Gerencia).filter_by(id=ger_sel_id).first()
                 ger.ativo = False
             st.success("Desativada.")
+            invalidar_cache_estrutura()
             st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -405,6 +422,7 @@ with tab_coord:
                     with db_session() as s:
                         s.add(Coordenacao(nome=coord_nome.strip(), gerencia_id=ger_map_form[ger_coord]))
                     st.success("Coordenação criada.")
+                    invalidar_cache_estrutura()
                     st.rerun()
 
     if coords:
@@ -419,10 +437,12 @@ with tab_coord:
                 coord = s.query(Coordenacao).filter_by(id=coord_sel_id).first()
                 coord.ativo = True
             st.success("Ativada.")
+            invalidar_cache_estrutura()
             st.rerun()
         if cc2.button("Desativar coord."):
             with db_session() as s:
                 coord = s.query(Coordenacao).filter_by(id=coord_sel_id).first()
                 coord.ativo = False
             st.success("Desativada.")
+            invalidar_cache_estrutura()
             st.rerun()

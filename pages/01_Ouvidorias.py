@@ -18,6 +18,7 @@ from models import (
     TipoUsuario,
     Usuario,
 )
+from utils.cache import carregar_tecnicos_ativos
 
 st.set_page_config(page_title="Ouvidorias", page_icon="📋", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -104,20 +105,6 @@ def carregar_ouvidorias(filtro_status=None, filtro_periodo=None, ocultar_conclui
         session.close()
 
 
-@st.cache_data(ttl=300)
-def carregar_tecnicos_disponiveis():
-    """Retorna lista de técnicos ativos: [(id, nome)]."""
-    session = get_session()
-    try:
-        tecs = (
-            session.query(Usuario)
-            .filter_by(tipo=TipoUsuario.tecnico, ativo=True)
-            .order_by(Usuario.nome)
-            .all()
-        )
-        return [(t.id, t.nome) for t in tecs]
-    finally:
-        session.close()
 
 
 def atribuir_tecnico(ouvidoria_id: int, tecnico_id: int):
@@ -214,7 +201,7 @@ else:
 
     # Pré-carregar técnicos para o popover de atribuição
     if u.tipo == TipoUsuario.gestor:
-        todos_tecs = carregar_tecnicos_disponiveis()
+        todos_tecs = carregar_tecnicos_ativos()
 
     for o in ouvidorias:
         emoji_status = STATUS_EMOJI.get(o["status"], "")
