@@ -12,17 +12,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth
 from auth import usuario_logado
-from database.connection import db_session, get_session
+from database.connection import db_session
 from models import (
     AnexoOuvidoria,
-    AutoLinha,
     Ouvidoria,
     OuvidoriaTecnico,
-    RespostaTecnica,
     StatusOuvidoria,
     TipoUsuario,
-    Usuario,
 )
+from utils.loaders_ouvidoria import carregar_detalhe_ouvidoria
+from utils.ouvidoria_ops import carregar_tecnicos_disponiveis
 
 st.set_page_config(page_title="Detalhe Ouvidoria", page_icon="🔍", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -57,100 +56,7 @@ if not ouvidoria_id:
     st.stop()
 
 
-def carregar_ouvidoria(oid: int):
-    session = get_session()
-    try:
-        o = session.query(Ouvidoria).filter_by(id=oid).first()
-        if not o:
-            return None, [], {}, [], {}, [], [], []
-        atribuicoes = list(o.atribuicoes)
-        respostas = list(o.respostas)
-
-        # Reclamações
-        recs_data = []
-        for r in o.reclamacoes:
-            recs_data.append({
-                "id": r.id,
-                "numero_item": r.numero_item,
-                "categoria": r.categoria.nome if r.categoria else None,
-                "subcategoria": r.subcategoria.nome if r.subcategoria else None,
-                "tipo_servico": r.tipo_servico.value if r.tipo_servico else None,
-                "local_embarque": r.local_embarque,
-                "local_desembarque": r.local_desembarque,
-                "descricao": r.descricao,
-                "empresa_fretamento": r.empresa_fretamento,
-            })
-
-        # Autos de cada reclamação
-        rec_autos = {}
-        for r in o.reclamacoes:
-            autos_info = []
-            for ra in r.autos_vinculados:
-                auto = session.query(AutoLinha).filter_by(id=ra.auto_id).first()
-                if auto:
-                    perm_nome = auto.permissionaria.nome if auto.permissionaria else "–"
-                    autos_info.append({
-                        "numero": auto.numero,
-                        "cidade_inicial": auto.cidade_inicial or "?",
-                        "cidade_final": auto.cidade_final or "?",
-                        "permissionaria": perm_nome,
-                        "tipo": auto.tipo.value if auto.tipo else None,
-                        "regiao_metropolitana": auto.regiao_metropolitana,
-                    })
-            rec_autos[r.id] = autos_info
-
-        # Técnicos
-        tecnicos_info = {}
-        for at in atribuicoes:
-            tec = session.query(Usuario).filter_by(id=at.tecnico_id).first()
-            if tec:
-                tecnicos_info[at.tecnico_id] = {
-                    "nome": tec.nome,
-                    "respondido": at.respondido,
-                    "respondido_em": at.respondido_em,
-                }
-
-        # Respostas técnicas
-        resp_info = []
-        for r in respostas:
-            tec = session.query(Usuario).filter_by(id=r.tecnico_id).first()
-            resp_info.append({
-                "id": r.id,
-                "tecnico": tec.nome if tec else "?",
-                "data": r.data_resposta,
-                "texto": r.texto_resposta,
-            })
-
-        # Respostas da permissionária
-        resps_perm = []
-        for rp in o.respostas_permissionaria:
-            resps_perm.append({
-                "id": rp.id,
-                "conteudo": rp.conteudo,
-                "data_resposta": rp.data_resposta,
-                "registrado_por": rp.registrado_por.nome if rp.registrado_por else "—",
-            })
-
-        # Anexos
-        anexos = []
-        for an in o.anexos:
-            anexos.append({
-                "id": an.id,
-                "nome_arquivo": an.nome_arquivo,
-                "nome_storage": an.nome_storage,
-                "tipo_mime": an.tipo_mime,
-                "tamanho": an.tamanho,
-                "enviado_por": an.enviado_por.nome if an.enviado_por else "?",
-                "criado_em": an.criado_em,
-            })
-
-        session.expunge_all()
-        return o, recs_data, rec_autos, atribuicoes, tecnicos_info, resp_info, resps_perm, anexos
-    finally:
-        session.close()
-
-
-result = carregar_ouvidoria(ouvidoria_id)
+result = carregar_detalhe_ouvidoria(ouvidoria_id)
 if result[0] is None:
     st.error("Ouvidoria não encontrada.")
     st.stop()
@@ -222,16 +128,7 @@ with tab_tecnicos:
         st.divider()
         st.markdown("**Atribuir técnico:**")
 
-        @st.cache_data(ttl=60)
-        def listar_tecnicos():
-            s = get_session()
-            try:
-                tecs = s.query(Usuario).filter_by(tipo=TipoUsuario.tecnico, ativo=True).order_by(Usuario.nome).all()
-                return [(t.id, t.nome) for t in tecs]
-            finally:
-                s.close()
-
-        todos_tecs = listar_tecnicos()
+        todos_tecs = carregar_tecnicos_disponiveis()
         ja_atribuidos = set(tecnicos_info.keys())
         disponiveis = [(tid, nome) for tid, nome in todos_tecs if tid not in ja_atribuidos]
 
@@ -245,7 +142,7 @@ with tab_tecnicos:
                     if o_db.status == StatusOuvidoria.AGUARDANDO_ACOES:
                         o_db.status = StatusOuvidoria.EM_ANALISE_TECNICA
                 st.success("Técnico atribuído. Status atualizado para Em análise técnica.")
-                listar_tecnicos.clear()
+                carregar_tecnicos_disponiveis.clear()
                 st.rerun()
         else:
             st.info("Todos os técnicos disponíveis já foram atribuídos.")

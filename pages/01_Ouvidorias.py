@@ -10,13 +10,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth
 from auth import usuario_logado
-from database.connection import db_session, get_session
-from models import (
-    Ouvidoria,
-    OuvidoriaTecnico,
-    StatusOuvidoria,
-    TipoUsuario,
-    Usuario,
+from models import StatusOuvidoria, TipoUsuario
+from utils.formatters import prazo_circle_label
+from utils.ouvidoria_ops import (
+    atribuir_tecnico,
+    carregar_tecnicos_disponiveis,
+    concluir_ouvidoria,
+    excluir_ouvidoria,
+    listar_ouvidorias,
 )
 
 st.set_page_config(page_title="Ouvidorias", page_icon="📋", layout="wide")
@@ -32,120 +33,6 @@ STATUS_EMOJI = {
     StatusOuvidoria.RETORNO_TECNICO:           "🟢",
     StatusOuvidoria.CONCLUIDO:                 "⚫",
 }
-
-
-def prazo_circle_label(prazo: date | None) -> tuple[str, str]:
-    """Retorna (label_curto, tooltip) para prazo. label_curto ex: '🟢 5d', tooltip: 'DD/MM/AAAA'."""
-    if prazo is None:
-        return "---", ""
-    dias = (prazo - date.today()).days
-    emoji = "🟢" if dias >= 0 else "🔴"
-    return f"{emoji} {dias}d", prazo.strftime("%d/%m/%Y")
-
-
-def carregar_ouvidorias(filtro_status=None, filtro_periodo=None, ocultar_concluidos=True):
-    session = get_session()
-    try:
-        q = session.query(Ouvidoria)
-        if u.tipo == TipoUsuario.tecnico:
-            q = (
-                q.join(OuvidoriaTecnico, OuvidoriaTecnico.ouvidoria_id == Ouvidoria.id)
-                .filter(OuvidoriaTecnico.tecnico_id == u.id)
-            )
-        if filtro_status:
-            q = q.filter(Ouvidoria.status == filtro_status)
-        elif ocultar_concluidos:
-            q = q.filter(Ouvidoria.status != StatusOuvidoria.CONCLUIDO)
-        if filtro_periodo:
-            inicio, fim = filtro_periodo
-            q = q.filter(Ouvidoria.criado_em >= inicio, Ouvidoria.criado_em <= fim)
-        ouvidorias = q.order_by(Ouvidoria.prazo.asc()).all()
-
-        resultado = []
-        for o in ouvidorias:
-            atribuicoes = session.query(OuvidoriaTecnico).filter_by(ouvidoria_id=o.id).all()
-            if atribuicoes:
-                partes = []
-                seen: set[str] = set()
-                pendentes = []
-                todos_responderam = True
-                for at in atribuicoes:
-                    tec = session.query(Usuario).filter_by(id=at.tecnico_id).first()
-                    if tec:
-                        ger = tec.gerencia.nome if tec.gerencia else "?"
-                        coord = tec.coordenacao.nome if tec.coordenacao else "?"
-                        chave = f"{ger}-{coord}"
-                        if chave not in seen:
-                            partes.append(chave)
-                            seen.add(chave)
-                        if not at.respondido:
-                            pendentes.append(tec.nome)
-                            todos_responderam = False
-                if todos_responderam:
-                    coord_ger = "SUCOL - Ouvidoria"
-                else:
-                    coord_ger = " / ".join(partes) if partes else "Em análise"
-                responsaveis = ", ".join(pendentes) if pendentes else "–"
-            else:
-                coord_ger = "SUCOL - Ouvidoria"
-                responsaveis = "–"
-
-            resultado.append({
-                "id": o.id,
-                "protocolo": o.protocolo or "–",
-                "status": o.status,
-                "prazo": o.prazo,
-                "prazo_permissionaria": o.prazo_permissionaria,
-                "coord_ger": coord_ger,
-                "responsaveis": responsaveis,
-            })
-        return resultado
-    finally:
-        session.close()
-
-
-@st.cache_data(ttl=300)
-def carregar_tecnicos_disponiveis():
-    """Retorna lista de técnicos ativos: [(id, nome)]."""
-    session = get_session()
-    try:
-        tecs = (
-            session.query(Usuario)
-            .filter_by(tipo=TipoUsuario.tecnico, ativo=True)
-            .order_by(Usuario.nome)
-            .all()
-        )
-        return [(t.id, t.nome) for t in tecs]
-    finally:
-        session.close()
-
-
-def atribuir_tecnico(ouvidoria_id: int, tecnico_id: int):
-    with db_session() as s:
-        existe = s.query(OuvidoriaTecnico).filter_by(
-            ouvidoria_id=ouvidoria_id, tecnico_id=tecnico_id
-        ).first()
-        if existe:
-            return False
-        s.add(OuvidoriaTecnico(ouvidoria_id=ouvidoria_id, tecnico_id=tecnico_id))
-        o = s.query(Ouvidoria).filter_by(id=ouvidoria_id).first()
-        if o and o.status == StatusOuvidoria.AGUARDANDO_ACOES:
-            o.status = StatusOuvidoria.EM_ANALISE_TECNICA
-    return True
-
-
-def excluir_ouvidoria(oid: int):
-    with db_session() as s:
-        o = s.query(Ouvidoria).filter_by(id=oid).first()
-        if o:
-            s.delete(o)
-
-
-def concluir_ouvidoria(oid: int):
-    with db_session() as s:
-        o = s.query(Ouvidoria).filter_by(id=oid).first()
-        if o:
-            o.status = StatusOuvidoria.CONCLUIDO
 
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
@@ -183,10 +70,11 @@ with col_f4:
             st.switch_page("pages/02_Nova_Ouvidoria.py")
 
 filtro_s = None if sel_status == "Todos" else StatusOuvidoria(sel_status)
-ouvidorias = carregar_ouvidorias(
+ouvidorias = listar_ouvidorias(
     filtro_status=filtro_s,
     filtro_periodo=periodo,
     ocultar_concluidos=ocultar_concluidos if sel_status == "Todos" else False,
+    usuario=u,
 )
 
 st.divider()

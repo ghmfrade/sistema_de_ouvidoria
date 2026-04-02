@@ -5,15 +5,27 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 import altair as alt
-import math
 from datetime import date, timedelta
-from io import BytesIO
-from sqlalchemy import text
 
 import auth
 from auth import usuario_logado
 from database.connection import get_session
 from models import Gerencia, Categoria, Permissionaria
+from utils.formatters import to_excel
+from utils.dashboard_queries import (
+    query_categorias_pizza,
+    query_cidades,
+    query_empresas_pontuacao,
+    query_evolucao_mensal,
+    query_heatmap_cat_empresa,
+    query_kpis_qualidade,
+    query_sla,
+    query_tabela_analitica,
+    query_tendencia_empresa,
+    query_top_autos_pontuacao,
+    query_top_categoria,
+    query_top_permissionaria,
+)
 
 st.set_page_config(page_title="Dashboard Qualidade", page_icon="🔎", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -35,15 +47,17 @@ with st.sidebar:
     st.divider()
     st.markdown("### Filtros")
 
-    def _load(model, filtro_ativo=True):
-        s = get_session()
-        try:
-            q = s.query(model)
-            if filtro_ativo and hasattr(model, "ativo"):
-                q = q.filter_by(ativo=True)
-            return q.order_by(model.nome).all()
-        finally:
-            s.close()
+    # Loader generico para sidebar (substitui _load inline)
+    s = get_session()
+    try:
+        ger_list = s.query(Gerencia).filter_by(ativo=True).order_by(Gerencia.nome).all()
+        ger_list = [(g.id, g.nome) for g in ger_list]
+        cat_list_all = s.query(Categoria).filter_by(ativo=True).order_by(Categoria.nome).all()
+        cat_list_all = [(c.id, c.nome) for c in cat_list_all]
+        perm_list = s.query(Permissionaria).order_by(Permissionaria.nome).all()
+        perm_list = [(p.id, p.nome) for p in perm_list]
+    finally:
+        s.close()
 
     st.markdown("**Periodo**")
     periodo_opcoes = {
@@ -66,19 +80,16 @@ with st.sidebar:
 
     st.divider()
 
-    ger_list = _load(Gerencia)
-    ger_opcoes = ["Todas"] + [g.nome for g in ger_list]
+    ger_opcoes = ["Todas"] + [n for _, n in ger_list]
     ger_sel = st.selectbox("Gerencia", ger_opcoes, key="qual_ger")
-    ger_id = next((g.id for g in ger_list if g.nome == ger_sel), None)
+    ger_id = next((gid for gid, n in ger_list if n == ger_sel), None)
 
-    cat_list = _load(Categoria)
-    cat_nomes = [c.nome for c in cat_list]
+    cat_nomes = [n for _, n in cat_list_all]
     cat_sel = st.multiselect("Categorias", cat_nomes, default=cat_nomes, key="qual_cat")
 
-    perm_list = _load(Permissionaria, filtro_ativo=False)
-    perm_opcoes = ["Todas"] + [p.nome for p in perm_list]
+    perm_opcoes = ["Todas"] + [n for _, n in perm_list]
     perm_sel = st.selectbox("Permissionaria", perm_opcoes, key="qual_perm")
-    perm_id = next((p.id for p in perm_list if p.nome == perm_sel), None)
+    perm_id = next((pid for pid, n in perm_list if n == perm_sel), None)
 
     st.divider()
     tipo_servico_opcoes = ["Todos", "Regular – Intermunicipal", "Regular – Metropolitano", "Fretamento Intermunicipal", "Fretamento Metropolitano"]
@@ -94,109 +105,20 @@ if data_ini > data_fim:
     st.error("A data inicial deve ser anterior a data final.")
     st.stop()
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-def _exec(sql, params=None):
-    s = get_session()
-    try:
-        return s.execute(text(sql), params or {}).fetchall()
-    finally:
-        s.close()
-
+# ── Parametros comuns ─────────────────────────────────────────────────────────
 _cat_list = cat_sel if cat_sel else cat_nomes
-_ger_join = "JOIN usuarios usr ON usr.id = ot.tecnico_id" if ger_id else ""
-_ger_where = "AND usr.gerencia_id = :ger_id" if ger_id else ""
-_ger_ot = "JOIN ouvidoria_tecnicos ot ON ot.ouvidoria_id = o.id" if ger_id else ""
-_tipo_srv_where = "AND al.tipo::text = :tipo_servico" if tipo_servico_sel != "Todos" else ""
-_tipo_srv_rec_where = "AND r.tipo_servico::text = :tipo_servico" if tipo_servico_sel != "Todos" else ""
-
-base_params = {
-    "ini": data_ini,
-    "fim": data_fim,
-    "ger_id": ger_id,
-    "perm_id": perm_id,
-    "cats": _cat_list,
-    "tipo_servico": tipo_servico_sel if tipo_servico_sel != "Todos" else None,
-}
+_tipo_srv = tipo_servico_sel if tipo_servico_sel != "Todos" else None
 
 # ── KPIs ──────────────────────────────────────────────────────────────────────
-kpi_sql = f"""
-    SELECT
-        COUNT(DISTINCT r.id) AS total_rec,
-        COALESCE(SUM(ra.pontuacao), 0) AS pontuacao_total,
-        COUNT(DISTINCT al.id) AS autos_unicos
-    FROM reclamacoes r
-    JOIN ouvidorias o ON o.id = r.ouvidoria_id
-    LEFT JOIN reclamacao_autos ra ON ra.reclamacao_id = r.id
-    LEFT JOIN autos_linha al ON al.id = ra.auto_id
-    LEFT JOIN categorias cat ON cat.id = r.categoria_id
-    {_ger_ot}
-    {_ger_join}
-    WHERE o.criado_em::date BETWEEN :ini AND :fim
-    {_ger_where}
-    {_tipo_srv_where}
-    {"AND al.permissionaria_id = :perm_id" if perm_id else ""}
-    {"AND cat.nome = ANY(:cats)" if cat_sel else ""}
-"""
-kpi_row = _exec(kpi_sql, base_params)
-total_rec = int(kpi_row[0][0]) if kpi_row else 0
-pontuacao_total = float(kpi_row[0][1]) if kpi_row else 0.0
-autos_unicos = int(kpi_row[0][2]) if kpi_row else 0
+total_rec, pontuacao_total, autos_unicos = query_kpis_qualidade(data_ini, data_fim, ger_id, perm_id, _cat_list, _tipo_srv)
 
-# Empresa com maior pontuacao (nome completo)
-perm_top_sql = f"""
-    SELECT p.nome, ROUND(COALESCE(SUM(ra.pontuacao), 0)::numeric, 2) AS pts
-    FROM reclamacao_autos ra
-    JOIN autos_linha al ON al.id = ra.auto_id
-    JOIN permissionarias p ON p.id = al.permissionaria_id
-    JOIN reclamacoes r ON r.id = ra.reclamacao_id
-    JOIN ouvidorias o ON o.id = r.ouvidoria_id
-    LEFT JOIN categorias cat ON cat.id = r.categoria_id
-    {_ger_ot}
-    {_ger_join}
-    WHERE o.criado_em::date BETWEEN :ini AND :fim
-    {_ger_where}
-    {_tipo_srv_where}
-    {"AND al.permissionaria_id = :perm_id" if perm_id else ""}
-    {"AND cat.nome = ANY(:cats)" if cat_sel else ""}
-    GROUP BY p.nome ORDER BY pts DESC LIMIT 1
-"""
-perm_top_rows = _exec(perm_top_sql, base_params)
-perm_top_nome = perm_top_rows[0][0] if perm_top_rows else "–"
-perm_top_pts = float(perm_top_rows[0][1]) if perm_top_rows else 0
+perm_top_result = query_top_permissionaria(data_ini, data_fim, ger_id, perm_id, _cat_list, _tipo_srv)
+perm_top_nome = perm_top_result[0] if perm_top_result else "–"
+perm_top_pts = perm_top_result[1] if perm_top_result else 0
 
-# Categoria mais reclamada
-cat_top_sql = f"""
-    SELECT cat.nome, COUNT(r.id) AS total
-    FROM reclamacoes r
-    JOIN ouvidorias o ON o.id = r.ouvidoria_id
-    JOIN categorias cat ON cat.id = r.categoria_id
-    {_ger_ot}
-    {_ger_join}
-    WHERE o.criado_em::date BETWEEN :ini AND :fim
-    {_ger_where}
-    {_tipo_srv_rec_where}
-    {"AND cat.nome = ANY(:cats)" if cat_sel else ""}
-    GROUP BY cat.nome ORDER BY total DESC LIMIT 1
-"""
-cat_top_rows = _exec(cat_top_sql, base_params)
-cat_top = cat_top_rows[0][0] if cat_top_rows else "–"
+cat_top = query_top_categoria(data_ini, data_fim, ger_id, _cat_list, _tipo_srv)
 
-# SLA — ouvidorias respondidas dentro do prazo
-sla_sql = f"""
-    SELECT
-        COUNT(DISTINCT o.id) AS total,
-        COUNT(DISTINCT o.id) FILTER (
-            WHERE o.status::text = 'Concluido' AND o.atualizado_em::date <= o.prazo
-        ) AS dentro_prazo
-    FROM ouvidorias o
-    {_ger_ot}
-    {_ger_join}
-    WHERE o.criado_em::date BETWEEN :ini AND :fim
-    {_ger_where}
-"""
-sla_rows = _exec(sla_sql, base_params)
-sla_total = int(sla_rows[0][0]) if sla_rows else 0
-sla_ok = int(sla_rows[0][1]) if sla_rows else 0
+sla_total, sla_ok = query_sla(data_ini, data_fim, ger_id)
 sla_pct = round((sla_ok / sla_total * 100), 1) if sla_total > 0 else 0
 
 # ── Display KPIs ──────────────────────────────────────────────────────────────
@@ -207,7 +129,6 @@ k3.metric("Autos Reclamados", autos_unicos)
 k4.metric("Categoria Top", cat_top)
 k5.metric("SLA no Prazo", f"{sla_pct}%")
 
-# Empresa destaque em callout (nome completo, sem truncar)
 if perm_top_nome != "–":
     st.info(f"**Empresa com maior pontuacao acumulada:** {perm_top_nome} ({perm_top_pts} pts)")
 
@@ -217,21 +138,7 @@ st.divider()
 # SECAO 1 — Evolucao Temporal
 # ══════════════════════════════════════════════════════════════════════════════
 st.subheader("Evolucao Mensal de Reclamacoes")
-evo_sql = f"""
-    SELECT TO_CHAR(DATE_TRUNC('month', o.criado_em), 'YYYY-MM') AS mes,
-           COUNT(r.id) AS total
-    FROM reclamacoes r
-    JOIN ouvidorias o ON o.id = r.ouvidoria_id
-    LEFT JOIN categorias cat ON cat.id = r.categoria_id
-    {_ger_ot}
-    {_ger_join}
-    WHERE o.criado_em::date BETWEEN :ini AND :fim
-    {_ger_where}
-    {_tipo_srv_rec_where}
-    {"AND cat.nome = ANY(:cats)" if cat_sel else ""}
-    GROUP BY mes ORDER BY mes
-"""
-evo_rows = _exec(evo_sql, base_params)
+evo_rows = query_evolucao_mensal(data_ini, data_fim, ger_id, _cat_list, _tipo_srv)
 if evo_rows:
     df_evo = pd.DataFrame(evo_rows, columns=["mes", "total"])
     line = (
@@ -273,24 +180,7 @@ col1, col2 = st.columns(2)
 # ── Top N Autos por Pontuacao ─────────────────────────────────────────────────
 with col1:
     st.subheader(f"Top {top_n} Autos por Pontuacao")
-    autos_sql = f"""
-        SELECT al.numero, COALESCE(SUM(ra.pontuacao), 0) AS pts, p.nome AS empresa
-        FROM reclamacao_autos ra
-        JOIN autos_linha al ON al.id = ra.auto_id
-        LEFT JOIN permissionarias p ON p.id = al.permissionaria_id
-        JOIN reclamacoes r ON r.id = ra.reclamacao_id
-        JOIN ouvidorias o ON o.id = r.ouvidoria_id
-        LEFT JOIN categorias cat ON cat.id = r.categoria_id
-        {_ger_ot}
-        {_ger_join}
-        WHERE o.criado_em::date BETWEEN :ini AND :fim
-        {_ger_where}
-        {_tipo_srv_where}
-        {"AND al.permissionaria_id = :perm_id" if perm_id else ""}
-        {"AND cat.nome = ANY(:cats)" if cat_sel else ""}
-        GROUP BY al.numero, p.nome ORDER BY pts DESC LIMIT :topn
-    """
-    autos_rows = _exec(autos_sql, {**base_params, "topn": top_n})
+    autos_rows = query_top_autos_pontuacao(data_ini, data_fim, ger_id, perm_id, _cat_list, _tipo_srv, top_n)
     if autos_rows:
         df_autos = pd.DataFrame(autos_rows, columns=["auto", "pontuacao", "empresa"])
         df_autos["pontuacao"] = df_autos["pontuacao"].astype(float).round(4)
@@ -312,25 +202,7 @@ with col1:
 # ── Empresas por Pontuacao ────────────────────────────────────────────────────
 with col2:
     st.subheader("Empresas por Pontuacao")
-    perm_sql = f"""
-        SELECT p.nome AS empresa, COALESCE(SUM(ra.pontuacao), 0) AS pts,
-               COUNT(DISTINCT r.id) AS num_reclamacoes
-        FROM reclamacao_autos ra
-        JOIN autos_linha al ON al.id = ra.auto_id
-        JOIN permissionarias p ON p.id = al.permissionaria_id
-        JOIN reclamacoes r ON r.id = ra.reclamacao_id
-        JOIN ouvidorias o ON o.id = r.ouvidoria_id
-        LEFT JOIN categorias cat ON cat.id = r.categoria_id
-        {_ger_ot}
-        {_ger_join}
-        WHERE o.criado_em::date BETWEEN :ini AND :fim
-        {_ger_where}
-        {_tipo_srv_where}
-        {"AND al.permissionaria_id = :perm_id" if perm_id else ""}
-        {"AND cat.nome = ANY(:cats)" if cat_sel else ""}
-        GROUP BY p.nome ORDER BY pts DESC LIMIT 20
-    """
-    perm_rows = _exec(perm_sql, base_params)
+    perm_rows = query_empresas_pontuacao(data_ini, data_fim, ger_id, perm_id, _cat_list, _tipo_srv)
     if perm_rows:
         df_perm = pd.DataFrame(perm_rows, columns=["empresa", "pontuacao", "reclamacoes"])
         df_perm["pontuacao"] = df_perm["pontuacao"].astype(float).round(4)
@@ -360,20 +232,7 @@ col3, col4 = st.columns(2)
 # ── Pizza de Categorias ───────────────────────────────────────────────────────
 with col3:
     st.subheader("Reclamacoes por Categoria")
-    cat_sql = f"""
-        SELECT COALESCE(cat.nome, '(sem categoria)') AS categoria, COUNT(r.id) AS total
-        FROM reclamacoes r
-        JOIN ouvidorias o ON o.id = r.ouvidoria_id
-        LEFT JOIN categorias cat ON cat.id = r.categoria_id
-        {_ger_ot}
-        {_ger_join}
-        WHERE o.criado_em::date BETWEEN :ini AND :fim
-        {_ger_where}
-        {_tipo_srv_rec_where}
-        {"AND cat.nome = ANY(:cats)" if cat_sel else ""}
-        GROUP BY categoria ORDER BY total DESC
-    """
-    cat_rows = _exec(cat_sql, base_params)
+    cat_rows = query_categorias_pizza(data_ini, data_fim, ger_id, _cat_list, _tipo_srv)
     if cat_rows:
         df_cat = pd.DataFrame(cat_rows, columns=["categoria", "total"])
         total_cat = df_cat["total"].sum()
@@ -412,59 +271,7 @@ with col4:
         key="tipo_cidade",
     )
 
-    if tipo_cidade == "Embarque":
-        cid_sql = f"""
-            SELECT r.local_embarque AS cidade, COUNT(*) AS total
-            FROM reclamacoes r
-            JOIN ouvidorias o ON o.id = r.ouvidoria_id
-            {_ger_ot}
-            {_ger_join}
-            WHERE o.criado_em::date BETWEEN :ini AND :fim
-              AND r.local_embarque IS NOT NULL AND r.local_embarque <> ''
-            {_ger_where}
-            {_tipo_srv_rec_where}
-            GROUP BY cidade ORDER BY total DESC LIMIT 20
-        """
-    elif tipo_cidade == "Desembarque":
-        cid_sql = f"""
-            SELECT r.local_desembarque AS cidade, COUNT(*) AS total
-            FROM reclamacoes r
-            JOIN ouvidorias o ON o.id = r.ouvidoria_id
-            {_ger_ot}
-            {_ger_join}
-            WHERE o.criado_em::date BETWEEN :ini AND :fim
-              AND r.local_desembarque IS NOT NULL AND r.local_desembarque <> ''
-            {_ger_where}
-            GROUP BY cidade ORDER BY total DESC LIMIT 20
-        """
-    else:
-        cid_sql = f"""
-            SELECT cidade, SUM(total) AS total FROM (
-                SELECT r.local_embarque AS cidade, COUNT(*) AS total
-                FROM reclamacoes r
-                JOIN ouvidorias o ON o.id = r.ouvidoria_id
-                {_ger_ot}
-                {_ger_join}
-                WHERE o.criado_em::date BETWEEN :ini AND :fim
-                  AND r.local_embarque IS NOT NULL AND r.local_embarque <> ''
-                {_ger_where}
-                GROUP BY r.local_embarque
-                UNION ALL
-                SELECT r.local_desembarque AS cidade, COUNT(*) AS total
-                FROM reclamacoes r
-                JOIN ouvidorias o ON o.id = r.ouvidoria_id
-                {_ger_ot}
-                {_ger_join}
-                WHERE o.criado_em::date BETWEEN :ini AND :fim
-                  AND r.local_desembarque IS NOT NULL AND r.local_desembarque <> ''
-                {_ger_where}
-                {_tipo_srv_rec_where}
-                GROUP BY r.local_desembarque
-            ) sub
-            GROUP BY cidade ORDER BY total DESC LIMIT 20
-        """
-
-    cid_rows = _exec(cid_sql, base_params)
+    cid_rows = query_cidades(data_ini, data_fim, ger_id, _tipo_srv, tipo_cidade)
     if cid_rows:
         df_cid = pd.DataFrame(cid_rows, columns=["cidade", "total"])
         chart_cid = (
@@ -489,24 +296,7 @@ st.divider()
 st.subheader("Mapa de Calor: Categorias x Empresas")
 st.caption("Identifica concentracao de reclamacoes por tipo e empresa — util para acoes direcionadas de fiscalizacao.")
 
-heat_sql = f"""
-    SELECT p.nome AS empresa, COALESCE(cat.nome, '(sem)') AS categoria, COUNT(r.id) AS total
-    FROM reclamacoes r
-    JOIN ouvidorias o ON o.id = r.ouvidoria_id
-    JOIN reclamacao_autos ra ON ra.reclamacao_id = r.id
-    JOIN autos_linha al ON al.id = ra.auto_id
-    JOIN permissionarias p ON p.id = al.permissionaria_id
-    LEFT JOIN categorias cat ON cat.id = r.categoria_id
-    {_ger_ot}
-    {_ger_join}
-    WHERE o.criado_em::date BETWEEN :ini AND :fim
-    {_ger_where}
-    {_tipo_srv_where}
-    {"AND al.permissionaria_id = :perm_id" if perm_id else ""}
-    {"AND cat.nome = ANY(:cats)" if cat_sel else ""}
-    GROUP BY p.nome, categoria ORDER BY total DESC
-"""
-heat_rows = _exec(heat_sql, base_params)
+heat_rows = query_heatmap_cat_empresa(data_ini, data_fim, ger_id, perm_id, _cat_list, _tipo_srv)
 if heat_rows:
     df_heat = pd.DataFrame(heat_rows, columns=["empresa", "categoria", "total"])
     # Limitar a top 15 empresas por volume total
@@ -551,26 +341,7 @@ st.divider()
 st.subheader("Tendencia Mensal por Empresa")
 st.caption("Acompanhe como cada permissionaria evolui ao longo do tempo — identifique picos e tendencias.")
 
-trend_sql = f"""
-    SELECT TO_CHAR(DATE_TRUNC('month', o.criado_em), 'YYYY-MM') AS mes,
-           p.nome AS empresa,
-           COUNT(r.id) AS total
-    FROM reclamacoes r
-    JOIN ouvidorias o ON o.id = r.ouvidoria_id
-    JOIN reclamacao_autos ra ON ra.reclamacao_id = r.id
-    JOIN autos_linha al ON al.id = ra.auto_id
-    JOIN permissionarias p ON p.id = al.permissionaria_id
-    LEFT JOIN categorias cat ON cat.id = r.categoria_id
-    {_ger_ot}
-    {_ger_join}
-    WHERE o.criado_em::date BETWEEN :ini AND :fim
-    {_ger_where}
-    {_tipo_srv_where}
-    {"AND al.permissionaria_id = :perm_id" if perm_id else ""}
-    {"AND cat.nome = ANY(:cats)" if cat_sel else ""}
-    GROUP BY mes, p.nome ORDER BY mes
-"""
-trend_rows = _exec(trend_sql, base_params)
+trend_rows = query_tendencia_empresa(data_ini, data_fim, ger_id, perm_id, _cat_list, _tipo_srv)
 if trend_rows:
     df_trend = pd.DataFrame(trend_rows, columns=["mes", "empresa", "total"])
     # Limitar top 8 empresas
@@ -601,31 +372,7 @@ st.divider()
 st.subheader("Tabela Analitica de Autos")
 st.caption("Detalhe completo dos autos de linha com pontuacao acumulada — exporte para Excel para relatorios.")
 
-tabela_sql = f"""
-    SELECT al.numero AS "Auto", al.tipo::text AS "Tipo",
-           al.itinerario AS "Itinerario",
-           COALESCE(p.nome, '–') AS "Empresa",
-           COALESCE(al.cidade_inicial, '–') AS "Cidade Inicial",
-           COALESCE(al.cidade_final, '–') AS "Cidade Final",
-           COUNT(DISTINCT r.id) AS "Reclamacoes",
-           ROUND(COALESCE(SUM(ra.pontuacao), 0)::numeric, 4) AS "Pontuacao"
-    FROM reclamacao_autos ra
-    JOIN autos_linha al ON al.id = ra.auto_id
-    LEFT JOIN permissionarias p ON p.id = al.permissionaria_id
-    JOIN reclamacoes r ON r.id = ra.reclamacao_id
-    JOIN ouvidorias o ON o.id = r.ouvidoria_id
-    LEFT JOIN categorias cat ON cat.id = r.categoria_id
-    {_ger_ot}
-    {_ger_join}
-    WHERE o.criado_em::date BETWEEN :ini AND :fim
-    {_ger_where}
-    {_tipo_srv_where}
-    {"AND al.permissionaria_id = :perm_id" if perm_id else ""}
-    {"AND cat.nome = ANY(:cats)" if cat_sel else ""}
-    GROUP BY al.numero, al.tipo, al.itinerario, p.nome, al.cidade_inicial, al.cidade_final
-    ORDER BY "Pontuacao" DESC
-"""
-tabela_rows = _exec(tabela_sql, base_params)
+tabela_rows = query_tabela_analitica(data_ini, data_fim, ger_id, perm_id, _cat_list, _tipo_srv)
 if tabela_rows:
     df_tabela = pd.DataFrame(tabela_rows, columns=[
         "Auto", "Tipo", "Itinerario", "Empresa", "Cidade Inicial", "Cidade Final", "Reclamacoes", "Pontuacao",
@@ -640,16 +387,10 @@ if tabela_rows:
         },
     )
 
-    def _to_excel(df):
-        buf = BytesIO()
-        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="Autos")
-        return buf.getvalue()
-
     c_dl1, c_dl2, _ = st.columns([1, 1, 3])
     c_dl1.download_button(
         label="Exportar Excel",
-        data=_to_excel(df_tabela),
+        data=to_excel(df_tabela),
         file_name=f"autos_pontuacao_{data_ini}_{data_fim}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary",

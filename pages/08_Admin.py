@@ -3,10 +3,22 @@ import streamlit as st
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pandas as pd
+
 import auth
 from auth import usuario_logado
 from database.connection import db_session, get_session
 from models import Usuario, TipoUsuario, Categoria, Subcategoria, Gerencia, Coordenacao
+from utils.loaders_admin import (
+    carregar_coordenacoes,
+    carregar_gerencias,
+    listar_cats,
+    listar_coord,
+    listar_ger,
+    listar_subcats,
+    listar_usuarios,
+)
+from utils.loaders_catalog import carregar_categorias
 
 st.set_page_config(page_title="Administração", page_icon="⚙️", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -37,30 +49,8 @@ tab_users, tab_cats, tab_subcats, tab_ger, tab_coord = st.tabs(
 with tab_users:
     st.subheader("Usuários Técnicos")
 
-    def listar_usuarios():
-        s = get_session()
-        try:
-            users = s.query(Usuario).order_by(Usuario.nome).all()
-            result = []
-            for usr in users:
-                g = usr.gerencia.nome if usr.gerencia else "–"
-                c = usr.coordenacao.nome if usr.coordenacao else "–"
-                result.append({
-                    "id": usr.id,
-                    "nome": usr.nome,
-                    "email": usr.email,
-                    "tipo": usr.tipo.value,
-                    "gerencia": g,
-                    "coordenacao": c,
-                    "ativo": "✅" if usr.ativo else "❌",
-                })
-            return result
-        finally:
-            s.close()
-
     users = listar_usuarios()
     if users:
-        import pandas as pd
         df = pd.DataFrame(users).rename(columns={
             "id": "ID", "nome": "Nome", "email": "E-mail",
             "tipo": "Perfil", "gerencia": "Gerência",
@@ -70,25 +60,6 @@ with tab_users:
 
     st.divider()
     st.markdown("#### Novo Usuário / Editar Senha")
-
-    def carregar_gerencias():
-        s = get_session()
-        try:
-            gs = s.query(Gerencia).order_by(Gerencia.nome).all()
-            return [(g.id, g.nome) for g in gs]
-        finally:
-            s.close()
-
-    def carregar_coordenacoes(gerencia_id=None):
-        s = get_session()
-        try:
-            q = s.query(Coordenacao)
-            if gerencia_id:
-                q = q.filter_by(gerencia_id=gerencia_id)
-            cs = q.order_by(Coordenacao.nome).all()
-            return [(c.id, c.nome) for c in cs]
-        finally:
-            s.close()
 
     gerencias = carregar_gerencias()
     ger_map = {nome: gid for gid, nome in gerencias}
@@ -165,17 +136,8 @@ with tab_users:
 with tab_cats:
     st.subheader("Categorias de Reclamação")
 
-    def listar_cats():
-        s = get_session()
-        try:
-            cats = s.query(Categoria).order_by(Categoria.nome).all()
-            return [{"id": c.id, "nome": c.nome, "descricao": c.descricao or "", "ativo": "✅" if c.ativo else "❌"} for c in cats]
-        finally:
-            s.close()
-
     cats = listar_cats()
     if cats:
-        import pandas as pd
         df_c = pd.DataFrame(cats).rename(columns={"id": "ID", "nome": "Nome", "descricao": "Descrição", "ativo": "Ativo"})
         st.dataframe(df_c.drop(columns=["ID"]), use_container_width=True, hide_index=True)
 
@@ -221,27 +183,8 @@ with tab_cats:
 with tab_subcats:
     st.subheader("Subcategorias de Reclamação")
 
-    def listar_subcats():
-        s = get_session()
-        try:
-            subcats = (
-                s.query(Subcategoria)
-                .join(Categoria)
-                .order_by(Categoria.nome, Subcategoria.nome)
-                .all()
-            )
-            return [{
-                "id": sc.id,
-                "nome": sc.nome,
-                "categoria": sc.categoria.nome if sc.categoria else "–",
-                "ativo": "✅" if sc.ativo else "❌",
-            } for sc in subcats]
-        finally:
-            s.close()
-
     subcats = listar_subcats()
     if subcats:
-        import pandas as pd
         df_sc = pd.DataFrame(subcats).rename(columns={
             "id": "ID", "nome": "Nome", "categoria": "Categoria", "ativo": "Ativo"
         })
@@ -250,15 +193,7 @@ with tab_subcats:
     st.divider()
     st.markdown("#### Nova Subcategoria")
 
-    def carregar_cats_ativas():
-        s = get_session()
-        try:
-            cs = s.query(Categoria).filter_by(ativo=True).order_by(Categoria.nome).all()
-            return [(c.id, c.nome) for c in cs]
-        finally:
-            s.close()
-
-    cats_ativas = carregar_cats_ativas()
+    cats_ativas = carregar_categorias()
     if not cats_ativas:
         st.warning("Cadastre ao menos uma Categoria ativa primeiro.")
     else:
@@ -306,17 +241,8 @@ with tab_subcats:
 with tab_ger:
     st.subheader("Gerências")
 
-    def listar_ger():
-        s = get_session()
-        try:
-            gs = s.query(Gerencia).order_by(Gerencia.nome).all()
-            return [{"id": g.id, "nome": g.nome, "ativo": "✅" if g.ativo else "❌"} for g in gs]
-        finally:
-            s.close()
-
     gers = listar_ger()
     if gers:
-        import pandas as pd
         st.dataframe(
             pd.DataFrame(gers).rename(columns={"id": "ID", "nome": "Nome", "ativo": "Ativo"}).drop(columns=["ID"]),
             use_container_width=True,
@@ -362,33 +288,16 @@ with tab_ger:
 with tab_coord:
     st.subheader("Coordenações")
 
-    def listar_coord():
-        s = get_session()
-        try:
-            cs = s.query(Coordenacao).order_by(Coordenacao.nome).all()
-            return [{"id": c.id, "nome": c.nome, "gerencia": c.gerencia.nome if c.gerencia else "–", "ativo": "✅" if c.ativo else "❌"} for c in cs]
-        finally:
-            s.close()
-
-    coords = listar_coord()
-    if coords:
-        import pandas as pd
+    coords_list = listar_coord()
+    if coords_list:
         st.dataframe(
-            pd.DataFrame(coords).rename(columns={"id": "ID", "nome": "Nome", "gerencia": "Gerência", "ativo": "Ativo"}).drop(columns=["ID"]),
+            pd.DataFrame(coords_list).rename(columns={"id": "ID", "nome": "Nome", "gerencia": "Gerência", "ativo": "Ativo"}).drop(columns=["ID"]),
             use_container_width=True,
             hide_index=True,
         )
 
-    def carregar_ger_simples():
-        s = get_session()
-        try:
-            gs = s.query(Gerencia).order_by(Gerencia.nome).all()
-            return [(g.id, g.nome) for g in gs]
-        finally:
-            s.close()
-
     with st.form("form_coord"):
-        gs_form = carregar_ger_simples()
+        gs_form = carregar_gerencias()
         if not gs_form:
             st.warning("Cadastre ao menos uma Gerência primeiro.")
             st.form_submit_button("➕ Criar", disabled=True)
@@ -407,12 +316,12 @@ with tab_coord:
                     st.success("Coordenação criada.")
                     st.rerun()
 
-    if coords:
+    if coords_list:
         st.divider()
         st.markdown("#### Ativar / Desativar Coordenação")
-        coord_labels = [f"{c['nome']} ({c['gerencia']})" for c in coords]
+        coord_labels = [f"{c['nome']} ({c['gerencia']})" for c in coords_list]
         coord_sel_label = st.selectbox("Coordenação", coord_labels, key="toggle_coord")
-        coord_sel_id = coords[coord_labels.index(coord_sel_label)]["id"]
+        coord_sel_id = coords_list[coord_labels.index(coord_sel_label)]["id"]
         cc1, cc2 = st.columns(2)
         if cc1.button("Ativar coord."):
             with db_session() as s:

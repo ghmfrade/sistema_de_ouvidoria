@@ -3,15 +3,14 @@
 from datetime import date
 
 import streamlit as st
-from sqlalchemy import select
-
-from database.connection import db_session, get_session
+from database.connection import db_session
 from models import (
     Ouvidoria,
     RespostaPermissionaria,
     StatusOuvidoria,
     Usuario,
 )
+from utils.loaders_ouvidoria import carregar_ouvidoria_para_permissionaria
 
 st.set_page_config(page_title="Resposta da Permissionária", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -31,37 +30,7 @@ if not ouvidoria_id:
 
 
 # ── Carregar dados ────────────────────────────────────────────────────────
-@st.cache_data(ttl=60)
-def carregar_ouvidoria(_oid: int) -> dict | None:
-    session = get_session()
-    try:
-        o = session.get(Ouvidoria, _oid)
-        if not o:
-            return None
-        resps = []
-        for r in o.respostas_permissionaria:
-            resps.append(
-                {
-                    "id": r.id,
-                    "conteudo": r.conteudo,
-                    "data_resposta": r.data_resposta,
-                    "registrado_por": r.registrado_por.nome if r.registrado_por else "—",
-                    "criado_em": r.criado_em,
-                }
-            )
-        return {
-            "id": o.id,
-            "conteudo": o.conteudo,
-            "status": o.status.value,
-            "prazo": o.prazo,
-            "prazo_permissionaria": o.prazo_permissionaria,
-            "respostas_permissionaria": resps,
-        }
-    finally:
-        session.close()
-
-
-dados = carregar_ouvidoria(ouvidoria_id)
+dados = carregar_ouvidoria_para_permissionaria(ouvidoria_id)
 if not dados:
     st.error("Ouvidoria não encontrada.")
     st.stop()
@@ -114,5 +83,5 @@ if submitted:
             if o_db and o_db.status == StatusOuvidoria.AGUARDANDO_PERMISSIONARIA:
                 o_db.status = StatusOuvidoria.AGUARDANDO_ACOES
         st.success("Resposta da permissionária registrada com sucesso!")
-        carregar_ouvidoria.clear()
+        carregar_ouvidoria_para_permissionaria.clear()
         st.rerun()
