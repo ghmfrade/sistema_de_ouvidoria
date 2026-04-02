@@ -95,6 +95,9 @@ def listar_coord():
     s = get_session()
     try:
         cs = s.query(Coordenacao).order_by(Coordenacao.nome).all()
-        return [{"id": c.id, "nome": c.nome, "gerencia": c.gerencia.nome if c.gerencia else "–", "ativo": "✅" if c.ativo else "❌"} for c in cs]
+        return [{"id": c.id, 
+                 "nome": c.nome, 
+                 "gerencia": c.gerencia.nome if c.gerencia else "–", 
+                 "ativo": "✅" if c.ativo else "❌"} for c in cs]
     finally:
         s.close()
