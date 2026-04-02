@@ -7,7 +7,6 @@ from sqlalchemy.orm import aliased
 from database.connection import get_session
 from models import AutoLinha, Municipio, ParadaAutoLinha, Permissionaria, TipoServico
 
-
 @st.cache_data(ttl=300)
 def carregar_cidades_por_tipo(tipo_servico: str):
     """Retorna cidades de origem via nome IBGE, filtradas pelo tipo de servico.
