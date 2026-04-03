@@ -7,18 +7,29 @@ import pandas as pd
 
 import auth
 from auth import usuario_logado
-from database.connection import db_session, get_session
-from models import Usuario, TipoUsuario, Categoria, Subcategoria, Gerencia, Coordenacao
-from utils.loaders_admin import (
+from utils import (
+    listar_categorias_e_status,
+    listar_coord_e_status,
+    listar_gerencias_e_status,
+    listar_subcat_e_status,
+    listar_usuarios_e_status,
     carregar_coordenacoes,
-    carregar_gerencias,
-    listar_cats,
-    listar_coord,
-    listar_ger,
-    listar_subcats,
-    listar_usuarios,
+    carregar_categorias,
+    carregar_todas_gerencias,
 )
-from utils.loaders_catalog import carregar_categorias
+from utils.admin_ops import (
+    criar_categoria,
+    criar_coordenacao,
+    criar_gerencia,
+    criar_subcategoria,
+    criar_usuario,
+    email_existe,
+    toggle_categoria,
+    toggle_coordenacao,
+    toggle_gerencia,
+    toggle_subcategoria,
+    toggle_usuario,
+)
 
 st.set_page_config(page_title="Administração", page_icon="⚙️", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -49,7 +60,7 @@ tab_users, tab_cats, tab_subcats, tab_ger, tab_coord = st.tabs(
 with tab_users:
     st.subheader("Usuários Técnicos")
 
-    users = listar_usuarios()
+    users = listar_usuarios_e_status()
     if users:
         df = pd.DataFrame(users).rename(columns={
             "id": "ID", "nome": "Nome", "email": "E-mail",
@@ -61,7 +72,7 @@ with tab_users:
     st.divider()
     st.markdown("#### Novo Usuário / Editar Senha")
 
-    gerencias = carregar_gerencias()
+    gerencias = carregar_todas_gerencias()
     ger_map = {nome: gid for gid, nome in gerencias}
 
     # Gerência e Coordenação FORA do form para permitir atualização dinâmica
@@ -91,22 +102,13 @@ with tab_users:
         if not novo_nome.strip() or not novo_email.strip() or not nova_senha:
             st.error("Nome, e-mail e senha são obrigatórios.")
         else:
-            s = get_session()
-            existe = s.query(Usuario).filter_by(email=novo_email.strip()).first()
-            s.close()
-            if existe:
+            if email_existe(novo_email):
                 st.error("Já existe um usuário com este e-mail.")
             else:
-                with db_session() as s:
-                    s.add(Usuario(
-                        nome=novo_nome.strip(),
-                        email=novo_email.strip(),
-                        senha_hash=auth.hash_senha(nova_senha),
-                        tipo=TipoUsuario(novo_tipo),
-                        gerencia_id=ger_id_final,
-                        coordenacao_id=coord_id_final,
-                        ativo=True,
-                    ))
+                criar_usuario(
+                    novo_nome, novo_email, auth.hash_senha(nova_senha),
+                    novo_tipo, ger_id_final, coord_id_final,
+                )
                 st.toast(f"Usuário {novo_email} criado com sucesso!", icon="✅")
                 st.rerun()
 
@@ -118,15 +120,11 @@ with tab_users:
         sel_user_id = users[user_emails.index(sel_user_label)]["id"]
         col_at, col_dat = st.columns(2)
         if col_at.button("Ativar"):
-            with db_session() as s:
-                usr = s.query(Usuario).filter_by(id=sel_user_id).first()
-                usr.ativo = True
+            toggle_usuario(sel_user_id, True)
             st.toast("Usuário ativado!", icon="✅")
             st.rerun()
         if col_dat.button("Desativar"):
-            with db_session() as s:
-                usr = s.query(Usuario).filter_by(id=sel_user_id).first()
-                usr.ativo = False
+            toggle_usuario(sel_user_id, False)
             st.toast("Usuário desativado!", icon="⛔")
             st.rerun()
 
@@ -136,7 +134,7 @@ with tab_users:
 with tab_cats:
     st.subheader("Categorias de Reclamação")
 
-    cats = listar_cats()
+    cats = listar_categorias_e_status()
     if cats:
         df_c = pd.DataFrame(cats).rename(columns={"id": "ID", "nome": "Nome", "descricao": "Descrição", "ativo": "Ativo"})
         st.dataframe(df_c.drop(columns=["ID"]), use_container_width=True, hide_index=True)
@@ -152,8 +150,7 @@ with tab_cats:
         if not cat_nome.strip():
             st.error("Informe o nome da categoria.")
         else:
-            with db_session() as s:
-                s.add(Categoria(nome=cat_nome.strip(), descricao=cat_desc.strip() or None))
+            criar_categoria(cat_nome, cat_desc.strip() or None)
             st.success("Categoria criada.")
             st.rerun()
 
@@ -165,15 +162,11 @@ with tab_cats:
         cat_sel_id = cats[cat_labels.index(cat_sel_nome)]["id"]
         c1, c2 = st.columns(2)
         if c1.button("Ativar cat."):
-            with db_session() as s:
-                cat = s.query(Categoria).filter_by(id=cat_sel_id).first()
-                cat.ativo = True
+            toggle_categoria(cat_sel_id, True)
             st.success("Ativada.")
             st.rerun()
         if c2.button("Desativar cat."):
-            with db_session() as s:
-                cat = s.query(Categoria).filter_by(id=cat_sel_id).first()
-                cat.ativo = False
+            toggle_categoria(cat_sel_id, False)
             st.success("Desativada.")
             st.rerun()
 
@@ -183,7 +176,7 @@ with tab_cats:
 with tab_subcats:
     st.subheader("Subcategorias de Reclamação")
 
-    subcats = listar_subcats()
+    subcats = listar_subcat_e_status()
     if subcats:
         df_sc = pd.DataFrame(subcats).rename(columns={
             "id": "ID", "nome": "Nome", "categoria": "Categoria", "ativo": "Ativo"
@@ -207,11 +200,7 @@ with tab_subcats:
             if not subcat_nome.strip():
                 st.error("Informe o nome da subcategoria.")
             else:
-                with db_session() as s:
-                    s.add(Subcategoria(
-                        nome=subcat_nome.strip(),
-                        categoria_id=cat_map_sub[subcat_cat],
-                    ))
+                criar_subcategoria(subcat_nome, cat_map_sub[subcat_cat])
                 st.success("Subcategoria criada.")
                 st.rerun()
 
@@ -223,15 +212,11 @@ with tab_subcats:
         subcat_sel_id = subcats[subcat_labels.index(subcat_sel_label)]["id"]
         sc1, sc2 = st.columns(2)
         if sc1.button("Ativar subcat."):
-            with db_session() as s:
-                sc = s.query(Subcategoria).filter_by(id=subcat_sel_id).first()
-                sc.ativo = True
+            toggle_subcategoria(subcat_sel_id, True)
             st.success("Ativada.")
             st.rerun()
         if sc2.button("Desativar subcat."):
-            with db_session() as s:
-                sc = s.query(Subcategoria).filter_by(id=subcat_sel_id).first()
-                sc.ativo = False
+            toggle_subcategoria(subcat_sel_id, False)
             st.success("Desativada.")
             st.rerun()
 
@@ -241,7 +226,7 @@ with tab_subcats:
 with tab_ger:
     st.subheader("Gerências")
 
-    gers = listar_ger()
+    gers = listar_gerencias_e_status()
     if gers:
         st.dataframe(
             pd.DataFrame(gers).rename(columns={"id": "ID", "nome": "Nome", "ativo": "Ativo"}).drop(columns=["ID"]),
@@ -257,8 +242,7 @@ with tab_ger:
         if not ger_nome.strip():
             st.error("Informe o nome.")
         else:
-            with db_session() as s:
-                s.add(Gerencia(nome=ger_nome.strip()))
+            criar_gerencia(ger_nome)
             st.success("Gerência criada.")
             st.rerun()
 
@@ -270,15 +254,11 @@ with tab_ger:
         ger_sel_id = gers[ger_labels.index(ger_sel_nome)]["id"]
         g1, g2 = st.columns(2)
         if g1.button("Ativar ger."):
-            with db_session() as s:
-                ger = s.query(Gerencia).filter_by(id=ger_sel_id).first()
-                ger.ativo = True
+            toggle_gerencia(ger_sel_id, True)
             st.success("Ativada.")
             st.rerun()
         if g2.button("Desativar ger."):
-            with db_session() as s:
-                ger = s.query(Gerencia).filter_by(id=ger_sel_id).first()
-                ger.ativo = False
+            toggle_gerencia(ger_sel_id, False)
             st.success("Desativada.")
             st.rerun()
 
@@ -288,7 +268,7 @@ with tab_ger:
 with tab_coord:
     st.subheader("Coordenações")
 
-    coords_list = listar_coord()
+    coords_list = listar_coord_e_status()
     if coords_list:
         st.dataframe(
             pd.DataFrame(coords_list).rename(columns={"id": "ID", "nome": "Nome", "gerencia": "Gerência", "ativo": "Ativo"}).drop(columns=["ID"]),
@@ -297,7 +277,7 @@ with tab_coord:
         )
 
     with st.form("form_coord"):
-        gs_form = carregar_gerencias()
+        gs_form = carregar_todas_gerencias()
         if not gs_form:
             st.warning("Cadastre ao menos uma Gerência primeiro.")
             st.form_submit_button("➕ Criar", disabled=True)
@@ -311,8 +291,7 @@ with tab_coord:
                 if not coord_nome.strip():
                     st.error("Informe o nome.")
                 else:
-                    with db_session() as s:
-                        s.add(Coordenacao(nome=coord_nome.strip(), gerencia_id=ger_map_form[ger_coord]))
+                    criar_coordenacao(coord_nome, ger_map_form[ger_coord])
                     st.success("Coordenação criada.")
                     st.rerun()
 
@@ -324,14 +303,10 @@ with tab_coord:
         coord_sel_id = coords_list[coord_labels.index(coord_sel_label)]["id"]
         cc1, cc2 = st.columns(2)
         if cc1.button("Ativar coord."):
-            with db_session() as s:
-                coord = s.query(Coordenacao).filter_by(id=coord_sel_id).first()
-                coord.ativo = True
+            toggle_coordenacao(coord_sel_id, True)
             st.success("Ativada.")
             st.rerun()
         if cc2.button("Desativar coord."):
-            with db_session() as s:
-                coord = s.query(Coordenacao).filter_by(id=coord_sel_id).first()
-                coord.ativo = False
+            toggle_coordenacao(coord_sel_id, False)
             st.success("Desativada.")
             st.rerun()

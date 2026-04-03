@@ -1,6 +1,6 @@
 # TODO – Sistema de Ouvidorias ARTESP
 
-> Atualizado em: 2026-03-05
+> Atualizado em: 2026-04-02
 
 ---
 
@@ -28,24 +28,19 @@
 
 ---
 
-## 🔲 Fase 2 – Dashboards
+## ✅ Concluído (Fase 2 – Expansão de Funcionalidades)
 
-### Dashboard 1 – Produtividade
-
-- [ ] Total de ouvidorias por período (mensal/trimestral)
-- [ ] Ouvidorias por status
-- [ ] Tempo médio de resposta por técnico / coordenação
-- [ ] Ouvidorias vencidas (prazo expirado)
-- [ ] Ranking de coordenações por volume de atendimento
-
-### Dashboard 2 – Qualidade / Fiscalização
-
-- [ ] Autos com maior número de reclamações (pontuação) (top N)
-- [ ] Permissionárias com maior volume de reclamações
-- [ ] Mapa de reclamações por municipio de embarque ou desembarque
-- [ ] Reclamações por categoria
-- [ ] Pontuação acumulada por auto de linha (soma das pontuações de `reclamacao_autos`)
-- [ ] Filtros: período, gerência, categoria, permissionária
+- [x] Subcategorias vinculadas a categorias (modelo + admin)
+- [x] Municípios de SP com cod_ibge e população (`municipios` + seed)
+- [x] Linhas metropolitanas importadas de `.xlsx` (regiao_metropolitana, sub_regiao, etc.)
+- [x] `TipoServico` (Regular Intermunicipal / Metropolitano / Fretamento) em autos e reclamações
+- [x] `empresa_fretamento` em reclamações
+- [x] Anexos de ouvidoria (`anexos_ouvidoria`, upload/download/remoção)
+- [x] Resposta da permissionária (`respostas_permissionaria`, página 04)
+- [x] Status `AGUARDANDO_PERMISSIONARIA` no fluxo de ouvidoria
+- [x] Refatoração em camadas: `repositories/` (ORM puro) + `utils/` (loaders/ops cacheados)
+- [x] Dashboard de Produtividade (página 06) — KPIs, volume mensal, SLA, ranking coordenações
+- [x] Dashboard de Qualidade (página 07) — top autos, pontuação por empresa, heatmap cat×empresa, tendência
 
 ---
 

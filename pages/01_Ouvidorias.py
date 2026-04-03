@@ -11,13 +11,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import auth
 from auth import usuario_logado
 from models import StatusOuvidoria, TipoUsuario
-from utils.formatters import prazo_circle_label
-from utils.ouvidoria_ops import (
+from utils import (
     atribuir_tecnico,
     carregar_tecnicos_disponiveis,
     concluir_ouvidoria,
     excluir_ouvidoria,
     listar_ouvidorias,
+    prazo_circle_label,
 )
 
 st.set_page_config(page_title="Ouvidorias", page_icon="📋", layout="wide")
@@ -84,12 +84,12 @@ if not ouvidorias:
 else:
     # Cabeçalho — Prazo Perm. antes de Prazo Resp., ambos com círculo+tooltip
     if u.tipo == TipoUsuario.gestor:
-        col_sizes = [0.5, 2.5, 2.5, 2.5, 2.5, 1.5, 1.5, 0.5, 0.5, 0.8, 0.5]
+        col_sizes = [0.6, 2.3, 2.5, 2.5, 2.5, 1.4, 1.4, 0.6, 0.7, 0.8, 0.6]
         headers = ["**#**", "**Protocolo**", "**Status**", "**Coord./Gerência**",
                     "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**",
                     "", "", "", ""]
     else:
-        col_sizes = [0.5, 2.5, 2.5, 2.5, 2.5, 1.5, 1.5, 0.5, 0.8]
+        col_sizes = [0.6, 2.3, 2.5, 2.5, 2.5, 1.5, 1.5, 0.5, 0.8]
         headers = ["**#**", "**Protocolo**", "**Status**", "**Coord./Gerência**",
                     "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**",
                     "", ""]
@@ -122,7 +122,7 @@ else:
         cols[2].write(status_label)
         cols[3].write(o["coord_ger"])
         cols[4].write(o["responsaveis"])
-
+        
         # Prazo Perm. — botão desabilitado com tooltip
         if perm_tip:
             cols[5].button(perm_label, key=f"pperm_{o['id']}", disabled=True, help=perm_tip)

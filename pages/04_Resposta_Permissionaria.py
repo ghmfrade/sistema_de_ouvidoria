@@ -3,14 +3,9 @@
 from datetime import date
 
 import streamlit as st
-from database.connection import db_session
-from models import (
-    Ouvidoria,
-    RespostaPermissionaria,
-    StatusOuvidoria,
-    Usuario,
-)
-from utils.loaders_ouvidoria import carregar_ouvidoria_para_permissionaria
+from models import Usuario
+from repositories.ouvidoria_write_repo import registrar_resposta_permissionaria
+from utils import carregar_ouvidoria_para_permissionaria
 
 st.set_page_config(page_title="Resposta da Permissionária", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -70,18 +65,7 @@ if submitted:
     if not conteudo_resp.strip():
         st.error("O conteúdo da resposta é obrigatório.")
     else:
-        with db_session() as session:
-            session.add(
-                RespostaPermissionaria(
-                    ouvidoria_id=ouvidoria_id,
-                    conteudo=conteudo_resp.strip(),
-                    data_resposta=data_resp,
-                    registrado_por_id=u.id,
-                )
-            )
-            o_db = session.get(Ouvidoria, ouvidoria_id)
-            if o_db and o_db.status == StatusOuvidoria.AGUARDANDO_PERMISSIONARIA:
-                o_db.status = StatusOuvidoria.AGUARDANDO_ACOES
+        registrar_resposta_permissionaria(ouvidoria_id, conteudo_resp, data_resp, u.id)
         st.success("Resposta da permissionária registrada com sucesso!")
         carregar_ouvidoria_para_permissionaria.clear()
         st.rerun()

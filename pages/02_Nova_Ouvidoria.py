@@ -12,29 +12,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth
 from auth import usuario_logado
-from database.connection import db_session
-from models import (
-    AnexoOuvidoria,
-    Ouvidoria,
-    Reclamacao,
-    ReclamacaoAuto,
-    StatusOuvidoria,
-    TipoServico,
-)
-from utils.formatters import fmt_auto
-from utils.loaders_auto import (
+from models import StatusOuvidoria, TipoServico
+from repositories.ouvidoria_write_repo import criar_ouvidoria
+from utils import (
     buscar_autos_por_trecho,
+    carregar_categorias,
     carregar_cidades,
     carregar_cidades_destino,
     carregar_cidades_por_tipo,
+    carregar_municipios,
     carregar_permissionarias,
     carregar_regioes_metropolitanas,
-    carregar_todos_autos,
-)
-from utils.loaders_catalog import (
-    carregar_categorias,
-    carregar_municipios,
     carregar_subcategorias,
+    carregar_todos_autos,
+    fmt_auto,
 )
 
 st.set_page_config(page_title="Nova Ouvidoria", page_icon="➕", layout="wide")
@@ -453,80 +444,51 @@ if st.button("💾 Salvar Ouvidoria", type="primary", use_container_width=True):
                 st.stop()
             arquivos_validos.append(arq)
 
+        # Salvar anexos em disco antes da transação
+        anexos_meta = []
+        for arq in arquivos_validos:
+            ext = os.path.splitext(arq.name)[1]
+            nome_storage = f"{uuid.uuid4().hex}{ext}"
+            caminho = os.path.join(UPLOADS_DIR, nome_storage)
+            with open(caminho, "wb") as f:
+                f.write(arq.getbuffer())
+            anexos_meta.append({
+                "nome_arquivo": arq.name,
+                "nome_storage": nome_storage,
+                "tipo_mime": arq.type,
+                "tamanho": arq.size,
+                "enviado_por_id": u.id,
+            })
+
+        status_inicial = (
+            StatusOuvidoria.AGUARDANDO_PERMISSIONARIA
+            if enviado_permissionaria and prazo_permissionaria
+            else StatusOuvidoria.AGUARDANDO_ACOES
+        )
+
         try:
-            with db_session() as session:
-                status_inicial = (
-                    StatusOuvidoria.AGUARDANDO_PERMISSIONARIA
-                    if enviado_permissionaria and prazo_permissionaria
-                    else StatusOuvidoria.AGUARDANDO_ACOES
-                )
-                ouvidoria = Ouvidoria(
-                    protocolo=protocolo.strip(),
-                    conteudo=conteudo.strip(),
-                    prazo=prazo,
-                    prazo_permissionaria=prazo_permissionaria if enviado_permissionaria else None,
-                    status=status_inicial,
-                    criado_por_id=u.id,
-                )
-                session.add(ouvidoria)
-                session.flush()
-
-                for rec_draft in st.session_state["reclamacoes_draft"]:
-                    # Mapeia string para enum
-                    tipo_srv = None
-                    ts_val = rec_draft.get("tipo_servico")
-                    if ts_val:
-                        for ts in TipoServico:
-                            if ts.value == ts_val:
-                                tipo_srv = ts
-                                break
-
-                    rec = Reclamacao(
-                        ouvidoria_id=ouvidoria.id,
-                        numero_item=rec_draft["numero_item"],
-                        categoria_id=rec_draft["categoria_id"],
-                        subcategoria_id=rec_draft.get("subcategoria_id"),
-                        tipo_servico=tipo_srv,
-                        local_embarque=rec_draft["local_embarque"],
-                        local_desembarque=rec_draft["local_desembarque"],
-                        descricao=rec_draft["descricao"],
-                        empresa_fretamento=rec_draft.get("empresa_fretamento"),
-                    )
-                    session.add(rec)
-                    session.flush()
-
-                    autos_rec = rec_draft["autos"]
-                    n = len(autos_rec)
-                    pontuacao = round(1.0 / n, 4) if n > 0 else 0
-                    for a in autos_rec:
-                        session.add(ReclamacaoAuto(
-                            reclamacao_id=rec.id,
-                            auto_id=a["id"],
-                            pontuacao=pontuacao,
-                        ))
-
-                # Salvar anexos
-                for arq in arquivos_validos:
-                    ext = os.path.splitext(arq.name)[1]
-                    nome_storage = f"{uuid.uuid4().hex}{ext}"
-                    caminho = os.path.join(UPLOADS_DIR, nome_storage)
-                    with open(caminho, "wb") as f:
-                        f.write(arq.getbuffer())
-                    session.add(AnexoOuvidoria(
-                        ouvidoria_id=ouvidoria.id,
-                        nome_arquivo=arq.name,
-                        nome_storage=nome_storage,
-                        tipo_mime=arq.type,
-                        tamanho=arq.size,
-                        enviado_por_id=u.id,
-                    ))
-
+            criar_ouvidoria(
+                protocolo=protocolo,
+                conteudo=conteudo,
+                prazo=prazo,
+                prazo_permissionaria=prazo_permissionaria if enviado_permissionaria else None,
+                status=status_inicial,
+                criado_por_id=u.id,
+                recs_draft=st.session_state["reclamacoes_draft"],
+                anexos_meta=anexos_meta,
+            )
             st.session_state["reclamacoes_draft"] = []
             st.session_state["autos_checklist"] = []
             st.session_state["rec_alvo_anterior"] = None
             st.success("Ouvidoria salva com sucesso!")
             st.switch_page("pages/01_Ouvidorias.py")
         except Exception as e:
+            # Limpar arquivos órfãos em caso de erro
+            for meta in anexos_meta:
+                try:
+                    os.remove(os.path.join(UPLOADS_DIR, meta["nome_storage"]))
+                except OSError:
+                    pass
             msg = str(e)
             if "uq_ouvidorias_protocolo" in msg or "protocolo" in msg.lower() and "unique" in msg.lower():
                 st.error(f"Já existe uma ouvidoria com o protocolo **{protocolo}**. Informe um protocolo diferente.")

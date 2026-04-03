@@ -10,8 +10,8 @@ from datetime import date, timedelta
 import auth
 from auth import usuario_logado
 from models import StatusOuvidoria
-from utils.loaders_catalog import carregar_gerencias_ativas
-from utils.dashboard_queries import (
+from utils import (
+    carregar_gerencias_ativas,
     query_distribuicao_status,
     query_kpis_produtividade,
     query_ranking_coordenacoes,

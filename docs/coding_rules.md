@@ -1,43 +1,108 @@
 # Regras de Código – Sistema de Ouvidorias ARTESP
 
-## 1. Sessões de Banco de Dados
+## 1. Separação de Camadas (regra principal)
 
-### Use o helper correto para cada caso
-
-```python
-# LEITURA — fechar manualmente no finally
-session = get_session()
-try:
-    resultado = session.query(Modelo).filter_by(...).all()
-    dados = [{"id": r.id, "nome": r.nome} for r in resultado]  # ← converte aqui
-    return dados
-finally:
-    session.close()
-
-# ESCRITA — use o context manager (commit/rollback automático)
-with db_session() as session:
-    session.add(NovoObjeto(...))
-    # commit acontece ao sair do with
+```
+pages/  →  utils/  →  repositories/  →  models/ + database/
 ```
 
-### Nunca retorne objetos SQLAlchemy vivos
-
-Sempre converta para `dict` **enquanto a sessão está aberta**. Retornar objetos após `session.close()` ou `session.expunge_all()` causará `DetachedInstanceError` ao acessar relacionamentos lazy.
+- **pages/** nunca importa `repositories/`, nunca chama `db_session()` diretamente.
+- **utils/** é o único intermediário entre páginas e banco. Pode importar de `repositories/` e `models/`.
+- **repositories/** não importa `streamlit`. Não tem lógica de apresentação. Só ORM e SQL.
+- **models/** não tem dependências externas além de SQLAlchemy.
 
 ```python
-# ❌ ERRADO
-session.close()
-return objeto_sqlalchemy  # vai explodir ao acessar r.categoria.nome
+# ❌ ERRADO — page fazendo query direta
+# pages/03_Detalhe_Ouvidoria.py
+with db_session() as s:
+    o = s.query(Ouvidoria).filter_by(id=oid).first()
 
-# ✅ CORRETO
-dados = {"categoria": r.categoria.nome if r.categoria else None}
-session.close()
-return dados
+# ✅ CORRETO — page chama utils
+from utils import carregar_detalhe_ouvidoria
+o, recs, rec_autos, ... = carregar_detalhe_ouvidoria(oid)
 ```
 
 ---
 
-## 2. Streamlit — Formulários e Estado
+## 2. Sessões de Banco de Dados
+
+### Use sempre `db_session()` (context manager)
+
+```python
+# Leitura — expunge_all libera objetos antes de retornar
+with db_session() as s:
+    objs = s.query(Modelo).options(...).all()
+    s.expunge_all()
+    return objs
+
+# Escrita — commit automático ao sair do with
+with db_session() as s:
+    s.add(NovoObjeto(...))
+```
+
+### Nunca retorne objetos SQLAlchemy vivos fora da sessão
+
+Após `session.close()` ou `session.expunge_all()`, atributos simples funcionam mas relacionamentos lazy causam `DetachedInstanceError`. Os loaders em `utils/` convertem para `dict` antes de retornar à page.
+
+```python
+# ❌ ERRADO
+with db_session() as s:
+    o = s.query(Ouvidoria).filter_by(id=oid).first()
+return o   # page vai explodir ao acessar o.reclamacoes[0].categoria.nome
+
+# ✅ CORRETO — repository retorna objeto expunged
+with db_session() as s:
+    o = s.query(Ouvidoria).options(joinedload(...)).filter_by(id=oid).first()
+    if o:
+        s.expunge_all()
+    return o
+# utils/loader converte para dict enquanto atributos simples ainda estão acessíveis
+```
+
+---
+
+## 3. Utils — Loaders e Ops
+
+### Loaders: cache + formatação
+
+Loaders em `utils/loaders_*.py` são wrappers que:
+1. Chamam o repositório correspondente.
+2. Convertem objetos ORM para `dict` ou lista de tuplas para a UI.
+3. Aplicam `@st.cache_data(ttl=N)` quando o dado é caro ou raramente muda.
+
+```python
+@st.cache_data(ttl=300)
+def carregar_municipios():
+    return [m.nome for m in get_municipios_sp()]
+```
+
+### Ops: fachadas de escrita
+
+Arquivos `*_ops.py` em `utils/` são fachadas que:
+1. Chamam o repositório de escrita correto.
+2. Adicionam lógica de coordenação frontend (ex: invalidar cache após escrita).
+3. Nunca duplicam lógica SQL — delegam tudo ao repositório.
+
+```python
+# utils/ouvidoria_ops.py
+def atribuir_tecnico(ouvidoria_id, tecnico_id):
+    return _atribuir_tecnico(ouvidoria_id, tecnico_id)   # delega ao repo
+```
+
+### Quando invalidar cache
+
+Após qualquer escrita que afete dados cacheados, chame `.clear()` + `st.rerun()`:
+
+```python
+from utils import carregar_tecnicos_disponiveis
+criar_usuario(...)
+carregar_tecnicos_disponiveis.clear()
+st.rerun()
+```
+
+---
+
+## 4. Streamlit — Formulários e Estado
 
 ### Nunca coloque seletores dinâmicos dentro de `st.form()`
 
@@ -69,22 +134,21 @@ st.rerun()
 
 ### Limpe o estado ao navegar entre páginas
 
-Ao usar `st.switch_page()`, limpe o estado de sessão relacionado à página anterior para evitar dados "fantasma":
+Ao usar `st.switch_page()`, limpe o estado de sessão relacionado à página anterior:
 
 ```python
 st.session_state.pop("resp_recs_edit", None)
 st.session_state.pop("resp_autos_checklist", None)
-st.switch_page("pages/04_Responder.py")
+st.switch_page("pages/05_Responder.py")
 ```
 
 ---
 
-## 3. Modelos SQLAlchemy
+## 5. Modelos SQLAlchemy
 
 ### Use `mapped_column` e `Mapped` (SQLAlchemy 2.0)
 
 ```python
-# ✅ Estilo correto (SQLAlchemy 2.0)
 class Exemplo(Base):
     __tablename__ = "exemplos"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -95,7 +159,6 @@ class Exemplo(Base):
 ### Cascade delete em relacionamentos pai→filho
 
 ```python
-# Ao deletar Ouvidoria, deletar automaticamente reclamações, atribuições e respostas
 reclamacoes: Mapped[list["Reclamacao"]] = relationship(
     back_populates="ouvidoria", cascade="all, delete-orphan"
 )
@@ -103,13 +166,11 @@ reclamacoes: Mapped[list["Reclamacao"]] = relationship(
 
 ### Não faça lazy load fora de sessão
 
-Prefira `.joinedload()` ou acesse os dados dentro da sessão aberta.
+Prefira `.joinedload()` no repositório. Acesse relacionamentos apenas enquanto a sessão (ou os objetos expunged) permitir.
 
 ---
 
-## 4. Páginas Streamlit
-
-### Estrutura padrão de cada página
+## 6. Estrutura padrão de cada página
 
 ```python
 """Docstring descritiva da página."""
@@ -119,20 +180,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth
 from auth import usuario_logado
-from database.connection import db_session, get_session
-from models import ...
+from utils import carregar_detalhe_ouvidoria, atribuir_tecnico   # via utils/__init__
 
 st.set_page_config(page_title="...", page_icon="...", layout="wide")
 auth.require_auth()   # ou auth.require_gestor() para páginas restritas
 
 u = usuario_logado()
 
-# Sidebar com nome do usuário + botão Sair
 with st.sidebar:
     st.markdown(f"**{u.nome}**")
     ...
-
-# Corpo da página
 ```
 
 ### Guards de acesso
@@ -144,7 +201,7 @@ with st.sidebar:
 
 ---
 
-## 5. Nomenclatura
+## 7. Nomenclatura
 
 | Tipo | Convenção | Exemplo |
 |---|---|---|
@@ -154,10 +211,12 @@ with st.sidebar:
 | Chaves `session_state` | `snake_case` | `ouvidoria_id`, `resp_recs_edit` |
 | Arquivos de página | `NN_NomePagina.py` | `01_Ouvidorias.py` |
 | Chaves de widget Streamlit | `prefixo_descricao` | `resp_cat_42`, `trecho_orig` |
+| Funções de repositório | `get_*` (leitura), verbo direto (escrita) | `get_ouvidoria_completa`, `criar_usuario` |
+| Funções de loader | `carregar_*` ou `query_*` | `carregar_municipios`, `query_kpis_produtividade` |
 
 ---
 
-## 6. Detecção de Colunas em CSVs
+## 8. Detecção de Colunas em CSVs
 
 CSVs de dados têm colunas com caracteres especiais (acentos, °). Use o helper `_col()` em vez de acessar diretamente pelo nome:
 
@@ -172,30 +231,27 @@ def _col(df, *candidates):
             return lower_map[cand.lower()]
     return None
 
-# Uso
 col_perm = _col(df, "Permissionária", "Permissionaria") or \
            next((c for c in df.columns if "permiss" in c.lower()), None)
 ```
 
 ---
 
-## 7. Cache em Streamlit
+## 9. Cache em Streamlit
 
-Use `@st.cache_data(ttl=300)` para funções de leitura de dados auxiliares (categorias, cidades, permissionárias, autos). Lembre-se de invalidar o cache quando os dados mudarem:
+Use `@st.cache_data(ttl=N)` nos loaders de `utils/`:
 
-```python
-@st.cache_data(ttl=300)
-def listar_tecnicos():
-    ...
+| TTL | Usado para |
+|---|---|
+| `ttl=300` | Catálogos raramente alterados (municípios, permissionárias, gerências) |
+| `ttl=120` | Queries de dashboard |
+| `ttl=60` | Dados semi-dinâmicos (técnicos disponíveis, ouvidoria para permissionária) |
 
-# Após adicionar um técnico:
-listar_tecnicos.clear()
-st.rerun()
-```
+Após qualquer escrita que afete dados cacheados, invalide com `.clear()`.
 
 ---
 
-## 8. Segurança
+## 10. Segurança
 
 - Senhas sempre hasheadas com bcrypt — nunca armazenar texto plano.
 - Não expor stacktraces ao usuário final — use `st.error("Mensagem amigável")`.

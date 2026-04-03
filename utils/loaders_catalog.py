@@ -1,51 +1,48 @@
-"""Loaders de dados de catalogo: municipios, categorias, subcategorias, gerencias ativas."""
+"""Loaders de dados de catálogo: municípios, categorias, subcategorias, gerências, coordenações."""
 
 import streamlit as st
 
-from database.connection import get_session
-from models import Categoria, Gerencia, Municipio, Subcategoria
+from repositories.catalog_repo import (
+    get_categorias,
+    get_coordenacoes,
+    get_gerencias,
+    get_subcategorias,
+    get_todas_permissionarias,
+)
+from repositories.municipios_repo import get_municipios_sp
 
 
 @st.cache_data(ttl=300)
 def carregar_municipios():
-    """Retorna lista de municipios de SP ordenados por nome."""
-    session = get_session()
-    try:
-        munis = session.query(Municipio).filter_by(estado="SP").order_by(Municipio.nome).all()
-        return [m.nome for m in munis]
-    finally:
-        session.close()
+    """Lista de nomes de municípios de SP ordenados."""
+    return [m.nome for m in get_municipios_sp()]
 
 
 def carregar_categorias():
-    """Retorna categorias ativas: [(id, nome)]."""
-    session = get_session()
-    try:
-        cats = session.query(Categoria).filter_by(ativo=True).order_by(Categoria.nome).all()
-        return [(c.id, c.nome) for c in cats]
-    finally:
-        session.close()
+    """Categorias ativas para selectbox: [(id, nome)]."""
+    return [(c.id, c.nome) for c in get_categorias() if c.ativo]
 
 
 def carregar_subcategorias(categoria_id: int):
-    """Retorna subcategorias ativas de uma categoria: [(id, nome)]."""
-    session = get_session()
-    try:
-        subcats = (
-            session.query(Subcategoria)
-            .filter_by(categoria_id=categoria_id, ativo=True)
-            .order_by(Subcategoria.nome)
-            .all()
-        )
-        return [(sc.id, sc.nome) for sc in subcats]
-    finally:
-        session.close()
+    """Subcategorias ativas de uma categoria para selectbox: [(id, nome)]."""
+    return [(sc.id, sc.nome) for sc in get_subcategorias(categoria_id) if sc.ativo]
+
+
+def carregar_todas_gerencias():
+    """Todas as gerências para selectbox: [(id, nome)]."""
+    return [(g.id, g.nome) for g in get_gerencias()]
 
 
 def carregar_gerencias_ativas():
-    """Retorna gerencias ativas: [(id, nome)]."""
-    s = get_session()
-    try:
-        return [(g.id, g.nome) for g in s.query(Gerencia).filter_by(ativo=True).order_by(Gerencia.nome).all()]
-    finally:
-        s.close()
+    """Gerências ativas para selectbox: [(id, nome)]."""
+    return [(g.id, g.nome) for g in get_gerencias() if g.ativo]
+
+
+def carregar_coordenacoes(gerencia_id=None):
+    """Coordenações para selectbox, opcionalmente filtradas por gerência: [(id, nome)]."""
+    return [(c.id, c.nome) for c in get_coordenacoes(gerencia_id)]
+
+
+def carregar_todas_permissionarias():
+    """Todas as permissionárias para selectbox: [(id, nome)]."""
+    return [(p.id, p.nome) for p in get_todas_permissionarias()]

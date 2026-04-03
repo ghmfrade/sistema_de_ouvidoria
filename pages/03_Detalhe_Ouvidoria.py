@@ -12,16 +12,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth
 from auth import usuario_logado
-from database.connection import db_session
-from models import (
-    AnexoOuvidoria,
-    Ouvidoria,
-    OuvidoriaTecnico,
-    StatusOuvidoria,
-    TipoUsuario,
+from models import StatusOuvidoria, TipoUsuario
+from repositories.ouvidoria_write_repo import (
+    add_anexos,
+    atribuir_tecnico,
+    concluir_ouvidoria,
+    delete_anexo,
+    editar_ouvidoria,
+    excluir_ouvidoria,
 )
-from utils.loaders_ouvidoria import carregar_detalhe_ouvidoria
-from utils.ouvidoria_ops import carregar_tecnicos_disponiveis
+from utils import carregar_detalhe_ouvidoria, carregar_tecnicos_disponiveis
 
 st.set_page_config(page_title="Detalhe Ouvidoria", page_icon="🔍", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -136,11 +136,7 @@ with tab_tecnicos:
             tec_sel_nome = st.selectbox("Técnico", [nome for _, nome in disponiveis])
             tec_sel_id = next(tid for tid, nome in disponiveis if nome == tec_sel_nome)
             if st.button("Atribuir técnico"):
-                with db_session() as s:
-                    o_db = s.query(Ouvidoria).filter_by(id=ouvidoria_id).first()
-                    s.add(OuvidoriaTecnico(ouvidoria_id=ouvidoria_id, tecnico_id=tec_sel_id))
-                    if o_db.status == StatusOuvidoria.AGUARDANDO_ACOES:
-                        o_db.status = StatusOuvidoria.EM_ANALISE_TECNICA
+                atribuir_tecnico(ouvidoria_id, tec_sel_id)
                 st.success("Técnico atribuído. Status atualizado para Em análise técnica.")
                 carregar_tecnicos_disponiveis.clear()
                 st.rerun()
@@ -182,15 +178,12 @@ with tab_anexos:
                     )
             if u.tipo == TipoUsuario.gestor:
                 if col_del.button("🗑", key=f"del_anexo_{an['id']}"):
-                    with db_session() as s:
-                        obj = s.get(AnexoOuvidoria, an["id"])
-                        if obj:
-                            # Remove arquivo do disco
-                            try:
-                                os.remove(caminho)
-                            except OSError:
-                                pass
-                            s.delete(obj)
+                    nome_storage = delete_anexo(an["id"])
+                    if nome_storage:
+                        try:
+                            os.remove(os.path.join(UPLOADS_DIR, nome_storage))
+                        except OSError:
+                            pass
                     st.toast("Anexo excluído.")
                     st.rerun()
     else:
@@ -206,25 +199,26 @@ with tab_anexos:
             key="det_upload",
         )
         if novos_anexos and st.button("📤 Enviar anexos", key="btn_enviar_anexos"):
-            with db_session() as session:
-                for arq in novos_anexos:
-                    mime = arq.type or mimetypes.guess_type(arq.name)[0] or ""
-                    if mime not in ALLOWED_MIMES:
-                        st.error(f"Arquivo '{arq.name}' não é um tipo permitido.")
-                        continue
-                    ext = os.path.splitext(arq.name)[1]
-                    nome_storage = f"{uuid.uuid4().hex}{ext}"
-                    caminho_arq = os.path.join(UPLOADS_DIR, nome_storage)
-                    with open(caminho_arq, "wb") as f:
-                        f.write(arq.getbuffer())
-                    session.add(AnexoOuvidoria(
-                        ouvidoria_id=ouvidoria_id,
-                        nome_arquivo=arq.name,
-                        nome_storage=nome_storage,
-                        tipo_mime=arq.type,
-                        tamanho=arq.size,
-                        enviado_por_id=u.id,
-                    ))
+            anexos_meta = []
+            for arq in novos_anexos:
+                mime = arq.type or mimetypes.guess_type(arq.name)[0] or ""
+                if mime not in ALLOWED_MIMES:
+                    st.error(f"Arquivo '{arq.name}' não é um tipo permitido.")
+                    continue
+                ext = os.path.splitext(arq.name)[1]
+                nome_storage = f"{uuid.uuid4().hex}{ext}"
+                caminho_arq = os.path.join(UPLOADS_DIR, nome_storage)
+                with open(caminho_arq, "wb") as f:
+                    f.write(arq.getbuffer())
+                anexos_meta.append({
+                    "nome_arquivo": arq.name,
+                    "nome_storage": nome_storage,
+                    "tipo_mime": arq.type,
+                    "tamanho": arq.size,
+                    "enviado_por_id": u.id,
+                })
+            if anexos_meta:
+                add_anexos(ouvidoria_id, anexos_meta)
             st.success("Anexos enviados.")
             st.rerun()
 
@@ -255,13 +249,14 @@ with tab_edicao:
             salvar_edicao = st.form_submit_button("💾 Salvar alterações")
 
         if salvar_edicao:
-            with db_session() as s:
-                o_db = s.query(Ouvidoria).filter_by(id=ouvidoria_id).first()
-                o_db.protocolo = novo_protocolo.strip()
-                o_db.conteudo = novo_conteudo.strip()
-                o_db.prazo = novo_prazo
-                o_db.prazo_permissionaria = novo_prazo_perm if habilitar_prazo_perm else None
-                o_db.status = StatusOuvidoria(novo_status_val)
+            editar_ouvidoria(
+                ouvidoria_id,
+                novo_protocolo,
+                novo_conteudo,
+                novo_prazo,
+                novo_prazo_perm if habilitar_prazo_perm else None,
+                novo_status_val,
+            )
             st.success("Ouvidoria atualizada.")
             st.rerun()
 
@@ -270,9 +265,7 @@ with tab_edicao:
         pode_concluir = ouvidoria.status == StatusOuvidoria.RETORNO_TECNICO
         if pode_concluir:
             if st.button("✅ Concluir Ouvidoria", type="primary"):
-                with db_session() as s:
-                    o_db = s.query(Ouvidoria).filter_by(id=ouvidoria_id).first()
-                    o_db.status = StatusOuvidoria.CONCLUIDO
+                concluir_ouvidoria(ouvidoria_id)
                 st.success("Ouvidoria concluída!")
                 st.rerun()
         else:
@@ -294,10 +287,7 @@ with tab_edicao:
                         os.remove(os.path.join(UPLOADS_DIR, an["nome_storage"]))
                     except OSError:
                         pass
-                with db_session() as s:
-                    o_db = s.query(Ouvidoria).filter_by(id=ouvidoria_id).first()
-                    if o_db:
-                        s.delete(o_db)
+                excluir_ouvidoria(ouvidoria_id)
                 st.session_state.pop("confirmar_exclusao", None)
                 st.switch_page("pages/01_Ouvidorias.py")
             if col_n.button("Cancelar"):

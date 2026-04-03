@@ -1,103 +1,72 @@
-"""Loaders do painel Admin: usuarios, categorias, subcategorias, gerencias, coordenacoes."""
+"""Loaders do painel Admin: organiza dados do catálogo para exibição em tabelas administrativas."""
 
-from database.connection import get_session
-from models import Categoria, Coordenacao, Gerencia, Subcategoria, Usuario
-
-
-def listar_usuarios():
-    """Retorna todos os usuarios com gerencia/coordenacao como lista de dicts."""
-    s = get_session()
-    try:
-        users = s.query(Usuario).order_by(Usuario.nome).all()
-        result = []
-        for usr in users:
-            g = usr.gerencia.nome if usr.gerencia else "–"
-            c = usr.coordenacao.nome if usr.coordenacao else "–"
-            result.append({
-                "id": usr.id,
-                "nome": usr.nome,
-                "email": usr.email,
-                "tipo": usr.tipo.value,
-                "gerencia": g,
-                "coordenacao": c,
-                "ativo": "✅" if usr.ativo else "❌",
-            })
-        return result
-    finally:
-        s.close()
+from repositories.catalog_repo import (
+    get_categorias,
+    get_coordenacoes,
+    get_gerencias,
+    get_subcategorias,
+    get_usuarios,
+)
 
 
-def carregar_gerencias():
-    """Retorna todas as gerencias: [(id, nome)]."""
-    s = get_session()
-    try:
-        gs = s.query(Gerencia).order_by(Gerencia.nome).all()
-        return [(g.id, g.nome) for g in gs]
-    finally:
-        s.close()
+def listar_usuarios_e_status():
+    """Todos os usuários formatados para tabela admin: [dict]."""
+    return [
+        {
+            "id": u.id,
+            "nome": u.nome,
+            "email": u.email,
+            "tipo": u.tipo.value,
+            "gerencia": u.gerencia.nome if u.gerencia else "–",
+            "coordenacao": u.coordenacao.nome if u.coordenacao else "–",
+            "ativo": "✅" if u.ativo else "❌",
+        }
+        for u in get_usuarios()
+    ]
 
 
-def carregar_coordenacoes(gerencia_id=None):
-    """Retorna coordenacoes, opcionalmente filtradas por gerencia: [(id, nome)]."""
-    s = get_session()
-    try:
-        q = s.query(Coordenacao)
-        if gerencia_id:
-            q = q.filter_by(gerencia_id=gerencia_id)
-        cs = q.order_by(Coordenacao.nome).all()
-        return [(c.id, c.nome) for c in cs]
-    finally:
-        s.close()
+def listar_categorias_e_status():
+    """Categorias formatadas para tabela admin: [dict]."""
+    return [
+        {
+            "id": c.id,
+            "nome": c.nome,
+            "descricao": c.descricao or "",
+            "ativo": "✅" if c.ativo else "❌",
+        }
+        for c in get_categorias()
+    ]
 
 
-def listar_cats():
-    """Retorna categorias para admin: [{id, nome, descricao, ativo}]."""
-    s = get_session()
-    try:
-        cats = s.query(Categoria).order_by(Categoria.nome).all()
-        return [{"id": c.id, "nome": c.nome, "descricao": c.descricao or "", "ativo": "✅" if c.ativo else "❌"} for c in cats]
-    finally:
-        s.close()
-
-
-def listar_subcats():
-    """Retorna subcategorias com nome da categoria: [{id, nome, categoria, ativo}]."""
-    s = get_session()
-    try:
-        subcats = (
-            s.query(Subcategoria)
-            .join(Categoria)
-            .order_by(Categoria.nome, Subcategoria.nome)
-            .all()
-        )
-        return [{
+def listar_subcat_e_status():
+    """Subcategorias formatadas para tabela admin: [dict]."""
+    return [
+        {
             "id": sc.id,
             "nome": sc.nome,
             "categoria": sc.categoria.nome if sc.categoria else "–",
             "ativo": "✅" if sc.ativo else "❌",
-        } for sc in subcats]
-    finally:
-        s.close()
+        }
+        for sc in get_subcategorias()
+    ]
 
 
-def listar_ger():
-    """Retorna gerencias para admin: [{id, nome, ativo}]."""
-    s = get_session()
-    try:
-        gs = s.query(Gerencia).order_by(Gerencia.nome).all()
-        return [{"id": g.id, "nome": g.nome, "ativo": "✅" if g.ativo else "❌"} for g in gs]
-    finally:
-        s.close()
+def listar_gerencias_e_status():
+    """Gerências formatadas para tabela admin: [dict]."""
+    return [
+        {"id": g.id, "nome": g.nome, "ativo": "✅" if g.ativo else "❌"}
+        for g in get_gerencias()
+    ]
 
 
-def listar_coord():
-    """Retorna coordenacoes com nome da gerencia: [{id, nome, gerencia, ativo}]."""
-    s = get_session()
-    try:
-        cs = s.query(Coordenacao).order_by(Coordenacao.nome).all()
-        return [{"id": c.id, 
-                 "nome": c.nome, 
-                 "gerencia": c.gerencia.nome if c.gerencia else "–", 
-                 "ativo": "✅" if c.ativo else "❌"} for c in cs]
-    finally:
-        s.close()
+def listar_coord_e_status():
+    """Coordenações formatadas para tabela admin: [dict]."""
+    return [
+        {
+            "id": c.id,
+            "nome": c.nome,
+            "gerencia": c.gerencia.nome if c.gerencia else "–",
+            "ativo": "✅" if c.ativo else "❌",
+        }
+        for c in get_coordenacoes()
+    ]

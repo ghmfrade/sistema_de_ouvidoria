@@ -10,35 +10,26 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth
 from auth import usuario_logado
-from database.connection import db_session, get_session
-from models import (
-    AnexoOuvidoria,
-    AutoLinha,
-    Ouvidoria,
-    OuvidoriaTecnico,
-    Reclamacao,
-    ReclamacaoAuto,
-    RespostaPermissionaria,
-    RespostaTecnica,
-    StatusOuvidoria,
-    TipoServico,
-    TipoUsuario,
+from models import TipoServico, TipoUsuario
+from repositories.ouvidoria_write_repo import (
+    deletar_resposta_permissionaria,
+    get_auto_permissionaria_nome,
+    registrar_resposta_permissionaria,
+    registrar_resposta_tecnica,
 )
-from utils.loaders_ouvidoria import carregar_ouvidoria_para_resposta_tecnica
-from utils.formatters import fmt_auto
-from utils.loaders_auto import (
+from utils import (
     buscar_autos_por_trecho,
+    carregar_categorias,
     carregar_cidades,
     carregar_cidades_destino,
     carregar_cidades_por_tipo,
+    carregar_municipios,
+    carregar_ouvidoria_para_resposta_tecnica,
     carregar_permissionarias,
     carregar_regioes_metropolitanas,
-    carregar_todos_autos,
-)
-from utils.loaders_catalog import (
-    carregar_categorias,
-    carregar_municipios,
     carregar_subcategorias,
+    carregar_todos_autos,
+    fmt_auto,
 )
 
 st.set_page_config(page_title="Registrar Resposta", page_icon="✍️", layout="wide")
@@ -431,20 +422,15 @@ if recs_nao_fret:
                     a for a in st.session_state["resp_autos_checklist"]
                     if st.session_state.get(f"resp_chk_{a['id']}", True) and a["id"] not in ids_existentes
                 ]
-                session = get_session()
-                try:
-                    for a in novos:
-                        auto_db = session.query(AutoLinha).filter_by(id=a["id"]).first()
-                        perm_nome = auto_db.permissionaria.nome if auto_db and auto_db.permissionaria else "–"
-                        st.session_state["resp_recs_edit"][rec_idx]["autos"].append({
-                            "id": a["id"],
-                            "numero": a["numero"],
-                            "cidade_ini": a["cidade_ini"],
-                            "cidade_fim": a["cidade_fim"],
-                            "permissionaria": perm_nome,
-                        })
-                finally:
-                    session.close()
+                for a in novos:
+                    perm_nome = get_auto_permissionaria_nome(a["id"])
+                    st.session_state["resp_recs_edit"][rec_idx]["autos"].append({
+                        "id": a["id"],
+                        "numero": a["numero"],
+                        "cidade_ini": a["cidade_ini"],
+                        "cidade_fim": a["cidade_fim"],
+                        "permissionaria": perm_nome,
+                    })
                 for a in st.session_state["resp_autos_checklist"]:
                     st.session_state.pop(f"resp_chk_{a['id']}", None)
                 st.session_state["resp_autos_checklist"] = []
@@ -468,10 +454,7 @@ if resps_perm:
         with st.expander(f"{rp['data_resposta'].strftime('%d/%m/%Y')} — por {rp['registrado_por']}"):
             st.text(rp["conteudo"])
             if st.button("🗑 Excluir esta resposta", key=f"del_rp_{rp['id']}"):
-                with db_session() as session:
-                    obj = session.get(RespostaPermissionaria, rp["id"])
-                    if obj:
-                        session.delete(obj)
+                deletar_resposta_permissionaria(rp["id"])
                 st.success("Resposta excluída.")
                 st.rerun()
 else:
@@ -487,13 +470,7 @@ if nova_manif:
             if not manif_conteudo.strip():
                 st.error("O conteúdo da manifestação é obrigatório.")
             else:
-                with db_session() as session:
-                    session.add(RespostaPermissionaria(
-                        ouvidoria_id=ouvidoria_id,
-                        conteudo=manif_conteudo.strip(),
-                        data_resposta=manif_data,
-                        registrado_por_id=u.id,
-                    ))
+                registrar_resposta_permissionaria(ouvidoria_id, manif_conteudo, manif_data, u.id)
                 st.success("Manifestação registrada.")
                 st.rerun()
 
@@ -511,59 +488,10 @@ if enviar:
         st.error("O texto da resposta é obrigatório.")
     else:
         try:
-            with db_session() as session:
-                # Salva alterações nas reclamações
-                for rec_edit in st.session_state["resp_recs_edit"]:
-                    rec_db = session.query(Reclamacao).filter_by(id=rec_edit["id"]).first()
-                    if not rec_db:
-                        continue
-                    rec_db.categoria_id = rec_edit["categoria_id"]
-                    rec_db.subcategoria_id = rec_edit.get("subcategoria_id")
-                    rec_db.local_embarque = rec_edit["local_embarque"]
-                    rec_db.local_desembarque = rec_edit["local_desembarque"]
-                    rec_db.descricao = rec_edit["descricao"]
-                    rec_db.empresa_fretamento = rec_edit.get("empresa_fretamento")
+            todos_responderam = registrar_resposta_tecnica(
+                ouvidoria_id, u.id, texto, st.session_state["resp_recs_edit"]
+            )
 
-                    # Atualiza autos vinculados
-                    session.query(ReclamacaoAuto).filter_by(reclamacao_id=rec_db.id).delete()
-                    session.flush()
-
-                    n_autos = len(rec_edit["autos"])
-                    pontuacao = round(1.0 / n_autos, 4) if n_autos > 0 else 0
-                    for a in rec_edit["autos"]:
-                        session.add(ReclamacaoAuto(
-                            reclamacao_id=rec_db.id,
-                            auto_id=a["id"],
-                            pontuacao=pontuacao,
-                        ))
-
-                # Registra resposta (sem SEI)
-                resp = RespostaTecnica(
-                    ouvidoria_id=ouvidoria_id,
-                    tecnico_id=u.id,
-                    data_resposta=date.today(),
-                    texto_resposta=texto.strip(),
-                )
-                session.add(resp)
-
-                # Atualiza atribuição
-                at = session.query(OuvidoriaTecnico).filter_by(
-                    ouvidoria_id=ouvidoria_id, tecnico_id=u.id
-                ).first()
-                if at:
-                    at.respondido = True
-                    at.respondido_em = datetime.now()
-
-                # Verifica se todos os técnicos responderam
-                todas = session.query(OuvidoriaTecnico).filter_by(ouvidoria_id=ouvidoria_id).all()
-                todos_responderam = all(a.respondido for a in todas)
-
-                if todos_responderam:
-                    o_db = session.query(Ouvidoria).filter_by(id=ouvidoria_id).first()
-                    if o_db and o_db.status == StatusOuvidoria.EM_ANALISE_TECNICA:
-                        o_db.status = StatusOuvidoria.RETORNO_TECNICO
-
-            # Limpa estado
             st.session_state.pop("resp_recs_edit", None)
             st.session_state.pop("resp_autos_checklist", None)
             st.session_state.pop("resp_rec_alvo_anterior", None)

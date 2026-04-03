@@ -9,10 +9,10 @@ from datetime import date, timedelta
 
 import auth
 from auth import usuario_logado
-from database.connection import get_session
-from models import Gerencia, Categoria, Permissionaria
-from utils.formatters import to_excel
-from utils.dashboard_queries import (
+from utils import (
+    carregar_categorias,
+    carregar_gerencias_ativas,
+    carregar_todas_permissionarias,
     query_categorias_pizza,
     query_cidades,
     query_empresas_pontuacao,
@@ -25,6 +25,7 @@ from utils.dashboard_queries import (
     query_top_autos_pontuacao,
     query_top_categoria,
     query_top_permissionaria,
+    to_excel,
 )
 
 st.set_page_config(page_title="Dashboard Qualidade", page_icon="🔎", layout="wide")
@@ -47,17 +48,9 @@ with st.sidebar:
     st.divider()
     st.markdown("### Filtros")
 
-    # Loader generico para sidebar (substitui _load inline)
-    s = get_session()
-    try:
-        ger_list = s.query(Gerencia).filter_by(ativo=True).order_by(Gerencia.nome).all()
-        ger_list = [(g.id, g.nome) for g in ger_list]
-        cat_list_all = s.query(Categoria).filter_by(ativo=True).order_by(Categoria.nome).all()
-        cat_list_all = [(c.id, c.nome) for c in cat_list_all]
-        perm_list = s.query(Permissionaria).order_by(Permissionaria.nome).all()
-        perm_list = [(p.id, p.nome) for p in perm_list]
-    finally:
-        s.close()
+    ger_list = carregar_gerencias_ativas()
+    cat_list_all = carregar_categorias()
+    perm_list = carregar_todas_permissionarias()
 
     st.markdown("**Periodo**")
     periodo_opcoes = {
