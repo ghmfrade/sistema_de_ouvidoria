@@ -282,15 +282,16 @@ def query_tabela_analitica(data_ini, data_fim, ger_id, perm_id, cat_list, tipo_s
             AutoLinha.numero.label("Auto"),
             cast(AutoLinha.tipo, String).label("Tipo"),
             AutoLinha.itinerario.label("Itinerario"),
-            func.coalesce(Permissionaria.nome, "–").label("Empresa"),
-            func.coalesce(AutoLinha.cidade_inicial, "–").label("Cidade_Inicial"),
-            func.coalesce(AutoLinha.cidade_final, "–").label("Cidade_Final"),
+            func.coalesce(Permissionaria.nome_fantasia, Permissionaria.nome, "–").label("Empresa"),
+            func.coalesce(AutoLinha.denominacao_a, "–").label("Denominacao_A"),
+            func.coalesce(AutoLinha.denominacao_b, "–").label("Denominacao_B"),
             func.count(distinct(Reclamacao.id)).label("Reclamacoes"),
             func.round(func.coalesce(func.sum(ReclamacaoAuto.pontuacao), 0), 4).label("Pontuacao"),
         ).filter(AutoLinha.numero.isnot(None))
         q = q.group_by(
             AutoLinha.numero, AutoLinha.tipo, AutoLinha.itinerario,
-            Permissionaria.nome, AutoLinha.cidade_inicial, AutoLinha.cidade_final,
+            Permissionaria.nome_fantasia, Permissionaria.nome,
+            AutoLinha.denominacao_a, AutoLinha.denominacao_b,
         )
         q = q.order_by(func.coalesce(func.sum(ReclamacaoAuto.pontuacao), 0).desc())
         return q.all()

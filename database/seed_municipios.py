@@ -14,12 +14,17 @@ from models import Municipio
 from sqlalchemy import text
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CSV_POP = os.path.join(BASE_DIR, "pop_municipios.csv")
+PASTA_SEED = os.path.join(BASE_DIR, "pasta_seed")
+CSV_POP = os.path.join(PASTA_SEED, "municipios_ibge_populacao.csv")
 
 
 def truncar_municipios():
     session = get_session()
     try:
+        # Truncar dependentes antes de limpar municípios
+        session.execute(text("TRUNCATE TABLE trechos_auto_linha RESTART IDENTITY CASCADE"))
+        session.execute(text("TRUNCATE TABLE autos_linha RESTART IDENTITY CASCADE"))
+        session.execute(text("TRUNCATE TABLE permissionarias RESTART IDENTITY CASCADE"))
         session.execute(text("DELETE FROM municipios"))
         session.commit()
         print("  Dados anteriores de municípios removidos.")

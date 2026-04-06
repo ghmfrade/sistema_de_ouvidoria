@@ -8,6 +8,7 @@ import pandas as pd
 import auth
 from auth import usuario_logado
 from utils import (
+    fmt_ativo,
     listar_categorias_e_status,
     listar_coord_e_status,
     listar_gerencias_e_status,
@@ -62,12 +63,15 @@ with tab_users:
 
     users = listar_usuarios_e_status()
     if users:
-        df = pd.DataFrame(users).rename(columns={
+        df = pd.DataFrame(users)
+        df["ativo"] = df["ativo"].map(fmt_ativo)
+        df = df.rename(columns={
             "id": "ID", "nome": "Nome", "email": "E-mail",
-            "tipo": "Perfil", "gerencia": "Gerência",
-            "coordenacao": "Coordenação", "ativo": "Ativo",
+            "tipo": "Perfil", "gerencia_nome": "Gerência",
+            "coordenacao_nome": "Coordenação", "ativo": "Ativo",
         })
-        st.dataframe(df.drop(columns=["ID"]), use_container_width=True, hide_index=True)
+        cols_ocultar = [c for c in ["ID", "gerencia_id", "coordenacao_id"] if c in df.columns]
+        st.dataframe(df.drop(columns=cols_ocultar), use_container_width=True, hide_index=True)
 
     st.divider()
     st.markdown("#### Novo Usuário / Editar Senha")
@@ -136,7 +140,9 @@ with tab_cats:
 
     cats = listar_categorias_e_status()
     if cats:
-        df_c = pd.DataFrame(cats).rename(columns={"id": "ID", "nome": "Nome", "descricao": "Descrição", "ativo": "Ativo"})
+        df_c = pd.DataFrame(cats)
+        df_c["ativo"] = df_c["ativo"].map(fmt_ativo)
+        df_c = df_c.rename(columns={"id": "ID", "nome": "Nome", "descricao": "Descrição", "ativo": "Ativo"})
         st.dataframe(df_c.drop(columns=["ID"]), use_container_width=True, hide_index=True)
 
     st.divider()
@@ -178,8 +184,10 @@ with tab_subcats:
 
     subcats = listar_subcat_e_status()
     if subcats:
-        df_sc = pd.DataFrame(subcats).rename(columns={
-            "id": "ID", "nome": "Nome", "categoria": "Categoria", "ativo": "Ativo"
+        df_sc = pd.DataFrame(subcats)
+        df_sc["ativo"] = df_sc["ativo"].map(fmt_ativo)
+        df_sc = df_sc.rename(columns={
+            "id": "ID", "nome": "Nome", "categoria_nome": "Categoria", "ativo": "Ativo"
         })
         st.dataframe(df_sc.drop(columns=["ID"]), use_container_width=True, hide_index=True)
 
@@ -207,7 +215,7 @@ with tab_subcats:
     if subcats:
         st.divider()
         st.markdown("#### Ativar / Desativar Subcategoria")
-        subcat_labels = [f"{sc['nome']} ({sc['categoria']})" for sc in subcats]
+        subcat_labels = [f"{sc['nome']} ({sc['categoria_nome']})" for sc in subcats]
         subcat_sel_label = st.selectbox("Subcategoria", subcat_labels, key="toggle_subcat")
         subcat_sel_id = subcats[subcat_labels.index(subcat_sel_label)]["id"]
         sc1, sc2 = st.columns(2)
@@ -228,8 +236,10 @@ with tab_ger:
 
     gers = listar_gerencias_e_status()
     if gers:
+        df_g = pd.DataFrame(gers)
+        df_g["ativo"] = df_g["ativo"].map(fmt_ativo)
         st.dataframe(
-            pd.DataFrame(gers).rename(columns={"id": "ID", "nome": "Nome", "ativo": "Ativo"}).drop(columns=["ID"]),
+            df_g.rename(columns={"id": "ID", "nome": "Nome", "ativo": "Ativo"}).drop(columns=["ID"]),
             use_container_width=True,
             hide_index=True,
         )
@@ -270,11 +280,11 @@ with tab_coord:
 
     coords_list = listar_coord_e_status()
     if coords_list:
-        st.dataframe(
-            pd.DataFrame(coords_list).rename(columns={"id": "ID", "nome": "Nome", "gerencia": "Gerência", "ativo": "Ativo"}).drop(columns=["ID"]),
-            use_container_width=True,
-            hide_index=True,
-        )
+        df_co = pd.DataFrame(coords_list)
+        df_co["ativo"] = df_co["ativo"].map(fmt_ativo)
+        df_co = df_co.rename(columns={"id": "ID", "nome": "Nome", "gerencia_nome": "Gerência", "ativo": "Ativo"})
+        cols_ocultar_co = [c for c in ["ID", "gerencia_id"] if c in df_co.columns]
+        st.dataframe(df_co.drop(columns=cols_ocultar_co), use_container_width=True, hide_index=True)
 
     with st.form("form_coord"):
         gs_form = carregar_todas_gerencias()
@@ -298,7 +308,7 @@ with tab_coord:
     if coords_list:
         st.divider()
         st.markdown("#### Ativar / Desativar Coordenação")
-        coord_labels = [f"{c['nome']} ({c['gerencia']})" for c in coords_list]
+        coord_labels = [f"{c['nome']} ({c['gerencia_nome']})" for c in coords_list]
         coord_sel_label = st.selectbox("Coordenação", coord_labels, key="toggle_coord")
         coord_sel_id = coords_list[coord_labels.index(coord_sel_label)]["id"]
         cc1, cc2 = st.columns(2)

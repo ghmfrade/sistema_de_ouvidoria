@@ -17,8 +17,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 SEEDS = [
     "seed_municipios.py",
-    "seed.py",
-    "seed_metropolitano.py",
+    "seed_empresas.py",
+    "seed_autos_intermunicipal.py",
+    "seed_autos_metropolitano.py",
 ]
 
 for script in SEEDS:

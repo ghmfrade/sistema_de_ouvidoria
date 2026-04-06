@@ -8,7 +8,8 @@ from repositories.ouvidoria_write_repo import registrar_resposta_permissionaria
 from utils import carregar_ouvidoria_para_permissionaria
 
 st.set_page_config(page_title="Resposta da Permissionária", layout="wide")
-st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
+st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', 
+            unsafe_allow_html=True)
 
 # ── Autenticação ──────────────────────────────────────────────────────────
 if "usuario" not in st.session_state:
@@ -47,7 +48,7 @@ st.subheader("Respostas anteriores")
 if dados["respostas_permissionaria"]:
     for resp in dados["respostas_permissionaria"]:
         with st.expander(
-            f"{resp['data_resposta'].strftime('%d/%m/%Y')} — por {resp['registrado_por']}"
+            f"{resp['data_resposta'].strftime('%d/%m/%Y')} — por {resp['registrado_por_nome']}"
         ):
             st.text(resp["conteudo"])
 else:

@@ -257,3 +257,98 @@ Após qualquer escrita que afete dados cacheados, invalide com `.clear()`.
 - Não expor stacktraces ao usuário final — use `st.error("Mensagem amigável")`.
 - Variáveis de ambiente em `.env` (não versionar). Usar `python-dotenv`.
 - Validar campos obrigatórios antes de persistir no banco.
+
+---
+
+## 11. Contratos de Dados (TypedDict)
+
+### Regra fundamental
+
+**Repositórios de leitura NUNCA retornam instâncias SQLAlchemy fora da sessão.**
+Toda conversão ORM → dados acontece dentro do bloco `with db_session() as s:`, eliminando
+a necessidade de `expunge_all()` e "objetos zumbi" com estado implícito.
+
+### Onde ficam as definições
+
+Todos os TypedDicts do projeto estão em `repositories/types.py`.
+
+### Funções de repositório → TypedDict
+
+```python
+# repositories/types.py
+class MunicipioDict(TypedDict):
+    id: int
+    nome: str
+    estado: str
+    cod_ibge: str | None
+    populacao: int | None
+
+# repositories/municipios_repo.py
+def get_municipios_sp() -> list[MunicipioDict]:
+    with db_session() as s:
+        munis = s.query(Municipio).filter_by(estado="SP").order_by(Municipio.nome).all()
+        return [MunicipioDict(id=m.id, nome=m.nome, ...) for m in munis]
+        # ✅ Sessão fecha aqui — nenhum objeto ORM sai vivo
+```
+
+### Loaders em utils/ — recebem TypedDicts, não objetos ORM
+
+```python
+# utils/loaders_catalog.py
+def carregar_categorias():
+    return [(c["id"], c["nome"]) for c in get_categorias() if c["ativo"]]
+    # ✅ Acesso via ["key"] — sem risco de DetachedInstanceError
+```
+
+### TypedDicts aninhados (Ouvidoria)
+
+Para entidades complexas com relacionamentos, use TypedDicts aninhados construídos
+com funções helper privadas dentro do repositório:
+
+```python
+# repositories/ouvidoria_repo.py
+
+def _to_reclamacao_dict(r: Reclamacao) -> ReclamacaoDict:
+    return ReclamacaoDict(
+        id=r.id,
+        categoria_nome=r.categoria.nome if r.categoria else None,
+        autos=[ReclamacaoAutoDict(auto_id=ra.auto.id, ...) for ra in r.autos_vinculados],
+        ...
+    )
+
+def get_ouvidoria_completa(oid: int) -> OuvidoriaDetalheDict | None:
+    with db_session() as s:
+        o = s.query(Ouvidoria).options(joinedload(...)).filter_by(id=oid).first()
+        if not o:
+            return None
+        return _to_detalhe(o)   # conversão dentro da sessão
+```
+
+### Exceções — retorno de primitivos/tuples é aceito
+
+Para queries agregadas (dashboards), retornar tuples/scalars diretamente é correto
+e não requer TypedDicts:
+
+```python
+# repositories/dashboard/produtividade_repo.py
+def query_kpis_produtividade(...) -> tuple[int, int, int]:
+    with db_session() as s:
+        return s.query(func.count(), ...).one()
+        # ✅ Tuples de scalars — sem objetos ORM
+```
+
+### O que é proibido
+
+```python
+# ❌ PROIBIDO — objeto ORM fora da sessão
+with db_session() as s:
+    o = s.query(Ouvidoria).filter_by(id=oid).first()
+    s.expunge_all()
+return o   # "objeto zumbi": relacionamentos lazy vão lançar DetachedInstanceError
+
+# ❌ PROIBIDO — expunge_all() como muleta
+with db_session() as s:
+    objs = s.query(Modelo).options(joinedload(...)).all()
+    s.expunge_all()
+    return objs   # Contrato implícito; cria acoplamento frágil entre repo e loader
+```

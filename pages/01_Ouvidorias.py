@@ -106,7 +106,7 @@ else:
 
     for o in ouvidorias:
         emoji_status = STATUS_EMOJI.get(o["status"], "")
-        status_label = f"{emoji_status} {o['status'].value}"
+        status_label = f"{emoji_status} {o['status']}"
 
         # Prazo Permissionária (círculo + dias, tooltip com data)
         perm_label, perm_tip = prazo_circle_label(o["prazo_permissionaria"])

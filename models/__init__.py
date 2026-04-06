@@ -12,7 +12,7 @@ from .associations import OuvidoriaTecnico, ReclamacaoAuto
 from .resposta_tecnica import RespostaTecnica
 from .resposta_permissionaria import RespostaPermissionaria
 from .anexo_ouvidoria import AnexoOuvidoria
-from .parada_auto_linha import ParadaAutoLinha
+from .trecho_auto_linha import TrechoAutoLinha
 from .municipio import Municipio
 
 __all__ = [
@@ -34,6 +34,6 @@ __all__ = [
     "RespostaTecnica",
     "RespostaPermissionaria",
     "AnexoOuvidoria",
-    "ParadaAutoLinha",
+    "TrechoAutoLinha",
     "Municipio",
 ]

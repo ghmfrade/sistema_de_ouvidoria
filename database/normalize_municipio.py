@@ -19,7 +19,9 @@ import unicodedata
 # ---------------------------------------------------------------------------
 EXCECOES: dict[str, str] = {
     "SANTA BARBARA DO OESTE": "Santa Bárbara d'Oeste",  # CSV não tem apóstrofo
-    "FLORINIA": "Flor\u00ednea",                             # CSV tem "Flor\u00ednia" (typo); IBGE: "Flor\u00ednea"
+    "FLORINIA": "Florínea",                              # typo no CSV; IBGE: "Florínea"
+    "MOJI MIRIM": "Mogi Mirim",                          # grafia antiga SIGA; IBGE: "Mogi Mirim"
+    "EMBU": "Embu das Artes",                            # renomeado em 2011; IBGE: "Embu das Artes"
 }
 
 

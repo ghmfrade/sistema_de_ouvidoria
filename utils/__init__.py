@@ -1,6 +1,6 @@
 """utils/ — Módulos utilitários do frontend (loaders, formatters, queries)."""
 
-from .formatters import fmt_auto, prazo_circle_label, to_excel
+from .formatters import fmt_auto, fmt_ativo, formatar_atribuicoes, prazo_circle_label, to_excel
 from .loaders_admin import (
     listar_categorias_e_status,
     listar_coord_e_status,
@@ -59,10 +59,13 @@ from .ouvidoria_ops import (
     excluir_ouvidoria,
     listar_ouvidorias,
 )
+from .types import DetalheOuvidoriaView, RespostaTecnicaView
 
 __all__ = [
     # formatters
     "fmt_auto",
+    "fmt_ativo",
+    "formatar_atribuicoes",
     "prazo_circle_label",
     "to_excel",
     # loaders_admin
@@ -118,4 +121,7 @@ __all__ = [
     "concluir_ouvidoria",
     "excluir_ouvidoria",
     "listar_ouvidorias",
+    # types (View Models)
+    "DetalheOuvidoriaView",
+    "RespostaTecnicaView",
 ]

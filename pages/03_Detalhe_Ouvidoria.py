@@ -55,32 +55,33 @@ if not ouvidoria_id:
     st.error("Nenhuma ouvidoria selecionada.")
     st.stop()
 
-
-result = carregar_detalhe_ouvidoria(ouvidoria_id)
-if result[0] is None:
+view = carregar_detalhe_ouvidoria(ouvidoria_id)
+if view is None:
     st.error("Ouvidoria não encontrada.")
     st.stop()
 
-ouvidoria, reclamacoes, rec_autos, atribuicoes, tecnicos_info, resp_info, resps_perm, anexos_data = result
+ouvidoria     = view["ouvidoria"]
+rec_autos     = view["rec_autos"]
+tecnicos_info = view["tecnicos_info"]
 
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
-st.title(f"🔍 Ouvidoria #{ouvidoria.id}")
-st.markdown(f"**Protocolo:** {ouvidoria.protocolo}")
-dias_restantes = (ouvidoria.prazo - date.today()).days
+st.title(f"🔍 Ouvidoria #{ouvidoria['id']}")
+st.markdown(f"**Protocolo:** {ouvidoria['protocolo']}")
+dias_restantes = (ouvidoria["prazo"] - date.today()).days
 cor = "🔴" if dias_restantes < 0 else ("🟡" if dias_restantes <= 3 else "🟢")
 
 cols_m = st.columns(4)
-cols_m[0].metric("Status", ouvidoria.status.value)
-cols_m[1].metric("Prazo", ouvidoria.prazo.strftime("%d/%m/%Y"))
+cols_m[0].metric("Status", ouvidoria["status"])
+cols_m[1].metric("Prazo", ouvidoria["prazo"].strftime("%d/%m/%Y"))
 cols_m[2].metric("Dias restantes", f"{cor} {dias_restantes}")
-if ouvidoria.prazo_permissionaria:
-    dias_perm = (ouvidoria.prazo_permissionaria - date.today()).days
+if ouvidoria["prazo_permissionaria"]:
+    dias_perm = (ouvidoria["prazo_permissionaria"] - date.today()).days
     cor_p = "🔴" if dias_perm < 0 else "🟢"
-    cols_m[3].metric("Prazo Permissionária", f"{ouvidoria.prazo_permissionaria.strftime('%d/%m/%Y')} {cor_p} {dias_perm}d")
+    cols_m[3].metric("Prazo Permissionária", f"{ouvidoria['prazo_permissionaria'].strftime('%d/%m/%Y')} {cor_p} {dias_perm}d")
 
 # Conteúdo da ouvidoria
 with st.expander("Conteúdo da Ouvidoria", expanded=True):
-    st.text(ouvidoria.conteudo)
+    st.text(ouvidoria["conteudo"])
 
 st.divider()
 
@@ -91,15 +92,15 @@ tab_rec, tab_tecnicos, tab_respostas, tab_resp_perm, tab_anexos, tab_edicao = st
 
 # ── Tab: Reclamações ──────────────────────────────────────────────────────────
 with tab_rec:
-    if not reclamacoes:
+    if not ouvidoria["reclamacoes"]:
         st.info("Nenhuma reclamação cadastrada.")
-    for r in reclamacoes:
+    for r in ouvidoria["reclamacoes"]:
         tipo_label = f" [{r['tipo_servico']}]" if r.get('tipo_servico') else ""
-        with st.expander(f"Item {r['numero_item']} –{tipo_label} {r['categoria'] or 'Sem categoria'}"):
+        with st.expander(f"Item {r['numero_item']} –{tipo_label} {r['categoria_nome'] or 'Sem categoria'}"):
             if r.get('tipo_servico'):
                 st.write(f"**Tipo de Serviço:** {r['tipo_servico']}")
-            if r.get('subcategoria'):
-                st.write(f"**Subcategoria:** {r['subcategoria']}")
+            if r.get('subcategoria_nome'):
+                st.write(f"**Subcategoria:** {r['subcategoria_nome']}")
             if r.get('empresa_fretamento'):
                 st.write(f"**Empresa de Fretamento:** {r['empresa_fretamento']}")
             st.write(f"**Embarque:** {r['local_embarque'] or '–'}")
@@ -109,8 +110,12 @@ with tab_rec:
             if autos:
                 st.write(f"**Autos ({len(autos)}):**")
                 for a in autos:
+                    from utils.formatters import fmt_auto, TC_REGIOES
                     rm_info = f" | RM: {a['regiao_metropolitana']}" if a.get('regiao_metropolitana') else ""
-                    st.write(f"- {a['numero']} – {a['permissionaria']} – {a['cidade_inicial']} → {a['cidade_final']}{rm_info}")
+                    tc = a.get("tc")
+                    tc_info = f" – TC{tc} {TC_REGIOES[tc]}" if tc and tc in TC_REGIOES else ""
+                    denom = " – ".join(filter(None, [a.get("denominacao_a"), a.get("denominacao_b")])) or a["numero"]
+                    st.write(f"- {a['numero']} – {a['permissionaria_nome']} – {denom}{tc_info}{rm_info}")
             else:
                 st.write("**Autos:** Nenhum vinculado")
 
@@ -120,7 +125,7 @@ with tab_tecnicos:
         st.markdown("**Técnicos atribuídos:**")
         for tid, info in tecnicos_info.items():
             status_resp = "✅ Respondido" if info["respondido"] else "⏳ Aguardando"
-            st.write(f"- {info['nome']} – {status_resp}")
+            st.write(f"- {info['tecnico_nome']} – {status_resp}")
     else:
         st.info("Nenhum técnico atribuído ainda.")
 
@@ -145,28 +150,28 @@ with tab_tecnicos:
 
 # ── Tab: Respostas Técnicas ──────────────────────────────────────────────────
 with tab_respostas:
-    if not resp_info:
+    if not ouvidoria["respostas_tecnicas"]:
         st.info("Nenhuma resposta técnica registrada ainda.")
-    for resp in resp_info:
-        with st.expander(f"Resposta de {resp['tecnico']} – {resp['data'].strftime('%d/%m/%Y') if resp['data'] else '?'}"):
-            st.write(f"**Texto:** {resp['texto']}")
+    for resp in ouvidoria["respostas_tecnicas"]:
+        with st.expander(f"Resposta de {resp['tecnico_nome']} – {resp['data_resposta'].strftime('%d/%m/%Y') if resp['data_resposta'] else '?'}"):
+            st.write(f"**Texto:** {resp['texto_resposta']}")
 
 # ── Tab: Respostas Permissionária ────────────────────────────────────────────
 with tab_resp_perm:
-    if not resps_perm:
+    if not ouvidoria["respostas_permissionaria"]:
         st.info("Nenhuma resposta da permissionária registrada.")
-    for rp in resps_perm:
-        with st.expander(f"{rp['data_resposta'].strftime('%d/%m/%Y')} — por {rp['registrado_por']}"):
+    for rp in ouvidoria["respostas_permissionaria"]:
+        with st.expander(f"{rp['data_resposta'].strftime('%d/%m/%Y')} — por {rp['registrado_por_nome']}"):
             st.text(rp["conteudo"])
 
 # ── Tab: Anexos ──────────────────────────────────────────────────────────────
 with tab_anexos:
-    if anexos_data:
-        for an in anexos_data:
+    if ouvidoria["anexos"]:
+        for an in ouvidoria["anexos"]:
             caminho = os.path.join(UPLOADS_DIR, an["nome_storage"])
             tamanho_kb = round(an["tamanho"] / 1024, 1) if an["tamanho"] else "?"
             col_info, col_dl, col_del = st.columns([4, 1, 1])
-            col_info.write(f"📎 **{an['nome_arquivo']}** ({tamanho_kb} KB) — {an['enviado_por']} em {an['criado_em'].strftime('%d/%m/%Y %H:%M') if an['criado_em'] else '?'}")
+            col_info.write(f"📎 **{an['nome_arquivo']}** ({tamanho_kb} KB) — {an['enviado_por_nome']} em {an['criado_em'].strftime('%d/%m/%Y %H:%M') if an['criado_em'] else '?'}")
             if os.path.exists(caminho):
                 with open(caminho, "rb") as f:
                     col_dl.download_button(
@@ -228,23 +233,23 @@ with tab_edicao:
         st.warning("Apenas gestores podem editar a ouvidoria.")
     else:
         with st.form("form_editar"):
-            novo_protocolo = st.text_input("Protocolo", value=ouvidoria.protocolo)
-            novo_conteudo = st.text_area("Conteúdo da Ouvidoria", value=ouvidoria.conteudo, height=200)
-            novo_prazo = st.date_input("Prazo", value=ouvidoria.prazo)
+            novo_protocolo = st.text_input("Protocolo", value=ouvidoria["protocolo"])
+            novo_conteudo = st.text_area("Conteúdo da Ouvidoria", value=ouvidoria["conteudo"], height=200)
+            novo_prazo = st.date_input("Prazo", value=ouvidoria["prazo"])
             novo_prazo_perm = st.date_input(
                 "Prazo Permissionária",
-                value=ouvidoria.prazo_permissionaria or date.today(),
-                disabled=ouvidoria.prazo_permissionaria is None,
+                value=ouvidoria["prazo_permissionaria"] or date.today(),
+                disabled=ouvidoria["prazo_permissionaria"] is None,
             )
             habilitar_prazo_perm = st.checkbox(
                 "Definir prazo da permissionária",
-                value=ouvidoria.prazo_permissionaria is not None,
+                value=ouvidoria["prazo_permissionaria"] is not None,
             )
             status_opcoes = [s.value for s in StatusOuvidoria]
             novo_status_val = st.selectbox(
                 "Status",
                 status_opcoes,
-                index=status_opcoes.index(ouvidoria.status.value),
+                index=status_opcoes.index(ouvidoria["status"]),
             )
             salvar_edicao = st.form_submit_button("💾 Salvar alterações")
 
@@ -262,7 +267,7 @@ with tab_edicao:
 
         st.divider()
         # Concluir
-        pode_concluir = ouvidoria.status == StatusOuvidoria.RETORNO_TECNICO
+        pode_concluir = ouvidoria["status"] == StatusOuvidoria.RETORNO_TECNICO.value
         if pode_concluir:
             if st.button("✅ Concluir Ouvidoria", type="primary"):
                 concluir_ouvidoria(ouvidoria_id)
@@ -281,8 +286,7 @@ with tab_edicao:
             st.warning("⚠️ Esta ação não pode ser desfeita. Confirmar exclusão?")
             col_s, col_n = st.columns(2)
             if col_s.button("Sim, excluir", type="primary"):
-                # Remove anexos do disco
-                for an in anexos_data:
+                for an in ouvidoria["anexos"]:
                     try:
                         os.remove(os.path.join(UPLOADS_DIR, an["nome_storage"]))
                     except OSError:

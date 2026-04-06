@@ -51,20 +51,21 @@ sistema_de_ouvidoria/
 │   ├── connection.py               # Engine, SessionLocal, get_session(), db_session(), init_db()
 │   └── seed.py                     # Importa CSVs + cria usuário admin padrão
 │
-├── repositories/                   # Camada de acesso a dados — apenas ORM, sem lógica de UI
-│   ├── ouvidoria_repo.py           # Leitura: get_ouvidoria_completa, get_ouvidorias, …
+├── repositories/                   # Camada de acesso a dados — ORM puro, retorna TypedDicts
+│   ├── types.py                    # Contratos de dados: todos os TypedDicts do projeto
+│   ├── ouvidoria_repo.py           # Leitura: get_ouvidoria_completa→OuvidoriaDetalheDict, …
 │   ├── ouvidoria_write_repo.py     # Escrita: criar_ouvidoria, registrar_resposta_tecnica, …
-│   ├── catalog_repo.py             # Leitura: get_categorias, get_tecnicos_ativos, …
+│   ├── catalog_repo.py             # Leitura: get_categorias→list[CategoriaDict], …
 │   ├── admin_write_repo.py         # Escrita: criar_usuario, toggle_categoria, …
-│   ├── autos_repo.py               # Leitura: get_todos_autos, buscar_autos_por_trecho, …
-│   ├── municipios_repo.py          # Leitura: get_municipios_sp, get_municipios_por_tipo_servico
+│   ├── autos_repo.py               # Leitura: get_todos_autos→list[AutoDict], …
+│   ├── municipios_repo.py          # Leitura: get_municipios_sp→list[MunicipioDict]
 │   ├── dashboard/
 │   │   ├── produtividade_repo.py   # Queries ORM de produtividade (func, case, cast, joins)
 │   │   └── qualidade_repo.py       # Queries ORM de qualidade (func, case, cast, joins)
 │   └── __init__.py
 │
 ├── utils/                          # Camada intermediária — cache, formatação, lógica frontend
-│   ├── loaders_ouvidoria.py        # Formata objetos ORM de ouvidoria para dicts da UI
+│   ├── loaders_ouvidoria.py        # Recebe TypedDicts do repo e monta estruturas para a UI
 │   ├── loaders_catalog.py          # Wrappers cacheados para catálogo (categorias, gerências…)
 │   ├── loaders_auto.py             # Wrappers cacheados para autos, cidades, permissionárias
 │   ├── loaders_admin.py            # Wrappers cacheados para listagens administrativas
@@ -102,20 +103,21 @@ sistema_de_ouvidoria/
 pages/  →  utils/  →  repositories/  →  models/ + database/
 ```
 
-| Camada | Responsabilidade | O que NÃO deve fazer |
-|---|---|---|
-| **pages/** | Renderizar UI, ler `session_state`, chamar utils | Chamar `repositories/` ou `db_session()` diretamente |
-| **utils/** | Cache (`@st.cache_data`), formatar ORM→dict, coordenar lógica de negócio frontend | Retornar objetos ORM vivos para as pages; duplicar queries que já existem nos repos |
-| **repositories/** | Queries e escritas ORM; retornar objetos SQLAlchemy expunged ou primitivos | Importar `streamlit`; conter lógica de apresentação |
-| **models/** | Definir tabelas e relacionamentos SQLAlchemy | Ter lógica de negócio ou dependências externas |
+| Camada | Responsabilidade | Contrato de retorno | O que NÃO deve fazer |
+|---|---|---|---|
+| **pages/** | Renderizar UI, ler `session_state`, chamar utils | — | Chamar `repositories/` ou `db_session()` diretamente |
+| **utils/** | Cache (`@st.cache_data`), formatar TypedDict→UI, coordenar lógica de negócio frontend | dicts, listas, tuples de primitivos | Retornar objetos ORM; duplicar queries que já existem nos repos |
+| **repositories/** | Queries e escritas ORM; converter ORM→TypedDict **dentro da sessão** | `TypedDict`, primitivos ou tuples (para agregações) | Importar `streamlit`; retornar objetos SQLAlchemy vivos; usar `expunge_all()` |
+| **models/** | Definir tabelas e relacionamentos SQLAlchemy | — | Ter lógica de negócio ou dependências externas |
 
 ### Fluxo típico de leitura
 
 ```python
 # page → utils/loader → repository
-carregar_detalhe_ouvidoria(oid)          # utils/loaders_ouvidoria.py
-  └── get_ouvidoria_completa(oid)        # repositories/ouvidoria_repo.py
-        └── db_session() + joinedload    # database/connection.py + models/
+carregar_detalhe_ouvidoria(oid)              # utils/loaders_ouvidoria.py
+  └── get_ouvidoria_completa(oid)            # repositories/ouvidoria_repo.py
+        └── db_session() + joinedload        # database/connection.py + models/
+              └── _to_detalhe(o)             # conversão ORM→OuvidoriaDetalheDict dentro da sessão
 ```
 
 ### Fluxo típico de escrita
@@ -230,21 +232,47 @@ Em qualquer momento o gestor pode alterar manualmente o status.
 
 ## Padrão de Sessão com Banco
 
-Apenas o `db_session()` context manager é usado (commit/rollback automático). Leituras também usam `db_session()` nos repositórios, com `s.expunge_all()` para liberar objetos antes de retorná-los.
+Apenas o `db_session()` context manager é usado (commit/rollback automático).
 
 ```python
-# Leitura — expunge garante objetos detachados seguros
+# Leitura — conversão ORM→TypedDict dentro da sessão (sem expunge_all)
 with db_session() as s:
-    objs = s.query(Modelo).options(...).all()
-    s.expunge_all()
-    return objs
+    objs = s.query(Modelo).options(joinedload(...)).all()
+    return [ModeloDict(id=o.id, ...) for o in objs]
 
 # Escrita — commit automático ao sair do with
 with db_session() as s:
     s.add(NovoObjeto(...))
 ```
 
-**Regra crítica**: Nunca retornar objetos SQLAlchemy vivos fora da sessão. Os loaders em `utils/` convertem para `dict` enquanto o objeto ainda está acessível (após `expunge_all`, os atributos simples ainda funcionam mas relacionamentos lazy falham).
+**Regra**: A conversão ORM → dados acontece **dentro** do `with db_session()`. Nenhum
+objeto SQLAlchemy sai vivo da sessão — eliminando o risco de `DetachedInstanceError`.
+
+---
+
+## Contratos de Dados (TypedDict)
+
+Todos os TypedDicts estão em `repositories/types.py`. As funções de repositório de
+**leitura** têm assinaturas explícitas com esses tipos:
+
+| Função | Retorno |
+|---|---|
+| `get_municipios_sp()` | `list[MunicipioDict]` |
+| `get_categorias()` | `list[CategoriaDict]` |
+| `get_subcategorias(cat_id)` | `list[SubcategoriaDict]` |
+| `get_usuarios()` | `list[UsuarioDict]` |
+| `get_todos_autos(...)` | `list[AutoDict]` |
+| `get_ouvidorias(...)` | `list[OuvidoriaResumoDict]` |
+| `get_ouvidoria_completa(oid)` | `OuvidoriaDetalheDict \| None` |
+| `get_ouvidoria_permissionaria(oid)` | `OuvidoriaPermissionariaDict \| None` |
+| `get_atribuicao_tecnico(...)` | `AtribuicaoScalarDict \| None` |
+| `get_respostas_tecnico(...)` | `list[RespostaTecnicaDict]` |
+| `query_kpis_produtividade(...)` | `tuple[int, int, int]` (agregação — sem TypedDict) |
+
+`OuvidoriaDetalheDict` é o tipo mais complexo: contém `reclamacoes`, `atribuicoes`,
+`respostas_tecnicas`, `respostas_permissionaria` e `anexos` como listas de TypedDicts
+aninhados. A conversão é feita por funções helper privadas (`_to_detalhe`, `_to_reclamacao_dict`, etc.)
+dentro do módulo `ouvidoria_repo.py`.
 
 ---
 

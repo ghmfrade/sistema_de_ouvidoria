@@ -27,6 +27,7 @@ from utils import (
     carregar_todos_autos,
     fmt_auto,
 )
+from utils.formatters import TC_REGIOES
 
 st.set_page_config(page_title="Nova Ouvidoria", page_icon="➕", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -291,8 +292,8 @@ if recs_com_autos and st.session_state["reclamacoes_draft"]:
         regiao_sel_val = None if regiao_sel == OPCAO_QUALQUER else regiao_sel
 
     perms = carregar_permissionarias(rec_tipo, regiao=regiao_sel_val)
-    perm_nomes = [n for _, n in perms]
-    perm_map = {nome: pid for pid, nome in perms}
+    perm_nomes = [p["nome_fantasia"] or p["nome"] for p in perms]
+    perm_map = {(p["nome_fantasia"] or p["nome"]): p["id"] for p in perms}
 
     empresa_sel = st.selectbox("Empresa", [OPCAO_TODAS] + perm_nomes, key="filtro_empresa")
     perm_id_sel = None if empresa_sel == OPCAO_TODAS else perm_map.get(empresa_sel)
@@ -349,12 +350,14 @@ if recs_com_autos and st.session_state["reclamacoes_draft"]:
                 )
                 ids_existentes = {a["id"] for a in st.session_state["autos_checklist"]}
                 adicionados = 0
-                for aid, anum, aori, adest, aemp in encontrados:
-                    if aid not in ids_existentes:
+                for a in encontrados:
+                    if a["id"] not in ids_existentes:
                         st.session_state["autos_checklist"].append(
-                            {"id": aid, "numero": anum, "cidade_ini": aori, "cidade_fim": adest, "empresa": aemp}
+                            {"id": a["id"], "numero": a["numero"],
+                             "denominacao_a": a.get("denominacao_a"), "denominacao_b": a.get("denominacao_b"),
+                             "empresa": a["permissionaria_nome"], "tc": a.get("tc")}
                         )
-                        ids_existentes.add(aid)
+                        ids_existentes.add(a["id"])
                         adicionados += 1
                 st.success(f"{adicionados} autos adicionados à lista ({len(encontrados)} encontrados).")
                 st.rerun()
@@ -371,13 +374,14 @@ if recs_com_autos and st.session_state["reclamacoes_draft"]:
             sel_idx = num_opcoes.index(num_sel)
             if st.button("➕ Adicionar à lista", use_container_width=True):
                 auto_row = todos_autos[sel_idx]
-                aid, anum, aori, adest, aemp = auto_row
                 ids_existentes = {a["id"] for a in st.session_state["autos_checklist"]}
-                if aid not in ids_existentes:
+                if auto_row["id"] not in ids_existentes:
                     st.session_state["autos_checklist"].append(
-                        {"id": aid, "numero": anum, "cidade_ini": aori, "cidade_fim": adest, "empresa": aemp}
+                        {"id": auto_row["id"], "numero": auto_row["numero"],
+                         "denominacao_a": auto_row.get("denominacao_a"), "denominacao_b": auto_row.get("denominacao_b"),
+                         "empresa": auto_row["permissionaria_nome"], "tc": auto_row.get("tc")}
                     )
-                    st.success(f"Auto {anum} adicionado à lista.")
+                    st.success(f"Auto {auto_row['numero']} adicionado à lista.")
                     st.rerun()
                 else:
                     st.info("Auto já está na lista.")
@@ -393,7 +397,10 @@ if recs_com_autos and st.session_state["reclamacoes_draft"]:
         for auto in st.session_state["autos_checklist"]:
             ja_salvo = auto["id"] in ids_ja_salvos
             emp = auto.get('empresa', '')
-            label = f"**{auto['numero']}** – {emp + ' – ' if emp else ''}{auto['cidade_ini']} → {auto['cidade_fim']}"
+            den = " – ".join(filter(None, [auto.get("denominacao_a"), auto.get("denominacao_b")]))
+            tc = auto.get("tc")
+            tc_str = f" – TC{tc} {TC_REGIOES[tc]}" if tc and tc in TC_REGIOES else ""
+            label = f"**{auto['numero']}** – {emp + ' – ' if emp else ''}{den}{tc_str}"
             if ja_salvo:
                 st.checkbox(label + "  ✅ *já vinculado*", key=f"chk_{auto['id']}", value=True, disabled=True)
             else:

@@ -6,10 +6,12 @@ from .base import Base
 class Permissionaria(Base):
     __tablename__ = "permissionarias"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    nome: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    id:           Mapped[int]       = mapped_column(primary_key=True)
+    nome:         Mapped[str]       = mapped_column(String(200), nullable=False)
+    cnpj:         Mapped[str]       = mapped_column(String(20), unique=True, nullable=False)
+    nome_fantasia: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     autos: Mapped[list["AutoLinha"]] = relationship(back_populates="permissionaria")  # noqa: F821
 
     def __repr__(self) -> str:
-        return f"<Permissionaria {self.nome}>"
+        return f"<Permissionaria {self.cnpj} {self.nome}>"
