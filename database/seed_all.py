@@ -20,6 +20,7 @@ SEEDS = [
     "seed_empresas.py",
     "seed_autos_intermunicipal.py",
     "seed_autos_metropolitano.py",
+    "seed_usuarios.py",
 ]
 
 for script in SEEDS:
