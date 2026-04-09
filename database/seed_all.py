@@ -1,10 +1,5 @@
 """
-Runner que executa todos os seeds na ordem correta.
-
-Ordem obrigatória:
-  1. seed_municipios.py  — tabela municipios (IBGE) deve existir antes das paradas
-  2. seed.py             — autos intermunicipais + paradas com municipio_id
-  3. seed_metropolitano.py — autos metropolitanos + paradas com municipio_id
+Runner que executa todos os seeds na ordem correta alimentando o banco de dados.
 
 Uso:
     python database/seed_all.py
@@ -21,6 +16,7 @@ SEEDS = [
     "seed_autos_intermunicipal.py",
     "seed_autos_metropolitano.py",
     "seed_usuarios.py",
+    "seed_categorias.py",
 ]
 
 for script in SEEDS:

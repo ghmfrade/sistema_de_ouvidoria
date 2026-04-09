@@ -18,7 +18,12 @@ DATABASE_URL = (
 _schema = os.getenv("POSTGRES_SCHEMA", "")
 _connect_args = {"options": f"-c search_path={_schema},public"} if _schema else {}
 
-engine = create_engine(DATABASE_URL, echo=False, connect_args=_connect_args)
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    connect_args=_connect_args,
+    pool_pre_ping=True,
+)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 

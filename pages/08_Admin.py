@@ -143,7 +143,7 @@ with tab_cats:
         df_c = pd.DataFrame(cats)
         df_c["ativo"] = df_c["ativo"].map(fmt_ativo)
         df_c = df_c.rename(columns={"id": "ID", "nome": "Nome", "descricao": "Descrição", "ativo": "Ativo"})
-        st.dataframe(df_c.drop(columns=["ID"]), use_container_width=True, hide_index=True)
+        st.dataframe(df_c.drop(columns=["ID", "Descrição"], errors="ignore"), use_container_width=True, hide_index=True)
 
     st.divider()
     st.markdown("#### Nova Categoria")
@@ -189,7 +189,8 @@ with tab_subcats:
         df_sc = df_sc.rename(columns={
             "id": "ID", "nome": "Nome", "categoria_nome": "Categoria", "ativo": "Ativo"
         })
-        st.dataframe(df_sc.drop(columns=["ID"]), use_container_width=True, hide_index=True)
+        cols_ocultar_sc = [c for c in ["ID", "categoria_id"] if c in df_sc.columns]
+        st.dataframe(df_sc.drop(columns=cols_ocultar_sc), use_container_width=True, hide_index=True)
 
     st.divider()
     st.markdown("#### Nova Subcategoria")

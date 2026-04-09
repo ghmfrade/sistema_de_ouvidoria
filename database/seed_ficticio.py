@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import text
 from database.connection import get_session, db_session
+from repositories.pontuacao import calcular_pontuacao_auto
 from models import (
     Usuario, TipoUsuario, Categoria, Ouvidoria, StatusOuvidoria,
     Reclamacao, OuvidoriaTecnico, ReclamacaoAuto, RespostaTecnica,
@@ -234,7 +235,7 @@ def criar_ouvidorias(s, tec_ids, cat_ids, auto_ids, admin_id):
             # Autos por reclamação (1 a 3) — concentrados nos mesmos autos
             n_autos = random.randint(1, 3)
             autos_rec = random.sample(auto_ids[:12], min(n_autos, 12))
-            pontuacao = round(1.0 / len(autos_rec), 4)
+            pontuacao = calcular_pontuacao_auto(len(autos_rec))
             for aid in autos_rec:
                 s.add(ReclamacaoAuto(reclamacao_id=rec.id, auto_id=aid, pontuacao=pontuacao))
 

@@ -3,6 +3,7 @@
 from datetime import date, datetime
 
 from database.connection import db_session
+from repositories.pontuacao import calcular_pontuacao_auto
 from models import (
     AnexoOuvidoria,
     Ouvidoria,
@@ -58,8 +59,7 @@ def criar_ouvidoria(protocolo, conteudo, prazo, prazo_permissionaria,
             session.flush()
 
             autos_rec = rec_draft["autos"]
-            n = len(autos_rec)
-            pontuacao = round(1.0 / n, 4) if n > 0 else 0
+            pontuacao = calcular_pontuacao_auto(len(autos_rec))
             for a in autos_rec:
                 session.add(ReclamacaoAuto(
                     reclamacao_id=rec.id,
@@ -188,8 +188,7 @@ def registrar_resposta_tecnica(ouvidoria_id, tecnico_id, texto, recs_edit):
             session.query(ReclamacaoAuto).filter_by(reclamacao_id=rec_db.id).delete()
             session.flush()
 
-            n_autos = len(rec_edit["autos"])
-            pontuacao = round(1.0 / n_autos, 4) if n_autos > 0 else 0
+            pontuacao = calcular_pontuacao_auto(len(rec_edit["autos"]))
             for a in rec_edit["autos"]:
                 session.add(ReclamacaoAuto(
                     reclamacao_id=rec_db.id,
