@@ -103,24 +103,28 @@ if st.session_state.filtros_hash_anterior != filtros_hash:
 
 # Controles de paginação
 if ouvidorias:
-    num_paginas = (len(ouvidorias) + st.session_state.por_pagina - 1) // st.session_state.por_pagina
+    num_paginas = max(1, (len(ouvidorias) + st.session_state.por_pagina - 1) // st.session_state.por_pagina)
+    if st.session_state.pag_atual > num_paginas:
+        st.session_state.pag_atual = num_paginas
+    opcoes_pagina = [f"Página {i}/{num_paginas}" for i in range(1, num_paginas + 1)]
 
     col_pag1, col_pag2, col_pag3, col_pag4, col_pag5 = st.columns([0.8, 0.8, 1.5, 0.8, 1.2])
 
     with col_pag1:
         if st.button("⏮ Início", use_container_width=True):
             st.session_state.pag_atual = 1
+            st.session_state["pag_select"] = opcoes_pagina[0]
             st.rerun()
 
     with col_pag2:
         if st.button("◀ Anterior", use_container_width=True):
             if st.session_state.pag_atual > 1:
                 st.session_state.pag_atual -= 1
+                st.session_state["pag_select"] = opcoes_pagina[st.session_state.pag_atual - 1]
                 st.rerun()
 
     with col_pag3:
-        opcoes_pagina = [f"Página {i}/{num_paginas}" for i in range(1, num_paginas + 1)]
-        pag_sel_str = st.selectbox("", opcoes_pagina, index=st.session_state.pag_atual - 1, key="pag_select", label_visibility="collapsed")
+        pag_sel_str = st.selectbox("", opcoes_pagina, key="pag_select", label_visibility="collapsed")
         pag_num = int(pag_sel_str.split()[1].split("/")[0])
         if pag_num != st.session_state.pag_atual:
             st.session_state.pag_atual = pag_num
@@ -130,6 +134,7 @@ if ouvidorias:
         if st.button("Próxima ▶", use_container_width=True):
             if st.session_state.pag_atual < num_paginas:
                 st.session_state.pag_atual += 1
+                st.session_state["pag_select"] = opcoes_pagina[st.session_state.pag_atual - 1]
                 st.rerun()
 
     with col_pag5:
@@ -137,6 +142,7 @@ if ouvidorias:
         if por_pag_sel != st.session_state.por_pagina:
             st.session_state.por_pagina = por_pag_sel
             st.session_state.pag_atual = 1
+            st.session_state["pag_select"] = opcoes_pagina[0]
             st.rerun()
 
     # Slice da lista para a página atual
@@ -144,23 +150,15 @@ if ouvidorias:
     fim = inicio + st.session_state.por_pagina
     ouvidorias_pagina = ouvidorias[inicio:fim]
 
-    # Exibir informação de paginação
-    st.caption(f"Página {st.session_state.pag_atual} de {num_paginas} | Total: {len(ouvidorias)} ouvidorias")
+    st.caption(f"Total: {len(ouvidorias)} ouvidorias")
 
 if not ouvidorias:
     st.info("Nenhuma ouvidoria encontrada com os filtros aplicados.")
 else:
-    # Cabeçalho — Prazo Perm. antes de Prazo Resp., ambos com círculo+tooltip
-    if u.tipo == TipoUsuario.gestor:
-        col_sizes = [0.85, 2.3, 2.25, 2.5, 2.5, 1.4, 1.4, 0.6, 0.7, 0.8, 0.6]
-        headers = ["**#**", "**Protocolo**", "**Status**", "**Coord./Gerência**",
-                    "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**",
-                    "", "", "", ""]
-    else:
-        col_sizes = [0.85, 2.3, 2.25, 2.5, 2.5, 1.5, 1.5, 0.5, 0.8]
-        headers = ["**#**", "**Protocolo**", "**Status**", "**Coord./Gerência**",
-                    "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**",
-                    "", ""]
+    # Cabeçalho — # | Chegada | Protocolo | Status | Coord./Gerência | Responsáveis | Prazo Perm. | Prazo Resp. | ações
+    col_sizes = [0.7, 1.1, 2.3, 2.25, 2.5, 2.5, 1.4, 1.4, 0.6]
+    headers = ["**#**", "**Chegada**", "**Protocolo**", "**Status**",
+               "**Coord./Gerência**", "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**", ""]
 
     cols_header = st.columns(col_sizes)
     for idx, h in enumerate(headers):
@@ -168,7 +166,7 @@ else:
             cols_header[idx].markdown(h)
     st.divider()
 
-    # Pré-carregar técnicos para o popover de atribuição
+    # Pré-carregar técnicos para o popover de atribuição (gestor)
     if u.tipo == TipoUsuario.gestor:
         todos_tecs = carregar_tecnicos_disponiveis()
 
@@ -176,70 +174,63 @@ else:
         emoji_status = STATUS_EMOJI.get(o["status"], "")
         status_label = f"{emoji_status} {o['status']}"
 
-        # Prazo Permissionária (círculo + dias, tooltip com data)
         perm_label, perm_tip = prazo_circle_label(o["prazo_permissionaria"])
-        # Prazo de Resposta (círculo + dias, tooltip com data)
         resp_label, resp_tip = prazo_circle_label(o["prazo"])
 
+        chegada = o["criado_em"].strftime("%d/%m/%Y") if o["criado_em"] else "–"
         confirmar_key = f"confirmar_excluir_{o['id']}"
+        pode_concluir = o["status"] == StatusOuvidoria.RETORNO_TECNICO
 
         cols = st.columns(col_sizes)
-
         cols[0].write(o["id"])
-        cols[1].write(o["protocolo"])
-        cols[2].write(status_label)
-        cols[3].write(o["coord_ger"])
-        cols[4].write(o["responsaveis"])
-        
-        # Prazo Perm. — botão desabilitado com tooltip
+        cols[1].write(chegada)
+        cols[2].write(o["protocolo"])
+        cols[3].write(status_label)
+        cols[4].write(o["coord_ger"])
+        cols[5].write(o["responsaveis"])
+
         if perm_tip:
-            cols[5].button(perm_label, key=f"pperm_{o['id']}", disabled=True, help=perm_tip)
+            cols[6].button(perm_label, key=f"pperm_{o['id']}", disabled=True, help=perm_tip)
         else:
-            cols[5].write(perm_label)
+            cols[6].write(perm_label)
 
-        # Prazo Resp. — botão desabilitado com tooltip
-        cols[6].button(resp_label, key=f"presp_{o['id']}", disabled=True, help=resp_tip)
+        cols[7].button(resp_label, key=f"presp_{o['id']}", disabled=True, help=resp_tip)
 
-        # Botão Abrir (lupa)
-        if cols[7].button("🔍", key=f"abrir_{o['id']}", help="Abrir detalhe"):
-            st.session_state["ouvidoria_id"] = o["id"]
-            st.switch_page("pages/03_Detalhe_Ouvidoria.py")
+        # Botão unificado 🛠️
+        with cols[8]:
+            with st.popover("🛠️"):
+                if st.button("🔍 Abrir detalhe", key=f"abrir_{o['id']}"):
+                    st.session_state["ouvidoria_id"] = o["id"]
+                    st.switch_page("pages/03_Detalhe_Ouvidoria.py")
 
-        # Botão Responder (popover com 2 opções)
-        if u.tipo == TipoUsuario.gestor:
-            with cols[8]:
-                with st.popover("✍️"):
-                    if st.button("Resposta Técnico", key=f"resp_tec_{o['id']}"):
+                if u.tipo == TipoUsuario.gestor:
+                    if st.button("✍️ Resposta Técnico", key=f"resp_tec_{o['id']}"):
                         st.session_state["ouvidoria_id"] = o["id"]
                         st.session_state.pop("resp_recs_edit", None)
                         st.session_state.pop("resp_autos_checklist", None)
                         st.session_state.pop("resp_rec_alvo_anterior", None)
                         st.switch_page("pages/05_Responder.py")
-                    if st.button("Resposta Permissionária", key=f"resp_perm_{o['id']}"):
+
+                    if st.button("📤 Resposta Permissionária", key=f"resp_perm_{o['id']}"):
                         st.session_state["ouvidoria_id"] = o["id"]
                         st.switch_page("pages/04_Resposta_Permissionaria.py")
 
-            # Botão atribuir técnico (pessoa)
-            with cols[9]:
-                with st.popover("👤"):
+                    st.divider()
+
                     if todos_tecs:
                         tec_nomes = [n for _, n in todos_tecs]
-                        tec_sel = st.selectbox("Técnico", tec_nomes, key=f"atr_tec_{o['id']}")
+                        tec_sel = st.selectbox("👤 Técnico", tec_nomes, key=f"atr_tec_{o['id']}")
                         tec_id = dict([(n, tid) for tid, n in todos_tecs]).get(tec_sel)
-                        if st.button("Atribuir", key=f"atr_btn_{o['id']}"):
+                        if st.button("Atribuir técnico", key=f"atr_btn_{o['id']}"):
                             ok = atribuir_tecnico(o["id"], tec_id)
                             if ok:
                                 st.toast(f"Técnico {tec_sel} atribuído!", icon="✅")
                                 st.rerun()
                             else:
                                 st.warning("Técnico já atribuído.")
-                    else:
-                        st.write("Nenhum técnico disponível.")
 
-            # Botão engrenagem (concluir/excluir)
-            with cols[10]:
-                pode_concluir = o["status"] == StatusOuvidoria.RETORNO_TECNICO
-                with st.popover("⚙"):
+                    st.divider()
+
                     if pode_concluir:
                         if st.button("✅ Concluir", key=f"concluir_{o['id']}"):
                             concluir_ouvidoria(o["id"])
@@ -260,11 +251,12 @@ else:
                         if st.button("Não", key=f"nao_excluir_{o['id']}"):
                             st.session_state.pop(confirmar_key, None)
                             st.rerun()
-        else:
-            # Técnico: botão responder direto
-            if cols[8].button("✍️", key=f"resp_{o['id']}", help="Responder"):
-                st.session_state["ouvidoria_id"] = o["id"]
-                st.session_state.pop("resp_recs_edit", None)
-                st.session_state.pop("resp_autos_checklist", None)
-                st.session_state.pop("resp_rec_alvo_anterior", None)
-                st.switch_page("pages/05_Responder.py")
+
+                else:
+                    # Técnico
+                    if st.button("✍️ Responder", key=f"resp_{o['id']}"):
+                        st.session_state["ouvidoria_id"] = o["id"]
+                        st.session_state.pop("resp_recs_edit", None)
+                        st.session_state.pop("resp_autos_checklist", None)
+                        st.session_state.pop("resp_rec_alvo_anterior", None)
+                        st.switch_page("pages/05_Responder.py")

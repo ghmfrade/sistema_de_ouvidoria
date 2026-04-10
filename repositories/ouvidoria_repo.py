@@ -261,6 +261,7 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
                 status=o.status.value,
                 prazo=o.prazo,
                 prazo_permissionaria=o.prazo_permissionaria,
+                criado_em=o.criado_em,
                 atribuicoes=[_to_atribuicao_dict(at) for at in o.atribuicoes],
             )
             for o in ouvidorias

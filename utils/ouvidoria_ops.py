@@ -26,13 +26,13 @@ def listar_ouvidorias(filtro_status=None, filtro_periodo=None, ocultar_concluido
             "status": o["status"],
             "prazo": o["prazo"],
             "prazo_permissionaria": o["prazo_permissionaria"],
+            "criado_em": o["criado_em"],
             "coord_ger": coord_ger,
             "responsaveis": responsaveis,
         })
     return resultado
 
 
-@st.cache_data(ttl=60)
 def carregar_tecnicos_disponiveis():
     """Retorna lista de técnicos ativos: [(id, nome)]."""
     return [(t["id"], t["nome"]) for t in get_tecnicos_ativos()]
