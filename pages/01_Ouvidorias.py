@@ -119,16 +119,12 @@ if ouvidorias:
                 st.rerun()
 
     with col_pag3:
-        col_label, col_sel = st.columns([0.28, 0.72])
-        with col_label:
-            st.markdown("**Página**")
-        with col_sel:
-            opcoes_pagina = [f"{i}/{num_paginas}" for i in range(1, num_paginas + 1)]
-            pag_sel_str = st.selectbox("", opcoes_pagina, index=st.session_state.pag_atual - 1, key="pag_select", label_visibility="collapsed")
-            pag_num = int(pag_sel_str.split("/")[0])
-            if pag_num != st.session_state.pag_atual:
-                st.session_state.pag_atual = pag_num
-                st.rerun()
+        opcoes_pagina = [f"Página {i}/{num_paginas}" for i in range(1, num_paginas + 1)]
+        pag_sel_str = st.selectbox("", opcoes_pagina, index=st.session_state.pag_atual - 1, key="pag_select", label_visibility="collapsed")
+        pag_num = int(pag_sel_str.split()[1].split("/")[0])
+        if pag_num != st.session_state.pag_atual:
+            st.session_state.pag_atual = pag_num
+            st.rerun()
 
     with col_pag4:
         if st.button("Próxima ▶", use_container_width=True):
