@@ -21,7 +21,10 @@ from utils import (
 )
 
 st.set_page_config(page_title="Ouvidorias", page_icon="📋", layout="wide")
-st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
+st.markdown('''<style>
+  [data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}
+  div.block-container{padding-top:0.5rem!important;}
+</style>''', unsafe_allow_html=True)
 auth.require_auth()
 
 u = usuario_logado()
@@ -46,6 +49,10 @@ with st.sidebar:
 
 # ── Filtros ──────────────────────────────────────────────────────────────────
 st.title("📋 Ouvidorias")
+
+# Inicializar variáveis de período
+data_ini = None
+data_fim = None
 
 col_f1, col_f2, col_f3, col_f4 = st.columns([2, 1, 2, 1])
 with col_f1:
@@ -79,17 +86,80 @@ ouvidorias = listar_ouvidorias(
 
 st.divider()
 
+# ── Paginação ──────────────────────────────────────────────────────────────────
+# Inicializar session_state para paginação
+if "pag_atual" not in st.session_state:
+    st.session_state.pag_atual = 1
+if "por_pagina" not in st.session_state:
+    st.session_state.por_pagina = 25
+if "filtros_hash_anterior" not in st.session_state:
+    st.session_state.filtros_hash_anterior = None
+
+# Detectar mudança nos filtros e resetar para página 1
+filtros_hash = hash((sel_status, ocultar_concluidos, usar_periodo, data_ini if usar_periodo else None, data_fim if usar_periodo else None))
+if st.session_state.filtros_hash_anterior != filtros_hash:
+    st.session_state.pag_atual = 1
+    st.session_state.filtros_hash_anterior = filtros_hash
+
+# Controles de paginação
+if ouvidorias:
+    num_paginas = (len(ouvidorias) + st.session_state.por_pagina - 1) // st.session_state.por_pagina
+
+    col_pag1, col_pag2, col_pag3, col_pag4, col_pag5 = st.columns([0.8, 0.8, 1.5, 0.8, 1.2])
+
+    with col_pag1:
+        if st.button("⏮ Início", use_container_width=True):
+            st.session_state.pag_atual = 1
+            st.rerun()
+
+    with col_pag2:
+        if st.button("◀ Anterior", use_container_width=True):
+            if st.session_state.pag_atual > 1:
+                st.session_state.pag_atual -= 1
+                st.rerun()
+
+    with col_pag3:
+        col_sel, col_info = st.columns([0.6, 0.4])
+        with col_sel:
+            pag_sel = st.selectbox("Página", range(1, num_paginas + 1), index=st.session_state.pag_atual - 1, key="pag_select")
+            if pag_sel != st.session_state.pag_atual:
+                st.session_state.pag_atual = pag_sel
+                st.rerun()
+        with col_info:
+            st.markdown(f"**de {num_paginas}**")
+
+    with col_pag4:
+        if st.button("Próxima ▶", use_container_width=True):
+            if st.session_state.pag_atual < num_paginas:
+                st.session_state.pag_atual += 1
+                st.rerun()
+
+    with col_pag5:
+        por_pag_sel = st.selectbox("Por página", [15, 25, 50, 100], index=1, key="por_pag_select", label_visibility="collapsed")
+        if por_pag_sel != st.session_state.por_pagina:
+            st.session_state.por_pagina = por_pag_sel
+            st.session_state.pag_atual = 1
+            st.rerun()
+
+    # Slice da lista para a página atual
+    inicio = (st.session_state.pag_atual - 1) * st.session_state.por_pagina
+    fim = inicio + st.session_state.por_pagina
+    ouvidorias_pagina = ouvidorias[inicio:fim]
+
+    # Exibir informação de paginação
+    st.caption(f"Página {st.session_state.pag_atual} de {num_paginas} | Total: {len(ouvidorias)} ouvidorias")
+
 if not ouvidorias:
     st.info("Nenhuma ouvidoria encontrada com os filtros aplicados.")
 else:
     # Cabeçalho — Prazo Perm. antes de Prazo Resp., ambos com círculo+tooltip
     if u.tipo == TipoUsuario.gestor:
-        col_sizes = [0.6, 2.3, 2.5, 2.5, 2.5, 1.4, 1.4, 0.6, 0.7, 0.8, 0.6]
+        col_sizes = [0.85, 2.3, 2.25, 2.5, 2.5, 1.4, 1.4, 0.6, 0.7, 0.8, 0.6]
         headers = ["**#**", "**Protocolo**", "**Status**", "**Coord./Gerência**",
                     "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**",
                     "", "", "", ""]
     else:
-        col_sizes = [0.6, 2.3, 2.5, 2.5, 2.5, 1.5, 1.5, 0.5, 0.8]
+        col_sizes = [0.85, 2.3, 2.25, 2.5, 2.5, 1.5, 1.5, 0.5, 0.8]
         headers = ["**#**", "**Protocolo**", "**Status**", "**Coord./Gerência**",
                     "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**",
                     "", ""]
@@ -104,7 +174,7 @@ else:
     if u.tipo == TipoUsuario.gestor:
         todos_tecs = carregar_tecnicos_disponiveis()
 
-    for o in ouvidorias:
+    for o in ouvidorias_pagina:
         emoji_status = STATUS_EMOJI.get(o["status"], "")
         status_label = f"{emoji_status} {o['status']}"
 

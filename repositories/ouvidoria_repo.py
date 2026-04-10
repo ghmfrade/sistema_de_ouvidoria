@@ -252,7 +252,7 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
         if filtro_periodo:
             inicio, fim = filtro_periodo
             q = q.filter(Ouvidoria.criado_em >= inicio, Ouvidoria.criado_em <= fim)
-        ouvidorias = q.order_by(Ouvidoria.prazo.asc()).all()
+        ouvidorias = q.order_by(Ouvidoria.criado_em.desc()).all()
         return [
             OuvidoriaResumoDict(
                 id=o.id,
