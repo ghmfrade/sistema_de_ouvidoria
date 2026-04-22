@@ -4,8 +4,8 @@ Para linhas sem CNPJ, tenta casar o campo EMPRESA com nome ou nome_fantasia
 usando múltiplas estratégias de normalização.
 
 Saída:
-  - DADOS_ANTIGOS_enriquecido.xlsx  → planilha com CNPJs + colunas do banco
-  - nao_encontrados.csv             → empresas únicas não identificadas
+  - DADOS_ANTIGOS_enriquecido.csv  → dados com CNPJs + colunas do banco (CSV para preservar PROTOCOLO como texto)
+  - nao_encontrados.csv            → empresas únicas não identificadas
 """
 
 import re
@@ -249,10 +249,10 @@ def main():
     print(f"  Encontrados      : {encontrados}")
     print(f"  Não encontrados  : {len(nao_encontrados_idx)}")
 
-    # Salva planilha enriquecida
-    output_xlsx = "DADOS_ANTIGOS_enriquecido.xlsx"
-    df.to_excel(output_xlsx, index=False)
-    print(f"\nPlanilha salva: {output_xlsx}")
+    # Salva CSV enriquecido (CSV preserva PROTOCOLO como texto, evitando perda de precisão do Excel)
+    output_csv = "DADOS_ANTIGOS_enriquecido.csv"
+    df.to_csv(output_csv, index=False, encoding="utf-8-sig")
+    print(f"\nArquivo salvo: {output_csv}")
 
     # Salva empresas únicas não encontradas
     if nao_encontrados_idx:

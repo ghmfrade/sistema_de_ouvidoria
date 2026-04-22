@@ -35,7 +35,7 @@ from utils.loaders_auto import buscar_autos_por_trecho
 from repositories.pontuacao import calcular_pontuacao_auto
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DADOS_ANTIGOS = os.path.join(BASE_DIR, "pasta_seed", "dados_antigos_tratado_empresa_e_cidades.xlsx")
+DADOS_ANTIGOS = os.path.join(BASE_DIR, "pasta_seed", "dados_antigos_tratado_empresa_e_cidades.csv")
 CATEGORIA_MAPPING = os.path.join(BASE_DIR, "normalizacao_dados", "CATEGORIA NOVA X CATEGORIA ANTIGA.xlsx")
 OUT_LANCADOS = os.path.join(BASE_DIR, "seed_lancados.xlsx")
 OUT_NAO_LANCADOS = os.path.join(BASE_DIR, "seed_nao_lancados.xlsx")
@@ -151,7 +151,7 @@ _TIPO_MAP: dict[tuple[str, str], TipoServico] = {
 
 def seed_dados_antigos():
     print(f"Lendo {os.path.basename(DADOS_ANTIGOS)}...")
-    df = pd.read_excel(DADOS_ANTIGOS)
+    df = pd.read_csv(DADOS_ANTIGOS, dtype={"PROTOCOLO": str}, encoding="utf-8-sig")
     df.columns = [c.strip() for c in df.columns]
     total = len(df)
     print(f"  {total} linhas encontradas.\n")
@@ -257,16 +257,34 @@ def seed_dados_antigos():
         # ── 7. Datas ──────────────────────────────────────────────────────────
         data_entrada = _to_date(row.get("DATA"))
         limite_resposta = _to_date(row.get("LIMITE R."))
-        data_resposta = _to_date(row.get("DATA R."))
+        data_resposta_raw = _to_date(row.get("DATA R."))
+        status_csv = _norm_upper(_val(row, "STATUS") or "")
 
         if limite_resposta is None:
             base = data_entrada or date.today()
             limite_resposta = base + timedelta(days=PRAZO_PADRAO_DIAS)
 
+        # Resolve data_resposta com fallback e regras de expurgo
+        if data_resposta_raw is None:
+            if status_csv == "NO PRAZO":
+                data_resposta = limite_resposta
+            else:
+                _pula(f"DATA R. vazia e STATUS='{status_csv or 'vazio'}' — expurgado")
+                continue
+        elif data_resposta_raw.year < 2024:
+            if status_csv == "NO PRAZO":
+                data_resposta = limite_resposta
+            else:
+                _pula(f"DATA R. inválida ({data_resposta_raw}) e STATUS='{status_csv}' — expurgado")
+                continue
+        else:
+            data_resposta = data_resposta_raw
+
         criado_em = (
             datetime(data_entrada.year, data_entrada.month, data_entrada.day)
             if data_entrada else datetime.now()
         )
+        concluido_em = datetime(data_resposta.year, data_resposta.month, data_resposta.day)
 
         sei = _val(row, "N° SEI")
         conteudo = sei if sei else "SEM DADOS"
@@ -282,6 +300,7 @@ def seed_dados_antigos():
                     status=StatusOuvidoria.CONCLUIDO,
                     criado_por_id=admin_id,
                     criado_em=criado_em,
+                    concluido_em=concluido_em,
                 )
                 session.add(ouvidoria)
                 session.flush()
@@ -316,13 +335,12 @@ def seed_dados_antigos():
                             pontuacao=pontuacao,
                         ))
 
-                if data_resposta:
-                    session.add(RespostaTecnica(
-                        ouvidoria_id=ouvidoria.id,
-                        tecnico_id=admin_id,
-                        data_resposta=data_resposta,
-                        texto_resposta="SEM DADOS",
-                    ))
+                session.add(RespostaTecnica(
+                    ouvidoria_id=ouvidoria.id,
+                    tecnico_id=admin_id,
+                    data_resposta=data_resposta,
+                    texto_resposta="SEM DADOS",
+                ))
 
             existing.add(protocolo)
             idx_lancados.append(idx)

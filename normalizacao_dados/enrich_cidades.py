@@ -1,10 +1,11 @@
 """
-Normaliza ORIGEM e DESTINO do DADOS_ANTIGOS_enriquecido.xlsx contra a tabela
+Normaliza ORIGEM e DESTINO do DADOS_ANTIGOS_enriquecido.csv contra a tabela
 municipios do banco, adicionando as colunas:
   ORIGEM_IBGE, ORIGEM_cod_IBGE, DESTINO_IBGE, DESTINO_cod_IBGE
 
 Saída:
-  - dados_antigos_tratado_empresa_e_cidades.xlsx
+  - dados_antigos_tratado_empresa_e_cidades.csv  (nesta pasta)
+  - ../pasta_seed/dados_antigos_tratado_empresa_e_cidades.csv
   - mun_dados_antigos_not_find.csv  (municípios únicos não encontrados, ignora branco)
 """
 
@@ -146,7 +147,7 @@ def enrich_col(
 
 def main():
     print("Carregando planilha enriquecida...")
-    df = pd.read_excel("DADOS_ANTIGOS_enriquecido.xlsx")
+    df = pd.read_csv("DADOS_ANTIGOS_enriquecido.csv", dtype={"PROTOCOLO": str}, encoding="utf-8-sig")
 
     print("Carregando municípios do banco...")
     mun = load_municipios()
@@ -175,10 +176,15 @@ def main():
     dest_ok = df["DESTINO_IBGE"].replace("", pd.NA).notna().sum()
     print(f"  Encontrados: {dest_ok} / {df['DESTINO'].notna().sum()}")
 
-    # Salva planilha final
-    output_xlsx = "dados_antigos_tratado_empresa_e_cidades.xlsx"
-    df.to_excel(output_xlsx, index=False)
-    print(f"\nPlanilha salva: {output_xlsx}")
+    # Salva CSV final em duas localizações
+    output_csv = "dados_antigos_tratado_empresa_e_cidades.csv"
+    seed_csv = os.path.join(parent_dir, "pasta_seed", "dados_antigos_tratado_empresa_e_cidades.csv")
+
+    df.to_csv(output_csv, index=False, encoding="utf-8-sig")
+    print(f"\nArquivo salvo: {output_csv}")
+
+    df.to_csv(seed_csv, index=False, encoding="utf-8-sig")
+    print(f"Arquivo salvo: {seed_csv}")
 
     # Salva não encontrados (união de ORIGEM e DESTINO, sem branco)
     nao_enc = sorted(nf_orig | nf_dest)
