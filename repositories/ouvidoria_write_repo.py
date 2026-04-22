@@ -89,7 +89,12 @@ def editar_ouvidoria(oid, protocolo, conteudo, prazo, prazo_permissionaria, stat
             o.conteudo = conteudo.strip()
             o.prazo = prazo
             o.prazo_permissionaria = prazo_permissionaria
-            o.status = StatusOuvidoria(status)
+            novo_status = StatusOuvidoria(status)
+            o.status = novo_status
+            if novo_status == StatusOuvidoria.CONCLUIDO:
+                o.concluido_em = datetime.now()
+            else:
+                o.concluido_em = None
 
 
 def atribuir_tecnico(ouvidoria_id: int, tecnico_id: int):
@@ -121,6 +126,7 @@ def concluir_ouvidoria(oid: int):
         o = s.query(Ouvidoria).filter_by(id=oid).first()
         if o:
             o.status = StatusOuvidoria.CONCLUIDO
+            o.concluido_em = datetime.now()
 
 
 def add_anexos(ouvidoria_id, anexos_meta):

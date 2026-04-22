@@ -167,6 +167,7 @@ class OuvidoriaResumoDict(TypedDict):
     prazo: date | None
     prazo_permissionaria: date | None
     criado_em: datetime | None
+    concluido_em: datetime | None
     atribuicoes: list[OuvidoriaTecnicoDict]
 
 
@@ -179,6 +180,7 @@ class OuvidoriaDetalheDict(TypedDict):
     prazo: date | None
     prazo_permissionaria: date | None
     criado_em: datetime | None
+    concluido_em: datetime | None
     reclamacoes: list[ReclamacaoDict]
     atribuicoes: list[OuvidoriaTecnicoDict]
     respostas_tecnicas: list[RespostaTecnicaDict]

@@ -103,7 +103,8 @@ def query_sla(data_ini, data_fim, ger_id):
             func.sum(case(
                 (
                     (cast(Ouvidoria.status, String) == StatusOuvidoria.CONCLUIDO.value) &
-                    (cast(Ouvidoria.atualizado_em, Date) <= Ouvidoria.prazo),
+                    (Ouvidoria.concluido_em != None) &  # noqa: E711
+                    (cast(Ouvidoria.concluido_em, Date) <= Ouvidoria.prazo),
                     1,
                 ),
                 else_=0,
