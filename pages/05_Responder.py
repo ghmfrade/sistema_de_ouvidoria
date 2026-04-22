@@ -31,6 +31,7 @@ from utils import (
     carregar_todos_autos,
     fmt_auto,
 )
+from components import reduz_margem_side_bar, reduz_margem_topo_page
 
 st.set_page_config(page_title="Registrar Resposta", page_icon="✍️", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -38,9 +39,12 @@ auth.require_auth()
 
 u = usuario_logado()
 
+reduz_margem_topo_page()
+
 UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
+reduz_margem_side_bar()
 with st.sidebar:
     st.markdown(f"**{u.nome}**")
     st.caption(f"Perfil: {'Gestor' if u.tipo.value == 'gestor' else 'Técnico'}")

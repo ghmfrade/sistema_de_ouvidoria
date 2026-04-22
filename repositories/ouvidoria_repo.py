@@ -107,6 +107,7 @@ def _to_detalhe(o: Ouvidoria) -> OuvidoriaDetalheDict:
         prazo=o.prazo,
         prazo_permissionaria=o.prazo_permissionaria,
         criado_em=o.criado_em,
+        concluido_em=o.concluido_em,
         reclamacoes=[_to_reclamacao_dict(r) for r in o.reclamacoes],
         atribuicoes=[_to_atribuicao_dict(at) for at in o.atribuicoes],
         respostas_tecnicas=[
@@ -225,8 +226,18 @@ def get_respostas_tecnico(ouvidoria_id: int, tecnico_id: int) -> list[RespostaTe
         ]
 
 
+def get_id_por_protocolo(protocolo: str) -> int | None:
+    """Retorna o id da ouvidoria com o protocolo informado, ou None se não existir."""
+    with db_session() as s:
+        row = s.query(Ouvidoria.id).filter_by(protocolo=protocolo.strip()).first()
+        return row[0] if row else None
+
+
 def get_ouvidorias(filtro_status=None, filtro_periodo=None,
-                   ocultar_concluidos=True, usuario=None) -> list[OuvidoriaResumoDict]:
+                   ocultar_concluidos=True, usuario=None,
+                   filtro_categoria_id: int | None = None,
+                   filtro_subcategoria_id: int | None = None,
+                   filtro_tipo_servico: str | None = None) -> list[OuvidoriaResumoDict]:
     """Lista de ouvidorias com filtros e atribuições. Retorna list[OuvidoriaResumoDict]."""
     with db_session() as s:
         q = (
@@ -252,6 +263,18 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
         if filtro_periodo:
             inicio, fim = filtro_periodo
             q = q.filter(Ouvidoria.criado_em >= inicio, Ouvidoria.criado_em <= fim)
+        if filtro_categoria_id:
+            q = q.filter(Ouvidoria.reclamacoes.any(
+                Reclamacao.categoria_id == filtro_categoria_id
+            ))
+        if filtro_subcategoria_id:
+            q = q.filter(Ouvidoria.reclamacoes.any(
+                Reclamacao.subcategoria_id == filtro_subcategoria_id
+            ))
+        if filtro_tipo_servico:
+            q = q.filter(Ouvidoria.reclamacoes.any(
+                Reclamacao.tipo_servico == filtro_tipo_servico
+            ))
         ouvidorias = q.order_by(Ouvidoria.criado_em.desc()).all()
         return [
             OuvidoriaResumoDict(
@@ -262,6 +285,7 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
                 prazo=o.prazo,
                 prazo_permissionaria=o.prazo_permissionaria,
                 criado_em=o.criado_em,
+                concluido_em=o.concluido_em,
                 atribuicoes=[_to_atribuicao_dict(at) for at in o.atribuicoes],
             )
             for o in ouvidorias

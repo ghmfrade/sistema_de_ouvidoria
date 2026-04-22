@@ -1,6 +1,6 @@
 """Funcoes de formatacao para UI: autos, prazos, status, exportacao Excel."""
 
-from datetime import date
+from datetime import date, datetime
 from io import BytesIO
 from typing import TYPE_CHECKING
 
@@ -71,10 +71,17 @@ def fmt_ativo(ativo: bool) -> str:
     return "✅" if ativo else "❌"
 
 
-def prazo_circle_label(prazo: date | None) -> tuple[str, str]:
-    """Retorna (label_curto, tooltip) para prazo. label_curto ex: '🟢 5d', tooltip: 'DD/MM/AAAA'."""
+def prazo_circle_label(prazo: date | None, concluido_em: datetime | None = None) -> tuple[str, str]:
+    """Retorna (label_curto, tooltip) para prazo. Quando concluída, usa data de conclusão como referência."""
     if prazo is None:
         return "---", ""
+    if concluido_em:
+        ref = concluido_em.date() if isinstance(concluido_em, datetime) else concluido_em
+        dias = (prazo - ref).days
+        if dias >= 0:
+            return f"✅ -{dias}d", f"Concluído {dias}d antes — {prazo.strftime('%d/%m/%Y')}"
+        else:
+            return f"⚠️ +{abs(dias)}d", f"Concluído {abs(dias)}d atrasado — {prazo.strftime('%d/%m/%Y')}"
     dias = (prazo - date.today()).days
     emoji = "🟢" if dias >= 0 else "🔴"
     return f"{emoji} {dias}d", prazo.strftime("%d/%m/%Y")

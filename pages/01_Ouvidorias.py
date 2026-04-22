@@ -1,31 +1,45 @@
 """Lista de Ouvidorias – visão geral com filtros."""
 
+import base64
 import os
 import sys
 from datetime import date
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth
 from auth import usuario_logado
-from models import StatusOuvidoria, TipoUsuario
+from models import StatusOuvidoria, TipoServico, TipoUsuario
 from utils import (
     atribuir_tecnico,
+    carregar_categorias,
+    carregar_subcategorias,
     carregar_tecnicos_disponiveis,
     concluir_ouvidoria,
     excluir_ouvidoria,
+    gerar_html_resumo,
     listar_ouvidorias,
     prazo_circle_label,
 )
 
+from components import (
+    reduz_margem_side_bar, 
+    reduz_margem_topo_page, 
+    reduz_gap_elementos_body,
+)
+
 st.set_page_config(page_title="Ouvidorias", page_icon="📋", layout="wide")
-st.markdown('''<style>
-  [data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}
-  div.block-container{padding-top:0.5rem!important;}
-</style>''', unsafe_allow_html=True)
+
+reduz_margem_topo_page()
+reduz_gap_elementos_body()
+
+
 auth.require_auth()
+
+_resumo_id = st.session_state.pop("abrir_resumo_id", None)
 
 u = usuario_logado()
 
@@ -37,8 +51,9 @@ STATUS_EMOJI = {
     StatusOuvidoria.CONCLUIDO:                 "⚫",
 }
 
-
 # ── Sidebar ──────────────────────────────────────────────────────────────────
+reduz_margem_side_bar()
+
 with st.sidebar:
     st.markdown(f"**{u.nome}**")
     st.caption(f"Perfil: {'Gestor' if u.tipo.value == 'gestor' else 'Técnico'}")
@@ -48,40 +63,69 @@ with st.sidebar:
         st.rerun()
 
 # ── Filtros ──────────────────────────────────────────────────────────────────
-st.title("📋 Ouvidorias")
+_col_tit, _col_tipo = st.columns([2, 2])
+with _col_tit:
+    st.title("📋 Ouvidorias")
+with _col_tipo:
+    st.write("")
+    _opcoes_tipo = [("", "Todos os Tipos")] + [(ts.value, ts.value) for ts in TipoServico]
+    _sel_tipo = st.selectbox("Tipo de Serviço", _opcoes_tipo, format_func=lambda x: x[1], label_visibility="collapsed")
+    _filtro_tipo = _sel_tipo[0] if _sel_tipo[0] else None
 
-# Inicializar variáveis de período
 data_ini = None
 data_fim = None
+periodo = None
 
-col_f1, col_f2, col_f3, col_f4 = st.columns([2, 1, 2, 1])
-with col_f1:
-    opcoes_status = ["Todos"] + [s.value for s in StatusOuvidoria]
-    sel_status = st.selectbox("Filtrar por Status", opcoes_status)
-with col_f2:
-    ocultar_concluidos = st.checkbox("Ocultar concluídos", value=True)
-with col_f3:
-    usar_periodo = st.checkbox("Filtrar por período de cadastro")
-    periodo = None
+col_cat, col_sub, col_checks, col_de, col_ate, col_nova = st.columns([1.8, 1.8, 1.1, 1.3, 1.3, 1.6])
+
+_cats = carregar_categorias()
+_opcoes_cat = [(0, "Todas Categorias")] + [(cid, nome) for cid, nome in _cats]
+
+with col_cat:
+    sel_categoria = st.selectbox(
+        "Categoria", _opcoes_cat,
+        format_func=lambda x: x[1],
+        label_visibility="visible",
+    )
+
+_cat_id_sel = sel_categoria[0] if sel_categoria[0] else None
+_subs = carregar_subcategorias(_cat_id_sel)
+_opcoes_sub = [(0, "Todas Subcategorias")] + [(sid, nome) for sid, nome in _subs]
+
+with col_sub:
+    sel_subcategoria = st.selectbox(
+        "Subcategoria", _opcoes_sub,
+        format_func=lambda x: x[1],
+        label_visibility="visible",
+    )
+
+with col_checks:
+    ocultar_concluidos = st.checkbox("Ocultar Concluídas", value=True)
+    usar_periodo = st.checkbox("Filtrar por período")
+with col_de:
     if usar_periodo:
-        col_d1, col_d2 = st.columns(2)
-        with col_d1:
-            data_ini = st.date_input("De", value=date.today().replace(day=1))
-        with col_d2:
-            data_fim = st.date_input("Até", value=date.today())
-        periodo = (data_ini, data_fim)
-with col_f4:
+        data_ini = st.date_input("De", value=date.today().replace(day=1))
+with col_ate:
+    if usar_periodo:
+        data_fim = st.date_input("Até", value=date.today())
+with col_nova:
     st.write("")
     if u.tipo == TipoUsuario.gestor:
         if st.button("+ Nova Ouvidoria", use_container_width=True, type="primary"):
             st.switch_page("pages/02_Nova_Ouvidoria.py")
 
-filtro_s = None if sel_status == "Todos" else StatusOuvidoria(sel_status)
+if usar_periodo and data_ini and data_fim:
+    periodo = (data_ini, data_fim)
+
+_filtro_cat_id = sel_categoria[0] if sel_categoria[0] else None
+_filtro_sub_id = sel_subcategoria[0] if sel_subcategoria[0] else None
 ouvidorias = listar_ouvidorias(
-    filtro_status=filtro_s,
     filtro_periodo=periodo,
-    ocultar_concluidos=ocultar_concluidos if sel_status == "Todos" else False,
+    ocultar_concluidos=ocultar_concluidos,
     usuario=u,
+    filtro_categoria_id=_filtro_cat_id,
+    filtro_subcategoria_id=_filtro_sub_id,
+    filtro_tipo_servico=_filtro_tipo,
 )
 
 st.divider()
@@ -96,7 +140,7 @@ if "filtros_hash_anterior" not in st.session_state:
     st.session_state.filtros_hash_anterior = None
 
 # Detectar mudança nos filtros e resetar para página 1
-filtros_hash = hash((sel_status, ocultar_concluidos, usar_periodo, data_ini if usar_periodo else None, data_fim if usar_periodo else None))
+filtros_hash = hash((_filtro_cat_id, _filtro_sub_id, _filtro_tipo, ocultar_concluidos, usar_periodo, data_ini if usar_periodo else None, data_fim if usar_periodo else None))
 if st.session_state.filtros_hash_anterior != filtros_hash:
     st.session_state.pag_atual = 1
     st.session_state.filtros_hash_anterior = filtros_hash
@@ -124,7 +168,7 @@ if ouvidorias:
 
     with col_pag3:
         # Sem key: index controla o valor a cada rerun — botões apenas mudam pag_atual e rerrodam
-        pag_sel_str = st.selectbox("", opcoes_pagina,
+        pag_sel_str = st.selectbox("Página", opcoes_pagina,
                                    index=st.session_state.pag_atual - 1,
                                    label_visibility="collapsed")
         pag_num = int(pag_sel_str.split()[1].split("/")[0])
@@ -140,7 +184,7 @@ if ouvidorias:
 
     with col_pag5:
         idx_por_pag = opcoes_por_pag.index(st.session_state.por_pagina) if st.session_state.por_pagina in opcoes_por_pag else 1
-        por_pag_sel = st.selectbox("", opcoes_por_pag, index=idx_por_pag, label_visibility="collapsed")
+        por_pag_sel = st.selectbox("Por página", opcoes_por_pag, index=idx_por_pag, label_visibility="collapsed")
         if por_pag_sel != st.session_state.por_pagina:
             st.session_state.por_pagina = por_pag_sel
             st.session_state.pag_atual = 1
@@ -156,10 +200,10 @@ if ouvidorias:
 if not ouvidorias:
     st.info("Nenhuma ouvidoria encontrada com os filtros aplicados.")
 else:
-    # # | Chegada | Protocolo | Status | Coord./Gerência | Responsáveis | Prazo Perm. | Prazo Resp. | 👤 | 🛠️
+    # # | Entrada | Protocolo | Status | Coord./Gerência | Responsáveis | Prazo Perm. | Prazo Resp. | 👤 | 🛠️
     # col 8 (👤) fica vazia para técnico
-    col_sizes = [0.7, 1.1, 2.3, 2.25, 2.5, 2.5, 1.4, 1.4, 0.6, 0.6]
-    headers = ["**#**", "**Chegada**", "**Protocolo**", "**Status**",
+    col_sizes = [0.7, 1.1, 2.1, 2.25, 2.5, 2.5, 1.4, 1.4, 0.7, 0.7]
+    headers = ["**#**", "**Entrada**", "**Protocolo**", "**Status**",
                "**Coord./Gerência**", "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**", "", ""]
 
     cols_header = st.columns(col_sizes)
@@ -176,15 +220,15 @@ else:
         status_label = f"{emoji_status} {o['status']}"
 
         perm_label, perm_tip = prazo_circle_label(o["prazo_permissionaria"])
-        resp_label, resp_tip = prazo_circle_label(o["prazo"])
+        resp_label, resp_tip = prazo_circle_label(o["prazo"], o.get("concluido_em"))
 
-        chegada = o["criado_em"].strftime("%d/%m/%Y") if o["criado_em"] else "–"
+        entrada = o["criado_em"].strftime("%d/%m/%Y") if o["criado_em"] else "–"
         confirmar_key = f"confirmar_excluir_{o['id']}"
         pode_concluir = o["status"] == StatusOuvidoria.RETORNO_TECNICO
 
         cols = st.columns(col_sizes)
         cols[0].write(o["id"])
-        cols[1].write(chegada)
+        cols[1].write(entrada)
         cols[2].write(o["protocolo"])
         cols[3].write(status_label)
         cols[4].write(o["coord_ger"])
@@ -218,6 +262,10 @@ else:
         # Botão 🛠️ unificado
         with cols[9]:
             with st.popover("🛠️"):
+                if st.button("📋 Resumo da Ouvidoria", key=f"resumo_{o['id']}"):
+                    st.session_state["abrir_resumo_id"] = o["id"]
+                    st.rerun()
+                st.divider()
                 if st.button("🔍 Abrir detalhe", key=f"abrir_{o['id']}"):
                     st.session_state["ouvidoria_id"] = o["id"]
                     st.switch_page("pages/03_Detalhe_Ouvidoria.py")
@@ -269,3 +317,13 @@ else:
                     if st.button("📤 Resposta Permissionária", key=f"resp_perm_tec_{o['id']}"):
                         st.session_state["ouvidoria_id"] = o["id"]
                         st.switch_page("pages/04_Resposta_Permissionaria.py")
+
+# ── Download automático do resumo (ao final para não deslocar layout) ─────────
+if _resumo_id:
+    _b64 = base64.b64encode(gerar_html_resumo(_resumo_id).encode("utf-8")).decode()
+    components.html(
+        f'<a id="dl" href="data:text/html;base64,{_b64}"'
+        f' download="resumo_ouvidoria_{_resumo_id}.html"></a>'
+        f'<script>document.getElementById("dl").click();</script>',
+        height=0,
+    )

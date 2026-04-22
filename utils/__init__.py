@@ -1,6 +1,7 @@
 """utils/ — Módulos utilitários do frontend (loaders, formatters, queries)."""
 
 from .formatters import fmt_auto, fmt_ativo, formatar_atribuicoes, prazo_circle_label, to_excel
+from .html_resumo import gerar_html_resumo
 from .loaders_admin import (
     listar_categorias_e_status,
     listar_coord_e_status,
@@ -54,6 +55,7 @@ from .loaders_ouvidoria import (
 )
 from .ouvidoria_ops import (
     atribuir_tecnico,
+    buscar_ouvidoria_por_protocolo,
     carregar_tecnicos_disponiveis,
     concluir_ouvidoria,
     excluir_ouvidoria,
@@ -63,6 +65,7 @@ from .types import DetalheOuvidoriaView, RespostaTecnicaView
 
 __all__ = [
     # formatters
+    "gerar_html_resumo",
     "fmt_auto",
     "fmt_ativo",
     "formatar_atribuicoes",
@@ -117,6 +120,7 @@ __all__ = [
     "carregar_ouvidoria_para_resposta_tecnica",
     # ouvidoria_ops
     "atribuir_tecnico",
+    "buscar_ouvidoria_por_protocolo",
     "carregar_tecnicos_disponiveis",
     "concluir_ouvidoria",
     "excluir_ouvidoria",

@@ -28,12 +28,17 @@ from utils import (
     fmt_auto,
 )
 from utils.formatters import TC_REGIOES
+from components import reduz_margem_side_bar, reduz_margem_topo_page
+
+
 
 st.set_page_config(page_title="Nova Ouvidoria", page_icon="➕", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
 auth.require_gestor()
 
 u = usuario_logado()
+
+reduz_margem_topo_page()
 
 UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -44,7 +49,10 @@ ALLOWED_MIMES = {
     "video/mp4", "video/x-msvideo", "video/quicktime", "video/x-matroska", "video/webm",
 }
 
+
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
+reduz_margem_side_bar()
 with st.sidebar:
     st.markdown(f"**{u.nome}**")
     st.caption("Gestor")

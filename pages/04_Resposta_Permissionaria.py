@@ -3,6 +3,7 @@
 from datetime import date
 
 import streamlit as st
+from components import reduz_margem_topo_page
 from models import Usuario
 from repositories.ouvidoria_write_repo import registrar_resposta_permissionaria
 from utils import carregar_ouvidoria_para_permissionaria
@@ -10,6 +11,8 @@ from utils import carregar_ouvidoria_para_permissionaria
 st.set_page_config(page_title="Resposta da Permissionária", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', 
             unsafe_allow_html=True)
+
+reduz_margem_topo_page()
 
 # ── Autenticação ──────────────────────────────────────────────────────────
 if "usuario" not in st.session_state:
