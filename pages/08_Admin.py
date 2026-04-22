@@ -31,6 +31,7 @@ from utils.admin_ops import (
     toggle_subcategoria,
     toggle_usuario,
 )
+from components import reduz_margem_side_bar, reduz_margem_topo_page
 
 st.set_page_config(page_title="Administração", page_icon="⚙️", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -38,7 +39,10 @@ auth.require_gestor()
 
 u = usuario_logado()
 
+reduz_margem_topo_page()
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
+reduz_margem_side_bar()
 with st.sidebar:
     st.markdown(f"**{u.nome}**")
     st.caption("Gestor")

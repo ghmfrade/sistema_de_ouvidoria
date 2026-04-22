@@ -21,13 +21,17 @@ from repositories.ouvidoria_write_repo import (
     editar_ouvidoria,
     excluir_ouvidoria,
 )
-from utils import carregar_detalhe_ouvidoria, carregar_tecnicos_disponiveis
+from utils import buscar_ouvidoria_por_protocolo, carregar_detalhe_ouvidoria, carregar_tecnicos_disponiveis
+from components import reduz_margem_side_bar, reduz_margem_topo_page
+
 
 st.set_page_config(page_title="Detalhe Ouvidoria", page_icon="🔍", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
 auth.require_auth()
 
 u = usuario_logado()
+
+reduz_margem_topo_page()
 
 UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -39,9 +43,22 @@ ALLOWED_MIMES = {
 }
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
+reduz_margem_side_bar()
 with st.sidebar:
     st.markdown(f"**{u.nome}**")
     st.caption(f"Perfil: {'Gestor' if u.tipo.value == 'gestor' else 'Técnico'}")
+    st.divider()
+    protocolo_busca = st.text_input("**🔎 Buscar por protocolo**", label_visibility="visible", placeholder="Ex: 000000000000")
+    if st.button("Pesquisar", use_container_width=True):
+        if protocolo_busca.strip():
+            oid = buscar_ouvidoria_por_protocolo(protocolo_busca)
+            if oid:
+                st.session_state["ouvidoria_id"] = oid
+                st.rerun()
+            else:
+                st.error("Protocolo não cadastrado.")
+        else:
+            st.warning("Digite um protocolo.")
     st.divider()
     if st.button("← Voltar", use_container_width=True):
         st.switch_page("pages/01_Ouvidorias.py")
@@ -70,10 +87,12 @@ st.markdown(f"**Protocolo:** {ouvidoria['protocolo']}")
 dias_restantes = (ouvidoria["prazo"] - date.today()).days
 cor = "🔴" if dias_restantes < 0 else ("🟡" if dias_restantes <= 3 else "🟢")
 
-cols_m = st.columns(4)
+cols_m = st.columns(5)
 cols_m[0].metric("Status", ouvidoria["status"])
 cols_m[1].metric("Prazo", ouvidoria["prazo"].strftime("%d/%m/%Y"))
 cols_m[2].metric("Dias restantes", f"{cor} {dias_restantes}")
+if ouvidoria["concluido_em"]:
+    cols_m[4].metric("Concluída em", ouvidoria["concluido_em"].strftime("%d/%m/%Y %H:%M"))
 if ouvidoria["prazo_permissionaria"]:
     dias_perm = (ouvidoria["prazo_permissionaria"] - date.today()).days
     cor_p = "🔴" if dias_perm < 0 else "🟢"
@@ -150,6 +169,11 @@ with tab_tecnicos:
 
 # ── Tab: Respostas Técnicas ──────────────────────────────────────────────────
 with tab_respostas:
+    if u.tipo == TipoUsuario.tecnico and u.id in tecnicos_info:
+        if st.button("✍️ Inserir Resposta Técnica", type="primary", use_container_width=False):
+            st.switch_page("pages/05_Responder.py")
+        st.divider()
+
     if not ouvidoria["respostas_tecnicas"]:
         st.info("Nenhuma resposta técnica registrada ainda.")
     for resp in ouvidoria["respostas_tecnicas"]:

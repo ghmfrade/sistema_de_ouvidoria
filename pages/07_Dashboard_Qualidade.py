@@ -27,6 +27,7 @@ from utils import (
     query_top_permissionaria,
     to_excel,
 )
+from components import reduz_margem_side_bar, reduz_margem_topo_page
 
 st.set_page_config(page_title="Dashboard Qualidade", page_icon="🔎", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -34,7 +35,10 @@ auth.require_gestor()
 
 u = usuario_logado()
 
+reduz_margem_topo_page()
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
+reduz_margem_side_bar()
 with st.sidebar:
     st.markdown(f"**{u.nome}**")
     st.caption("Gestor")
@@ -52,7 +56,6 @@ with st.sidebar:
     cat_list_all = carregar_categorias()
     perm_list = carregar_todas_permissionarias()
 
-    st.markdown("**Periodo**")
     periodo_opcoes = {
         "Ultimos 3 meses": 90,
         "Ultimos 6 meses": 180,
