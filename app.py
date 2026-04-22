@@ -1,5 +1,6 @@
 """Ponto de entrada do Sistema de Ouvidorias ARTESP."""
 import streamlit as st
+from components import reduz_margem_side_bar
 
 st.set_page_config(
     page_title="Sistema de Ouvidorias – ARTESP",
@@ -53,6 +54,7 @@ u = usuario_logado()
 if not u:
     pagina_login()
 else:
+    reduz_margem_side_bar()
     sidebar_usuario()
     st.title("📋 Sistema de Ouvidorias – ARTESP")
     st.info("Use o menu na barra lateral para navegar.")
