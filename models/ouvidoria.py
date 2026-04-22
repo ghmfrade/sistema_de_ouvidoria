@@ -31,6 +31,7 @@ class Ouvidoria(Base):
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
+    concluido_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     criado_por: Mapped["Usuario"] = relationship(foreign_keys=[criado_por_id])  # noqa: F821
     reclamacoes: Mapped[list["Reclamacao"]] = relationship(  # noqa: F821
