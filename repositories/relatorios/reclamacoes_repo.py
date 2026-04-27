@@ -274,22 +274,45 @@ def query_top15_autos_pontuacao(ano: int, tipos: list[str]) -> list[dict]:
 
 # ─── Top 15 locais de embarque (fretamento) ───────────────────────────────────
 
-def query_top15_embarques(ano: int, tipos: list[str]) -> list[tuple[str, int]]:
-    """Retorna [(local_embarque, total)] top 15 mais reclamados."""
+def query_top15_embarques(ano: int, tipos: list[str]) -> list[dict]:
+    """Retorna [dict] com top 15 locais de embarque mais reclamados.
+    Cada dict contém: local, total, assunto_top."""
+    from collections import defaultdict
+    assunto_expr = func.coalesce(Subcategoria.nome, "(sem assunto)")
+
     with db_session() as s:
         rows = (
             _base_rec(s, ano, tipos)
             .with_entities(
                 Reclamacao.local_embarque.label("local"),
+                assunto_expr.label("assunto"),
                 func.count(distinct(Reclamacao.id)).label("total"),
             )
             .filter(
                 Reclamacao.local_embarque.isnot(None),
                 Reclamacao.local_embarque != "",
             )
-            .group_by(Reclamacao.local_embarque)
-            .order_by(func.count(distinct(Reclamacao.id)).desc())
-            .limit(15)
+            .group_by(
+                Reclamacao.local_embarque,
+                assunto_expr,
+            )
             .all()
         )
-    return [(r.local, int(r.total)) for r in rows]
+
+    # Agrega por local: total e contagem por assunto
+    locais = defaultdict(lambda: {"total": 0, "ass_cnt": defaultdict(int)})
+    for r in rows:
+        locais[r.local]["total"] += int(r.total)
+        locais[r.local]["ass_cnt"][r.assunto or "(sem assunto)"] += int(r.total)
+
+    result = []
+    for local, data in locais.items():
+        ass_top = max(data["ass_cnt"], key=data["ass_cnt"].get, default="(sem assunto)")
+        result.append({
+            "local": local,
+            "total": data["total"],
+            "assunto_top": ass_top,
+        })
+
+    result.sort(key=lambda x: x["total"], reverse=True)
+    return result[:15]

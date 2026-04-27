@@ -253,11 +253,19 @@ def chart_top_autos(rows: list, titulo: str) -> str:
 def chart_embarques(rows: list, titulo: str) -> str:
     if not rows:
         return _empty()
-    df = pd.DataFrame(rows, columns=["local", "total"]).sort_values("total", ascending=True).reset_index(drop=True)
+    df = pd.DataFrame(rows)
+    df = df[["local", "total", "assunto_top"]].sort_values("total", ascending=True).reset_index(drop=True)
     fig = go.Figure(go.Bar(
         x=df["total"].tolist(), y=df["local"].tolist(), orientation="h",
         marker_color=BLUE_DARK,
         text=df["total"].tolist(), textposition="outside", cliponaxis=False,
+        customdata=df["assunto_top"].tolist(),
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Reclamações: %{x}<br>"
+            "Assunto principal: <b>%{customdata}</b>"
+            "<extra></extra>"
+        ),
     ))
     fig.update_layout(
         title=dict(text=titulo, font=dict(size=14, color=BLUE_DARK)),
