@@ -147,6 +147,7 @@ def query_empresas_pontuacao(ano: int, tipos: list[str]) -> list[tuple[str, floa
             .order_by(func.sum(ReclamacaoAuto.pontuacao).desc())
             .all()
         )
+        print(rows)
     return [(r.empresa, float(r.pts)) for r in rows]
 
 

@@ -18,11 +18,6 @@ Seções:
 """
 
 import os
-import sys
-
-# garante que a raiz do projeto está no path ao executar diretamente
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from datetime import date
 
 import pandas as pd
