@@ -98,12 +98,19 @@ def seed_autos(session) -> dict[str, int]:
             sem_perm += 1
 
         denom = str(row.get(col_denom, "")).strip()
+        if " - " in denom:
+            denom_a, denom_b = denom.split(" - ", 1)
+            denom_a = denom_a.strip() or None
+            denom_b = denom_b.strip() or None
+        else:
+            denom_a = denom or None
+            denom_b = None
 
         auto = AutoLinha(
             numero=numero,
             tipo=TipoServico.REGULAR_INTERMUNICIPAL,
-            denominacao_a=denom or None,
-            denominacao_b=None,
+            denominacao_a=denom_a,
+            denominacao_b=denom_b,
             tc=tc_val,
             permissionaria_id=perm_id,
             ativo=True,
