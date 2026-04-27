@@ -219,6 +219,7 @@ def query_heatmap_assunto_empresa(ano: int, tipos: list[str]) -> list[dict]:
             "assunto": assunto,
             "pts": round(data["pts"], 2),
             "auto_top": auto_top,
+            "auto_top_pts": round(data["auto_pts"].get(auto_top, 0.0), 2),
         })
 
     return result

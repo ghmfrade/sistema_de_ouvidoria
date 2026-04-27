@@ -182,10 +182,10 @@ def chart_heatmap(rows: list, titulo: str) -> str:
     col_order = [c for c in top_emp if c in pivot.columns]
     pivot = pivot.reindex(columns=col_order)
 
-    # Constrói pivot do auto_top para usar no customdata
-    auto_top_lookup = {(r["empresa"], r["assunto"]): r["auto_top"] for _, r in df_f.iterrows()}
-    auto_top_matrix = [
-        [auto_top_lookup.get((emp, ass), "(sem linha)") for emp in pivot.columns]
+    # Constrói pivot do auto_top e auto_top_pts para usar no customdata
+    auto_lookup = {(r["empresa"], r["assunto"]): (r["auto_top"], r["auto_top_pts"]) for _, r in df_f.iterrows()}
+    customdata_matrix = [
+        [auto_lookup.get((emp, ass), ("(sem linha)", 0.0)) for emp in pivot.columns]
         for ass in pivot.index
     ]
 
@@ -201,12 +201,13 @@ def chart_heatmap(rows: list, titulo: str) -> str:
         texttemplate="%{text}",
         hoverongaps=False,
         colorbar=dict(title="Pts"),
-        customdata=auto_top_matrix,
+        customdata=customdata_matrix,
         hovertemplate=(
             "Empresa: <b>%{x}</b><br>"
             "Assunto: <b>%{y}</b><br>"
-            "Principal Auto reclamado: <b>%{customdata}</b><br>"
-            "Pontuação de reclamação: <b>%{z:.2f}</b>"
+            "Principal Auto reclamado: <b>%{customdata[0]}</b><br>"
+            "Pontuação de reclamação do principal Autos: <b>%{customdata[1]:.2f}</b><br>"
+            "Pontuação total do assunto: <b>%{z:.2f}</b>"
             "<extra></extra>"
         ),
     ))
