@@ -179,26 +179,49 @@ def query_empresas_pontuacao(ano: int, tipos: list[str]) -> list[dict]:
 
 # ─── Heatmap assunto × empresa ────────────────────────────────────────────────
 
-def query_heatmap_assunto_empresa(ano: int, tipos: list[str]) -> list[tuple[str, str, float]]:
-    """Retorna [(empresa, assunto, pontuacao)] — pontuação acumulada por (empresa, assunto)."""
+def query_heatmap_assunto_empresa(ano: int, tipos: list[str]) -> list[dict]:
+    """Retorna [dict] com pontuação e auto principal por (empresa, assunto).
+    Cada dict contém: empresa, assunto, pts, auto_top."""
+    from collections import defaultdict
     empresa_expr = func.coalesce(Permissionaria.nome_fantasia, Permissionaria.nome)
     assunto_expr = func.coalesce(Subcategoria.nome, "(sem assunto)")
+
     with db_session() as s:
         rows = (
             _base_rec(s, ano, tipos)
             .with_entities(
                 empresa_expr.label("empresa"),
                 assunto_expr.label("assunto"),
+                AutoLinha.numero.label("auto"),
                 func.round(func.coalesce(func.sum(ReclamacaoAuto.pontuacao), 0), 2).label("pts"),
             )
             .filter(Permissionaria.nome.isnot(None))
             .group_by(
                 func.coalesce(Permissionaria.nome_fantasia, Permissionaria.nome),
                 func.coalesce(Subcategoria.nome, "(sem assunto)"),
+                AutoLinha.numero,
             )
             .all()
         )
-    return [(r.empresa, r.assunto, float(r.pts)) for r in rows]
+
+    # Agrega por (empresa, assunto): total pts e pontuação por auto
+    cells = defaultdict(lambda: {"pts": 0.0, "auto_pts": defaultdict(float)})
+    for r in rows:
+        key = (r.empresa, r.assunto)
+        cells[key]["pts"] += float(r.pts)
+        cells[key]["auto_pts"][r.auto or "(sem linha)"] += float(r.pts)
+
+    result = []
+    for (empresa, assunto), data in cells.items():
+        auto_top = max(data["auto_pts"], key=data["auto_pts"].get, default="(sem linha)")
+        result.append({
+            "empresa": empresa,
+            "assunto": assunto,
+            "pts": round(data["pts"], 2),
+            "auto_top": auto_top,
+        })
+
+    return result
 
 
 # ─── Top 15 autos por pontuação ───────────────────────────────────────────────

@@ -168,11 +168,11 @@ _ASSUNTO_EXCLUIR_HEAT = "TRANSPORTE IRREGULAR / CLANDESTINO"
 def chart_heatmap(rows: list, titulo: str) -> str:
     if not rows:
         return _empty()
-    df = pd.DataFrame(rows, columns=["empresa", "assunto", "pts"])
+    df = pd.DataFrame(rows)
     df = df[df["assunto"] != _ASSUNTO_EXCLUIR_HEAT]
     # Top 10 empresas por pontuação total; todos os assuntos
     top_emp = df.groupby("empresa")["pts"].sum().nlargest(10).index.tolist()
-    df_f = df[df["empresa"].isin(top_emp)]
+    df_f = df[df["empresa"].isin(top_emp)].copy()
     if df_f.empty:
         return _empty()
     pivot = df_f.pivot_table(
@@ -181,6 +181,14 @@ def chart_heatmap(rows: list, titulo: str) -> str:
     )
     col_order = [c for c in top_emp if c in pivot.columns]
     pivot = pivot.reindex(columns=col_order)
+
+    # Constrói pivot do auto_top para usar no customdata
+    auto_top_lookup = {(r["empresa"], r["assunto"]): r["auto_top"] for _, r in df_f.iterrows()}
+    auto_top_matrix = [
+        [auto_top_lookup.get((emp, ass), "(sem linha)") for emp in pivot.columns]
+        for ass in pivot.index
+    ]
+
     # Escala verde (0) → amarelo (médio) → vermelho (alto)
     colorscale = [[0, "#2ecc71"], [0.5, "#f1c40f"], [1, "#e74c3c"]]
     text_annot = [[f"{v:.1f}" for v in row] for row in pivot.values.tolist()]
@@ -193,6 +201,14 @@ def chart_heatmap(rows: list, titulo: str) -> str:
         texttemplate="%{text}",
         hoverongaps=False,
         colorbar=dict(title="Pts"),
+        customdata=auto_top_matrix,
+        hovertemplate=(
+            "Empresa: <b>%{x}</b><br>"
+            "Assunto: <b>%{y}</b><br>"
+            "Principal Auto reclamado: <b>%{customdata}</b><br>"
+            "Pontuação de reclamação: <b>%{z:.2f}</b>"
+            "<extra></extra>"
+        ),
     ))
     fig.update_layout(
         title=dict(text=titulo, font=dict(size=14, color=BLUE_DARK)),
