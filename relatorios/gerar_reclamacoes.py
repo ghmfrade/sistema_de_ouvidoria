@@ -136,12 +136,21 @@ def chart_pizza(rows: list, titulo: str) -> str:
 def chart_empresas(rows: list, titulo: str) -> str:
     if not rows:
         return _empty()
-    df = pd.DataFrame(rows, columns=["empresa", "pts"]).sort_values("pts", ascending=True).reset_index(drop=True)
+    df = pd.DataFrame(rows)
+    df = df[["empresa", "pts", "linha_top", "subcategoria_top"]].sort_values("pts", ascending=True).reset_index(drop=True)
     fig = go.Figure(go.Bar(
         x=df["pts"].tolist(), y=df["empresa"].tolist(), orientation="h",
         marker_color=BLUE_DARK,
         text=df["pts"].apply(lambda v: f"{v:.2f}").tolist(),
         textposition="outside", cliponaxis=False,
+        customdata=list(zip(df["linha_top"], df["subcategoria_top"])),
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Pontuação: %{x:.2f}<br>"
+            "Linha mais reclamada: %{customdata[0]}<br>"
+            "Principal assunto: %{customdata[1]}"
+            "<extra></extra>"
+        ),
     ))
     fig.update_layout(
         title=dict(text=titulo, font=dict(size=14, color=BLUE_DARK)),
@@ -198,12 +207,21 @@ def chart_heatmap(rows: list, titulo: str) -> str:
 def chart_top_autos(rows: list, titulo: str) -> str:
     if not rows:
         return _empty()
-    df = pd.DataFrame(rows, columns=["auto", "pts"]).sort_values("pts", ascending=True).reset_index(drop=True)
+    df = pd.DataFrame(rows)
+    df = df[["auto", "pts", "empresa", "subcategoria_top"]].sort_values("pts", ascending=True).reset_index(drop=True)
     fig = go.Figure(go.Bar(
         x=df["pts"].tolist(), y=df["auto"].astype(str).tolist(), orientation="h",
         marker_color=BLUE_MID,
         text=df["pts"].apply(lambda v: f"{v:.2f}").tolist(),
         textposition="outside", cliponaxis=False,
+        customdata=list(zip(df["empresa"], df["subcategoria_top"])),
+        hovertemplate=(
+            "<b>Auto %{y}</b><br>"
+            "Pontuação: %{x:.2f}<br>"
+            "Empresa: %{customdata[0]}<br>"
+            "Principal assunto: %{customdata[1]}"
+            "<extra></extra>"
+        ),
     ))
     fig.update_layout(
         title=dict(text=titulo, font=dict(size=14, color=BLUE_DARK)),

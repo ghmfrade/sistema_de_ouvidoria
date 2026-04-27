@@ -131,24 +131,50 @@ def query_pizza_assuntos(ano: int, tipos: list[str]) -> list[tuple[str, int]]:
 
 # ─── Empresas por pontuação ───────────────────────────────────────────────────
 
-def query_empresas_pontuacao(ano: int, tipos: list[str]) -> list[tuple[str, float]]:
-    """Retorna [(empresa, pontuacao)] ordenado decrescente.
+def query_empresas_pontuacao(ano: int, tipos: list[str]) -> list[dict]:
+    """Retorna [dict] com empresas por pontuação.
+    Cada dict contém: empresa, pts, linha_top, subcategoria_top.
     Exclui pontuação de reclamações subcategorizadas como TRANSPORTE IRREGULAR / CLANDESTINO."""
+    from collections import defaultdict
     empresa_expr = func.coalesce(Permissionaria.nome_fantasia, Permissionaria.nome)
+
     with db_session() as s:
         rows = (
             _excluir_transporte_irregular(_base_rec(s, ano, tipos))
             .with_entities(
                 empresa_expr.label("empresa"),
+                AutoLinha.numero.label("auto"),
+                func.coalesce(Subcategoria.nome, "(sem assunto)").label("subcategoria"),
                 func.round(func.coalesce(func.sum(ReclamacaoAuto.pontuacao), 0), 2).label("pts"),
             )
             .filter(Permissionaria.nome.isnot(None))
-            .group_by(empresa_expr)
-            .order_by(func.sum(ReclamacaoAuto.pontuacao).desc())
+            .group_by(
+                empresa_expr,
+                AutoLinha.numero,
+                func.coalesce(Subcategoria.nome, "(sem assunto)"),
+            )
             .all()
         )
-        print(rows)
-    return [(r.empresa, float(r.pts)) for r in rows]
+
+    empresas = defaultdict(lambda: {"pts": 0.0, "auto_pts": defaultdict(float), "sub_pts": defaultdict(float)})
+    for r in rows:
+        empresas[r.empresa]["pts"] += float(r.pts)
+        empresas[r.empresa]["auto_pts"][r.auto or "(sem linha)"] += float(r.pts)
+        empresas[r.empresa]["sub_pts"][r.subcategoria or "(sem assunto)"] += float(r.pts)
+
+    result = []
+    for empresa, data in empresas.items():
+        linha_top = max(data["auto_pts"], key=data["auto_pts"].get, default="(sem linha)")
+        sub_top = max(data["sub_pts"], key=data["sub_pts"].get, default="(sem assunto)")
+        result.append({
+            "empresa": empresa,
+            "pts": round(data["pts"], 2),
+            "linha_top": linha_top,
+            "subcategoria_top": sub_top,
+        })
+
+    result.sort(key=lambda x: x["pts"], reverse=True)
+    return result
 
 
 # ─── Heatmap assunto × empresa ────────────────────────────────────────────────
@@ -177,23 +203,49 @@ def query_heatmap_assunto_empresa(ano: int, tipos: list[str]) -> list[tuple[str,
 
 # ─── Top 15 autos por pontuação ───────────────────────────────────────────────
 
-def query_top15_autos_pontuacao(ano: int, tipos: list[str]) -> list[tuple[str, float]]:
-    """Retorna [(numero_auto, pontuacao)] top 15 por pontuação.
+def query_top15_autos_pontuacao(ano: int, tipos: list[str]) -> list[dict]:
+    """Retorna [dict] com top 15 autos por pontuação.
+    Cada dict contém: auto, pts, empresa, subcategoria_top.
     Exclui pontuação de reclamações subcategorizadas como TRANSPORTE IRREGULAR / CLANDESTINO."""
+    from collections import defaultdict
+    empresa_expr = func.coalesce(Permissionaria.nome_fantasia, Permissionaria.nome)
+
     with db_session() as s:
         rows = (
             _excluir_transporte_irregular(_base_rec(s, ano, tipos))
             .with_entities(
                 AutoLinha.numero.label("auto"),
+                empresa_expr.label("empresa"),
+                func.coalesce(Subcategoria.nome, "(sem assunto)").label("subcategoria"),
                 func.round(func.coalesce(func.sum(ReclamacaoAuto.pontuacao), 0), 2).label("pts"),
             )
             .filter(AutoLinha.numero.isnot(None))
-            .group_by(AutoLinha.numero)
-            .order_by(func.sum(ReclamacaoAuto.pontuacao).desc())
-            .limit(15)
+            .group_by(
+                AutoLinha.numero,
+                empresa_expr,
+                func.coalesce(Subcategoria.nome, "(sem assunto)"),
+            )
             .all()
         )
-    return [(r.auto, float(r.pts)) for r in rows]
+
+    autos = defaultdict(lambda: {"pts": 0.0, "empresa": "", "sub_pts": defaultdict(float)})
+    for r in rows:
+        autos[r.auto]["pts"] += float(r.pts)
+        autos[r.auto]["empresa"] = r.empresa or ""
+        autos[r.auto]["sub_pts"][r.subcategoria or "(sem assunto)"] += float(r.pts)
+
+    result = []
+    for auto, data in autos.items():
+        sub_top = max(data["sub_pts"], key=data["sub_pts"].get, default="(sem assunto)")
+        result.append({
+            "auto": auto,
+            "pts": round(data["pts"], 2),
+            "empresa": data["empresa"],
+            "subcategoria_top": sub_top,
+        })
+
+    result.sort(key=lambda x: x["pts"], reverse=True)
+    return result[:15]
 
 
 # ─── Top 15 locais de embarque (fretamento) ───────────────────────────────────
