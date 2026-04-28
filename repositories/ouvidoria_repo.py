@@ -234,7 +234,8 @@ def get_id_por_protocolo(protocolo: str) -> int | None:
 
 
 def get_ouvidorias(filtro_status=None, filtro_periodo=None,
-                   ocultar_concluidos=True, usuario=None,
+                   ocultar_concluidos=True,
+                   usuario_id: int | None = None, usuario_tipo: str | None = None,
                    filtro_categoria_id: int | None = None,
                    filtro_subcategoria_id: int | None = None,
                    filtro_tipo_servico: str | None = None) -> list[OuvidoriaResumoDict]:
@@ -251,10 +252,10 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
                     .joinedload(Usuario.coordenacao),
             )
         )
-        if usuario and usuario.tipo == TipoUsuario.tecnico:
+        if usuario_id and usuario_tipo == TipoUsuario.tecnico.value:
             q = (
                 q.join(OuvidoriaTecnico, OuvidoriaTecnico.ouvidoria_id == Ouvidoria.id)
-                .filter(OuvidoriaTecnico.tecnico_id == usuario.id)
+                .filter(OuvidoriaTecnico.tecnico_id == usuario_id)
             )
         if filtro_status:
             q = q.filter(Ouvidoria.status == filtro_status)
@@ -275,7 +276,7 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
             q = q.filter(Ouvidoria.reclamacoes.any(
                 Reclamacao.tipo_servico == filtro_tipo_servico
             ))
-        ouvidorias = q.order_by(Ouvidoria.criado_em.desc()).all()
+        ouvidorias = q.order_by(Ouvidoria.criado_em.desc(), Ouvidoria.id.desc()).all()
         return [
             OuvidoriaResumoDict(
                 id=o.id,

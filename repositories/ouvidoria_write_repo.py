@@ -80,17 +80,37 @@ def criar_ouvidoria(protocolo, conteudo, prazo, prazo_permissionaria,
         return ouvidoria.id
 
 
-def editar_ouvidoria(oid, protocolo, conteudo, prazo, prazo_permissionaria, status):
-    """Atualiza dados da ouvidoria."""
+def editar_ouvidoria(
+    oid,
+    protocolo=None,
+    conteudo=None,
+    prazo=None,
+    prazo_permissionaria=None,
+    status=None
+):
+    """Atualiza dados da ouvidoria (parcial ou completo)."""
     with db_session() as s:
         o = s.query(Ouvidoria).filter_by(id=oid).first()
-        if o:
+
+        if not o:
+            return
+
+        if protocolo is not None:
             o.protocolo = protocolo.strip()
+
+        if conteudo is not None:
             o.conteudo = conteudo.strip()
+
+        if prazo is not None:
             o.prazo = prazo
+
+        if prazo_permissionaria is not None:
             o.prazo_permissionaria = prazo_permissionaria
+
+        if status is not None:
             novo_status = StatusOuvidoria(status)
             o.status = novo_status
+
             if novo_status == StatusOuvidoria.CONCLUIDO:
                 o.concluido_em = datetime.now()
             else:
