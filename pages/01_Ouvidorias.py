@@ -18,6 +18,7 @@ from utils import (
     carregar_categorias,
     carregar_subcategorias,
     carregar_tecnicos_disponiveis,
+    alterar_status_ouvidoria,
     concluir_ouvidoria,
     excluir_ouvidoria,
     gerar_html_resumo,
@@ -38,6 +39,8 @@ reduz_gap_elementos_body()
 
 
 auth.require_auth()
+
+st.session_state.setdefault("ov_cache_buster", 0)
 
 _resumo_id = st.session_state.pop("abrir_resumo_id", None)
 
@@ -119,13 +122,16 @@ if usar_periodo and data_ini and data_fim:
 
 _filtro_cat_id = sel_categoria[0] if sel_categoria[0] else None
 _filtro_sub_id = sel_subcategoria[0] if sel_subcategoria[0] else None
+
 ouvidorias = listar_ouvidorias(
     filtro_periodo=periodo,
     ocultar_concluidos=ocultar_concluidos,
-    usuario=u,
+    usuario_id=u.id,
+    usuario_tipo=u.tipo.value,
     filtro_categoria_id=_filtro_cat_id,
     filtro_subcategoria_id=_filtro_sub_id,
     filtro_tipo_servico=_filtro_tipo,
+    cache_buster=st.session_state["ov_cache_buster"],
 )
 
 st.divider()
@@ -135,7 +141,7 @@ st.divider()
 if "pag_atual" not in st.session_state:
     st.session_state.pag_atual = 1
 if "por_pagina" not in st.session_state:
-    st.session_state.por_pagina = 25
+    st.session_state.por_pagina = 15
 if "filtros_hash_anterior" not in st.session_state:
     st.session_state.filtros_hash_anterior = None
 
@@ -202,7 +208,7 @@ if not ouvidorias:
 else:
     # # | Entrada | Protocolo | Status | Coord./Gerência | Responsáveis | Prazo Perm. | Prazo Resp. | 👤 | 🛠️
     # col 8 (👤) fica vazia para técnico
-    col_sizes = [0.7, 1.1, 2.1, 2.25, 2.5, 2.5, 1.4, 1.4, 0.7, 0.7]
+    col_sizes = [1.1, 1.6, 2.5, 1, 2.5, 2.5, 1.4, 1.4, 0.7, 0.7]
     headers = ["**#**", "**Entrada**", "**Protocolo**", "**Status**",
                "**Coord./Gerência**", "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**", "", ""]
 
@@ -218,6 +224,7 @@ else:
     for o in ouvidorias_pagina:
         emoji_status = STATUS_EMOJI.get(o["status"], "")
         status_label = f"{emoji_status} {o['status']}"
+        status_opcoes = [s.value for s in StatusOuvidoria]
 
         perm_label, perm_tip = prazo_circle_label(o["prazo_permissionaria"])
         resp_label, resp_tip = prazo_circle_label(o["prazo"], o.get("concluido_em"))
@@ -230,7 +237,25 @@ else:
         cols[0].write(o["id"])
         cols[1].write(entrada)
         cols[2].write(o["protocolo"])
-        cols[3].write(status_label)
+
+        with cols[3].popover(emoji_status,
+                             use_container_width=True,
+                             help=status_label):
+            if u.tipo == TipoUsuario.gestor:
+                st.write("**Alterar Status**")
+                novo_status_str = st.selectbox(
+                    "Novo status:",
+                    options=status_opcoes,
+                    index=status_opcoes.index(o['status']),
+                    key=f"status_{o['id']}"
+                )
+                if st.button("Atribuir", type="primary", key=f"status_buttom{o['id']}"):
+                    alterar_status_ouvidoria(o['id'], novo_status_str)
+                    st.session_state["ov_cache_buster"] += 1
+                    st.rerun()
+            else:
+                st.write(status_label)
+            
         cols[4].write(o["coord_ger"])
         cols[5].write(o["responsaveis"])
 
@@ -253,6 +278,7 @@ else:
                             ok = atribuir_tecnico(o["id"], tec_id)
                             if ok:
                                 st.toast(f"Técnico {tec_sel} atribuído!", icon="✅")
+                                st.session_state["ov_cache_buster"] += 1
                                 st.rerun()
                             else:
                                 st.warning("Técnico já atribuído.")
@@ -288,6 +314,7 @@ else:
                         if st.button("✅ Concluir", key=f"concluir_{o['id']}"):
                             concluir_ouvidoria(o["id"])
                             st.toast("Ouvidoria concluída!", icon="✅")
+                            st.session_state["ov_cache_buster"] += 1
                             st.rerun()
 
                     if not st.session_state.get(confirmar_key):
@@ -300,6 +327,7 @@ else:
                             excluir_ouvidoria(o["id"])
                             st.session_state.pop(confirmar_key, None)
                             st.toast("Ouvidoria excluída.", icon="🗑")
+                            st.session_state["ov_cache_buster"] += 1
                             st.rerun()
                         if st.button("Não", key=f"nao_excluir_{o['id']}"):
                             st.session_state.pop(confirmar_key, None)

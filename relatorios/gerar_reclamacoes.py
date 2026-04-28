@@ -205,8 +205,7 @@ def chart_heatmap(rows: list, titulo: str) -> str:
         hovertemplate=(
             "Empresa: <b>%{x}</b><br>"
             "Assunto: <b>%{y}</b><br>"
-            "Principal Auto reclamado: <b>%{customdata[0]}</b><br>"
-            "Pontuação de reclamação do principal Autos: <b>%{customdata[1]:.2f}</b><br>"
+            "Principal Linha reclamada: <b>%{customdata[0]}</b> | Pontuação: <b>%{customdata[1]:.2f}</b><br>"
             "Pontuação total do assunto: <b>%{z:.2f}</b>"
             "<extra></extra>"
         ),
@@ -233,7 +232,7 @@ def chart_top_autos(rows: list, titulo: str) -> str:
         textposition="outside", cliponaxis=False,
         customdata=list(zip(df["empresa"], df["subcategoria_top"])),
         hovertemplate=(
-            "<b>Auto %{y}</b><br>"
+            "<b>Linha n°%{y}</b><br>"
             "Pontuação: %{x:.2f}<br>"
             "Empresa: %{customdata[0]}<br>"
             "Principal assunto: %{customdata[1]}"
@@ -557,7 +556,7 @@ def build_html(ano: int) -> str:
     </span>
     <p style="margin-top:.6rem">
       A <strong>pontuação acumulada</strong> reflete o volume ponderado de reclamações associadas a cada auto ou empresa.
-      Quanto maior a pontuação, maior o histórico de reclamações relacionadas àquele veículo/operador.
+      Quanto maior a pontuação, maior o histórico de reclamações relacionadas àquele operador.
     </p>
   </div>
 
