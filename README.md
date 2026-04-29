@@ -199,11 +199,27 @@ pytest
 
 ## 📊 Relatórios
 
-O sistema gera relatórios consolidados em Excel:
+O sistema gera relatórios consolidados em **HTML com gráficos interativos** (Plotly):
 
-- **Relatório Anual**: Consolidação de ouvidorias do ano
-- **Relatório por Período**: Agrupamento por data, categoria, permissionária
-- **Relatório de Qualidade**: Análise de pontuações e métricas
+Execute via script:
+```bash
+python gerador_de_relatorios.py
+```
+
+Relatórios gerados em `relatorios/`:
+- **relatorio_reclamacoes_2025.html** - Reclamações do ano 2025
+- **relatorio_reclamacoes_2026.html** - Reclamações do ano 2026
+
+**Conteúdo dos Relatórios:**
+- KPIs por sistema (Regular Metropolitano, Regular Intermunicipal, Fretamento)
+- Evolução mensal de reclamações
+- Top 15 autos com mais reclamações
+- Top 15 pontos de embarque
+- Análise por empresa (pontuação e volume)
+- Heatmap de assuntos por empresa
+- Distribuição por tipo de serviço
+
+Abra o arquivo HTML em qualquer navegador para visualizar.
 
 ## 🔐 Segurança
 
