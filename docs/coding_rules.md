@@ -44,20 +44,11 @@ with db_session() as s:
 
 Após `session.close()` ou `session.expunge_all()`, atributos simples funcionam mas relacionamentos lazy causam `DetachedInstanceError`. Os loaders em `utils/` convertem para `dict` antes de retornar à page.
 
-```python
+````python
 # ❌ ERRADO
 with db_session() as s:
     o = s.query(Ouvidoria).filter_by(id=oid).first()
 return o   # page vai explodir ao acessar o.reclamacoes[0].categoria.nome
-
-# ✅ CORRETO — repository retorna objeto expunged
-with db_session() as s:
-    o = s.query(Ouvidoria).options(joinedload(...)).filter_by(id=oid).first()
-    if o:
-        s.expunge_all()
-    return o
-# utils/loader converte para dict enquanto atributos simples ainda estão acessíveis
-```
 
 ---
 
@@ -74,11 +65,12 @@ Loaders em `utils/loaders_*.py` são wrappers que:
 @st.cache_data(ttl=300)
 def carregar_municipios():
     return [m.nome for m in get_municipios_sp()]
-```
+````
 
 ### Ops: fachadas de escrita
 
 Arquivos `*_ops.py` em `utils/` são fachadas que:
+
 1. Chamam o repositório de escrita correto.
 2. Adicionam lógica de coordenação frontend (ex: invalidar cache após escrita).
 3. Nunca duplicam lógica SQL — delegam tudo ao repositório.
@@ -194,25 +186,25 @@ with st.sidebar:
 
 ### Guards de acesso
 
-| Função | Uso |
-|---|---|
-| `auth.require_auth()` | Qualquer usuário autenticado |
-| `auth.require_gestor()` | Apenas gestores |
+| Função                  | Uso                          |
+| ----------------------- | ---------------------------- |
+| `auth.require_auth()`   | Qualquer usuário autenticado |
+| `auth.require_gestor()` | Apenas gestores              |
 
 ---
 
 ## 7. Nomenclatura
 
-| Tipo | Convenção | Exemplo |
-|---|---|---|
-| Tabelas SQL | `snake_case` plural | `autos_linha`, `ouvidoria_tecnicos` |
-| Classes Python | `PascalCase` | `AutoLinha`, `OuvidoriaTecnico` |
-| Funções | `snake_case` | `carregar_ouvidorias()` |
-| Chaves `session_state` | `snake_case` | `ouvidoria_id`, `resp_recs_edit` |
-| Arquivos de página | `NN_NomePagina.py` | `01_Ouvidorias.py` |
-| Chaves de widget Streamlit | `prefixo_descricao` | `resp_cat_42`, `trecho_orig` |
-| Funções de repositório | `get_*` (leitura), verbo direto (escrita) | `get_ouvidoria_completa`, `criar_usuario` |
-| Funções de loader | `carregar_*` ou `query_*` | `carregar_municipios`, `query_kpis_produtividade` |
+| Tipo                       | Convenção                                 | Exemplo                                           |
+| -------------------------- | ----------------------------------------- | ------------------------------------------------- |
+| Tabelas SQL                | `snake_case` plural                       | `autos_linha`, `ouvidoria_tecnicos`               |
+| Classes Python             | `PascalCase`                              | `AutoLinha`, `OuvidoriaTecnico`                   |
+| Funções                    | `snake_case`                              | `carregar_ouvidorias()`                           |
+| Chaves `session_state`     | `snake_case`                              | `ouvidoria_id`, `resp_recs_edit`                  |
+| Arquivos de página         | `NN_NomePagina.py`                        | `01_Ouvidorias.py`                                |
+| Chaves de widget Streamlit | `prefixo_descricao`                       | `resp_cat_42`, `trecho_orig`                      |
+| Funções de repositório     | `get_*` (leitura), verbo direto (escrita) | `get_ouvidoria_completa`, `criar_usuario`         |
+| Funções de loader          | `carregar_*` ou `query_*`                 | `carregar_municipios`, `query_kpis_produtividade` |
 
 ---
 
@@ -241,11 +233,11 @@ col_perm = _col(df, "Permissionária", "Permissionaria") or \
 
 Use `@st.cache_data(ttl=N)` nos loaders de `utils/`:
 
-| TTL | Usado para |
-|---|---|
-| `ttl=300` | Catálogos raramente alterados (municípios, permissionárias, gerências) |
-| `ttl=120` | Queries de dashboard |
-| `ttl=60` | Dados semi-dinâmicos (técnicos disponíveis, ouvidoria para permissionária) |
+| TTL       | Usado para                                                                 |
+| --------- | -------------------------------------------------------------------------- |
+| `ttl=300` | Catálogos raramente alterados (municípios, permissionárias, gerências)     |
+| `ttl=120` | Queries de dashboard                                                       |
+| `ttl=60`  | Dados semi-dinâmicos (técnicos disponíveis, ouvidoria para permissionária) |
 
 Após qualquer escrita que afete dados cacheados, invalide com `.clear()`.
 
