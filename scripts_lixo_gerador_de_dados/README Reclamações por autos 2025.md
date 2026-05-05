@@ -4,22 +4,26 @@ Script para gerar relatórios em Markdown com as pontuações de reclamações p
 
 ## Uso
 
-```bash
-python gerar_relatorio_reclamacoes_autos.py <auto1> [auto2] [auto3] ...
+```powershell
+ .\relatorio_por_autos <auto1> [auto2] [auto3] ...
 ```
 
 ### Exemplos
 
 Gerar relatório para um único auto:
-```bash
-python gerar_relatorio_reclamacoes_autos.py 9207A
+
+```powershell
+ .\relatorio_por_autos 9207A
 ```
+
 Gera: `reclamacoes_por_autos_1.md`
 
 Gerar relatório para múltiplos autos:
-```bash
-python gerar_relatorio_reclamacoes_autos.py 9207A 9208A 9209A
+
+```powershell
+ .\relatorio_por_autos 9207A 9208A 9209A
 ```
+
 Gera: `reclamacoes_por_autos_3.md`
 
 ## O que o script faz
