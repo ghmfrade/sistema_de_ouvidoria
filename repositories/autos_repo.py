@@ -70,6 +70,23 @@ def _base_auto_query(session, tipo_servico: str, perm_id: int | None, regiao: st
         q = q.filter(AutoLinha.regiao_metropolitana == regiao)
     return q
 
+def _filtro_por_trecho(q, mun_a: int, mun_b: int | None = None):
+    if mun_b:
+        min_id, max_id = min(mun_a, mun_b), max(mun_a, mun_b)
+        return q.filter(
+            AutoLinha.trechos.any(
+                (TrechoAutoLinha.municipio_a_id == min_id) &
+                (TrechoAutoLinha.municipio_b_id == max_id)
+            )
+        )
+    else:
+        return q.filter(
+            AutoLinha.trechos.any(
+                (TrechoAutoLinha.municipio_a_id == mun_a) |
+                (TrechoAutoLinha.municipio_b_id == mun_a)
+            )
+        )
+
 
 # ── Funções públicas ──────────────────────────────────────────────────────────
 
@@ -127,6 +144,7 @@ def get_municipios_destino(
 
         return [_municipio_to_dict(m) for m in munis]
 
+
 def get_todos_autos(tipo_servico: str, perm_id: int | None = None,
                     regiao: str | None = None) -> list[AutoDict]:
     """Todos os autos ativos filtrados."""
@@ -173,33 +191,23 @@ def get_autos_regioes_metropolitanas() -> list[str]:
         return [row[0] for row in rows if row[0]]
 
 
-def buscar_autos_por_trecho(tipo_servico: str, cidade_a: str, cidade_b: str,
-                             perm_id: int | None = None,
-                             regiao: str | None = None) -> list[AutoDict]:
+def buscar_autos_por_trecho(
+    tipo_servico: str,
+    cidade_a: str,
+    cidade_b: str,
+    perm_id: int | None = None,
+    regiao: str | None = None
+) -> list[AutoDict]:
     """Autos com trecho explícito entre cidade_a e cidade_b."""
+
     with db_session() as s:
         q = _base_auto_query(s, tipo_servico, perm_id, regiao)
 
         if cidade_a:
             mun_a = _resolver_municipio_id(s, cidade_a)
+
             if mun_a:
-                if cidade_b:
-                    mun_b = _resolver_municipio_id(s, cidade_b)
-                    if mun_b:
-                        min_id, max_id = min(mun_a, mun_b), max(mun_a, mun_b)
-                        q = q.filter(
-                            AutoLinha.trechos.any(
-                                (TrechoAutoLinha.municipio_a_id == min_id) &
-                                (TrechoAutoLinha.municipio_b_id == max_id)
-                            )
-                        )
-                else:
-                    # Apenas cidade_a: retorna autos com qualquer trecho passando por ela
-                    q = q.filter(
-                        AutoLinha.trechos.any(
-                            (TrechoAutoLinha.municipio_a_id == mun_a) |
-                            (TrechoAutoLinha.municipio_b_id == mun_a)
-                        )
-                    )
+                mun_b = _resolver_municipio_id(s, cidade_b) if cidade_b else None
+                q = _filtro_por_trecho(q, mun_a, mun_b)
 
         return [_auto_to_dict(a) for a in q.order_by(AutoLinha.numero).all()]

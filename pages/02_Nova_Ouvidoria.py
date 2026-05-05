@@ -34,6 +34,7 @@ from components import reduz_margem_side_bar, reduz_margem_topo_page
 
 st.set_page_config(page_title="Nova Ouvidoria", page_icon="➕", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
+
 auth.require_gestor()
 
 u = usuario_logado()
