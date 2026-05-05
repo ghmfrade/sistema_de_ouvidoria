@@ -1,0 +1,2 @@
+@echo off
+python scripts_lixo_gerador_de_dados\gerar_relatorio_reclamacoes_autos.py %1
