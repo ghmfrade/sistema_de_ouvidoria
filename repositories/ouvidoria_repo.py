@@ -250,6 +250,7 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
                 joinedload(Ouvidoria.atribuicoes)
                     .joinedload(OuvidoriaTecnico.tecnico)
                     .joinedload(Usuario.coordenacao),
+                joinedload(Ouvidoria.respostas_permissionaria),
             )
         )
         if usuario_id and usuario_tipo == TipoUsuario.tecnico.value:
@@ -285,6 +286,10 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
                 status=o.status.value,
                 prazo=o.prazo,
                 prazo_permissionaria=o.prazo_permissionaria,
+                data_resposta_perm=max(
+                    (rp.data_resposta for rp in o.respostas_permissionaria if rp.data_resposta),
+                    default=None,
+                ),
                 criado_em=o.criado_em,
                 concluido_em=o.concluido_em,
                 atribuicoes=[_to_atribuicao_dict(at) for at in o.atribuicoes],

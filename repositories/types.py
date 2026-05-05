@@ -166,6 +166,7 @@ class OuvidoriaResumoDict(TypedDict):
     status: str             # StatusOuvidoria.value
     prazo: date | None
     prazo_permissionaria: date | None
+    data_resposta_perm: date | None
     criado_em: datetime | None
     concluido_em: datetime | None
     atribuicoes: list[OuvidoriaTecnicoDict]

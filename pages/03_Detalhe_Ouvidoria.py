@@ -16,12 +16,13 @@ from models import StatusOuvidoria, TipoUsuario
 from repositories.ouvidoria_write_repo import (
     add_anexos,
     atribuir_tecnico,
+    atualizar_prazo_permissionaria,
     concluir_ouvidoria,
     delete_anexo,
     editar_ouvidoria,
     excluir_ouvidoria,
 )
-from utils import buscar_ouvidoria_por_protocolo, carregar_detalhe_ouvidoria, carregar_tecnicos_disponiveis
+from utils import buscar_ouvidoria_por_protocolo, carregar_detalhe_ouvidoria, carregar_tecnicos_disponiveis, prazo_circle_label
 from components import reduz_margem_side_bar, reduz_margem_topo_page
 
 
@@ -94,230 +95,274 @@ cols_m[2].metric("Dias restantes", f"{cor} {dias_restantes}")
 if ouvidoria["concluido_em"]:
     cols_m[4].metric("Concluída em", ouvidoria["concluido_em"].strftime("%d/%m/%Y %H:%M"))
 if ouvidoria["prazo_permissionaria"]:
-    dias_perm = (ouvidoria["prazo_permissionaria"] - date.today()).days
-    cor_p = "🔴" if dias_perm < 0 else "🟢"
-    cols_m[3].metric("Prazo Permissionária", f"{ouvidoria['prazo_permissionaria'].strftime('%d/%m/%Y')} {cor_p} {dias_perm}d")
+    cols_m[3].metric("Prazo Permissionária", f"{ouvidoria['prazo_permissionaria'].strftime('%d/%m/%Y')}")
 
-# Conteúdo da ouvidoria
-with st.expander("Conteúdo da Ouvidoria", expanded=True):
-    st.text(ouvidoria["conteudo"])
+# ── Dialog para editar a ouvidoria ──────────────────────────────────────────
+@st.dialog("Editar Ouvidoria", width="large")
+def dialog_editar():
+    with st.form("form_editar"):
+        novo_protocolo = st.text_input("Protocolo", value=ouvidoria["protocolo"])
+        novo_conteudo = st.text_area("Conteúdo da Ouvidoria", value=ouvidoria["conteudo"], height=150)
+        novo_prazo = st.date_input("Prazo", value=ouvidoria["prazo"])
+        status_opcoes = [s.value for s in StatusOuvidoria]
+        novo_status_val = st.selectbox(
+            "Status",
+            status_opcoes,
+            index=status_opcoes.index(ouvidoria["status"]),
+        )
+        salvar_edicao = st.form_submit_button("💾 Salvar alterações", type="primary", use_container_width=True)
 
-st.divider()
+    if salvar_edicao:
+        editar_ouvidoria(
+            ouvidoria_id,
+            novo_protocolo,
+            novo_conteudo,
+            novo_prazo,
+            ouvidoria["prazo_permissionaria"],
+            novo_status_val,
+        )
+        st.success("Ouvidoria atualizada.")
+        st.rerun()
 
-# ── Tabs ──────────────────────────────────────────────────────────────────────
-tab_rec, tab_tecnicos, tab_respostas, tab_resp_perm, tab_anexos, tab_edicao = st.tabs(
-    ["Reclamações", "Técnicos", "Respostas Técnicas", "Respostas Permissionária", "Anexos", "Editar"]
-)
+    if st.button("Cancelar", use_container_width=True):
+        st.rerun()
 
-# ── Tab: Reclamações ──────────────────────────────────────────────────────────
-with tab_rec:
-    if not ouvidoria["reclamacoes"]:
-        st.info("Nenhuma reclamação cadastrada.")
-    for r in ouvidoria["reclamacoes"]:
-        tipo_label = f" [{r['tipo_servico']}]" if r.get('tipo_servico') else ""
-        with st.expander(f"Item {r['numero_item']} –{tipo_label} {r['categoria_nome'] or 'Sem categoria'}"):
-            if r.get('tipo_servico'):
-                st.write(f"**Tipo de Serviço:** {r['tipo_servico']}")
-            if r.get('subcategoria_nome'):
-                st.write(f"**Subcategoria:** {r['subcategoria_nome']}")
-            if r.get('empresa_fretamento'):
-                st.write(f"**Empresa de Fretamento:** {r['empresa_fretamento']}")
-            st.write(f"**Embarque:** {r['local_embarque'] or '–'}")
-            st.write(f"**Desembarque:** {r['local_desembarque'] or '–'}")
-            st.write(f"**Descrição:** {r['descricao'] or '–'}")
-            autos = rec_autos.get(r['id'], [])
-            if autos:
-                st.write(f"**Autos ({len(autos)}):**")
-                for a in autos:
-                    from utils.formatters import fmt_auto, TC_REGIOES
-                    rm_info = f" | RM: {a['regiao_metropolitana']}" if a.get('regiao_metropolitana') else ""
-                    tc = a.get("tc")
-                    tc_info = f" – TC{tc} {TC_REGIOES[tc]}" if tc and tc in TC_REGIOES else ""
-                    denom = " – ".join(filter(None, [a.get("denominacao_a"), a.get("denominacao_b")])) or a["numero"]
-                    st.write(f"- {a['numero']} – {a['permissionaria_nome']} – {denom}{tc_info}{rm_info}")
-            else:
-                st.write("**Autos:** Nenhum vinculado")
+# ── Botões de ação (gestor) ──────────────────────────────────────────────────
+if u.tipo == TipoUsuario.gestor:
+    col_editar, col_prazo_perm, col_apagar_prazo, col_espaco = st.columns([1, 2, 2, 5])
 
-# ── Tab: Técnicos ─────────────────────────────────────────────────────────────
-with tab_tecnicos:
-    if tecnicos_info:
-        st.markdown("**Técnicos atribuídos:**")
-        for tid, info in tecnicos_info.items():
-            status_resp = "✅ Respondido" if info["respondido"] else "⏳ Aguardando"
-            st.write(f"- {info['tecnico_nome']} – {status_resp}")
-    else:
-        st.info("Nenhum técnico atribuído ainda.")
+    if col_editar.button("✏️ Editar", use_container_width=True):
+        dialog_editar()
 
-    if u.tipo == TipoUsuario.gestor:
-        st.divider()
-        st.markdown("**Atribuir técnico:**")
-
-        todos_tecs = carregar_tecnicos_disponiveis()
-        ja_atribuidos = set(tecnicos_info.keys())
-        disponiveis = [(tid, nome) for tid, nome in todos_tecs if tid not in ja_atribuidos]
-
-        if disponiveis:
-            tec_sel_nome = st.selectbox("Técnico", [nome for _, nome in disponiveis])
-            tec_sel_id = next(tid for tid, nome in disponiveis if nome == tec_sel_nome)
-            if st.button("Atribuir técnico"):
-                atribuir_tecnico(ouvidoria_id, tec_sel_id)
-                st.success("Técnico atribuído. Status atualizado para Em análise técnica.")
-                carregar_tecnicos_disponiveis.clear()
-                st.rerun()
+    prazo_perm_atual = ouvidoria["prazo_permissionaria"]
+    with col_prazo_perm.popover("📅 Prazo Permissionária", use_container_width=True):
+        if prazo_perm_atual:
+            data_resp_perm = max(
+                (r["data_resposta"] for r in ouvidoria["respostas_permissionaria"] if r["data_resposta"]),
+                default=None,
+            )
+            perm_label, _ = prazo_circle_label(prazo_perm_atual, data_resp_perm)
+            st.markdown(f"**Prazo atual:** {prazo_perm_atual.strftime('%d/%m/%Y')} {perm_label}")
         else:
-            st.info("Todos os técnicos disponíveis já foram atribuídos.")
+            st.markdown("**Prazo atual:** não definido")
 
-# ── Tab: Respostas Técnicas ──────────────────────────────────────────────────
-with tab_respostas:
+        if st.button("✏️ Alterar data", key="btn_alterar_prazo_perm", use_container_width=True):
+            st.session_state["alterar_prazo_perm"] = True
+
+        if st.session_state.get("alterar_prazo_perm"):
+            novo_prazo_perm = st.date_input("Nova data", value=prazo_perm_atual or date.today(), label_visibility="collapsed")
+            if st.button("💾 Salvar", key="btn_salvar_prazo_perm", use_container_width=True):
+                atualizar_prazo_permissionaria(ouvidoria_id, novo_prazo_perm)
+                st.session_state.pop("alterar_prazo_perm", None)
+                st.toast("Prazo da permissionária atualizado.")
+                st.rerun()
+
+    if prazo_perm_atual:
+        if col_apagar_prazo.button("🗑 Apagar prazo da Permissionária", use_container_width=True):
+            atualizar_prazo_permissionaria(ouvidoria_id, None)
+            st.toast("Prazo da permissionária removido.")
+            st.rerun()
+
+# ── Layout de 2 colunas ─────────────────────────────────────────────────────
+col_esq, col_dir = st.columns([2, 1])
+
+# ── COLUNA ESQUERDA ─────────────────────────────────────────────────────────
+with col_esq:
+    st.markdown("### 📝 Conteúdo da Ouvidoria")
+    st.markdown(ouvidoria["conteudo"])
+
+    st.divider()
+
+    st.markdown("### 🏢 Respostas da Permissionária")
+    if not ouvidoria["respostas_permissionaria"]:
+        st.info("Nenhuma resposta da permissionária.")
+    else:
+        for rp in ouvidoria["respostas_permissionaria"]:
+            data = rp['data_resposta'].strftime('%d/%m/%Y') if rp['data_resposta'] else "?"
+            with st.expander(f"{data} — por {rp['registrado_por_nome']}"):
+                st.markdown(rp["conteudo"])
+
+    st.divider()
+
+    st.markdown("### 👨‍🔧 Respostas Técnicas")
+    if not ouvidoria["respostas_tecnicas"]:
+        st.info("Nenhuma resposta técnica registrada ainda.")
+    else:
+        for resp in ouvidoria["respostas_tecnicas"]:
+            data = resp['data_resposta'].strftime('%d/%m/%Y') if resp['data_resposta'] else "?"
+            with st.expander(f"{resp['tecnico_nome']} – {data}"):
+                st.markdown(resp["texto_resposta"])
+
+    # Botão para técnico inserir resposta
     if u.tipo == TipoUsuario.tecnico and u.id in tecnicos_info:
         if st.button("✍️ Inserir Resposta Técnica", type="primary", use_container_width=False):
             st.switch_page("pages/05_Responder.py")
+
+# ── COLUNA DIREITA ──────────────────────────────────────────────────────────
+with col_dir:
+    container_reclamacoes = st.container(border=True)
+
+    with container_reclamacoes:
+        st.markdown("### 📌 Reclamações")
+        if not ouvidoria["reclamacoes"]:
+            st.info("Nenhuma reclamação cadastrada.")
+        else:
+            for r in ouvidoria["reclamacoes"]:
+                tipo_label = f" [{r['tipo_servico']}]" if r.get('tipo_servico') else ""
+                with st.expander(f"Item {r['numero_item']} {tipo_label}"):
+                    if r.get('categoria_nome'):
+                        st.write(f"**Categoria:** {r['categoria_nome']}")
+                    if r.get('subcategoria_nome'):
+                        st.write(f"**Subcategoria:** {r['subcategoria_nome']}")
+                    if r.get('empresa_fretamento'):
+                        st.write(f"**Empresa:** {r['empresa_fretamento']}")
+                    if r.get('local_embarque'):
+                        st.write(f"**Embarque:** {r['local_embarque']}")
+                    if r.get('local_desembarque'):
+                        st.write(f"**Desembarque:** {r['local_desembarque']}")
+                    if r.get('descricao'):
+                        st.write(f"**Descrição:** {r['descricao']}")
+
+                    autos = rec_autos.get(r['id'], [])
+                    if autos:
+                        st.write(f"**Autos ({len(autos)}):**")
+                        for a in autos:
+                            from utils.formatters import fmt_auto, TC_REGIOES
+                            rm_info = f" | RM: {a['regiao_metropolitana']}" if a.get('regiao_metropolitana') else ""
+                            tc = a.get("tc")
+                            tc_info = f" – TC{tc} {TC_REGIOES[tc]}" if tc and tc in TC_REGIOES else ""
+                            denom = " – ".join(filter(None, [a.get("denominacao_a"), a.get("denominacao_b")])) or a["numero"]
+                            st.write(f"- {a['numero']} – {a['permissionaria_nome']} – {denom}{tc_info}{rm_info}")
+                    else:
+                        st.write("**Autos:** Nenhum")
+
+        st.divider()
+        st.markdown("### 👥 Técnicos Responsáveis")
+        if tecnicos_info:
+            for tid, info in tecnicos_info.items():
+                status = "✅" if info["respondido"] else "⏳"
+                col_tec, col_popover = st.columns([4, 1])
+                col_tec.write(f"{status} {info['tecnico_nome']}")
+        else:
+            st.info("Nenhum técnico atribuído.")
+
+        if u.tipo == TipoUsuario.gestor:
+            todos_tecs = carregar_tecnicos_disponiveis()
+            ja_atribuidos = set(tecnicos_info.keys())
+            disponiveis = [(tid, nome) for tid, nome in todos_tecs if tid not in ja_atribuidos]
+
+            if disponiveis:
+                with st.popover("➕ Atribuir Técnico", use_container_width=True):
+                    tec_sel_nome = st.selectbox("Técnico", [nome for _, nome in disponiveis], label_visibility="collapsed")
+                    tec_sel_id = next(tid for tid, nome in disponiveis if nome == tec_sel_nome)
+                    if st.button("Atribuir", use_container_width=True):
+                        atribuir_tecnico(ouvidoria_id, tec_sel_id)
+                        st.success("Técnico atribuído!")
+                        carregar_tecnicos_disponiveis.clear()
+                        st.rerun()
+            else:
+                st.caption("Todos os técnicos disponíveis já foram atribuídos.")
+        
         st.divider()
 
-    if not ouvidoria["respostas_tecnicas"]:
-        st.info("Nenhuma resposta técnica registrada ainda.")
-    for resp in ouvidoria["respostas_tecnicas"]:
-        with st.expander(f"Resposta de {resp['tecnico_nome']} – {resp['data_resposta'].strftime('%d/%m/%Y') if resp['data_resposta'] else '?'}"):
-            st.write(f"**Texto:** {resp['texto_resposta']}")
+        st.markdown("### 📎 Anexos")
+        if ouvidoria["anexos"]:
+            for an in ouvidoria["anexos"]:
+                caminho = os.path.join(UPLOADS_DIR, an["nome_storage"])
+                tamanho_kb = round(an["tamanho"] / 1024, 1) if an["tamanho"] else "?"
 
-# ── Tab: Respostas Permissionária ────────────────────────────────────────────
-with tab_resp_perm:
-    if not ouvidoria["respostas_permissionaria"]:
-        st.info("Nenhuma resposta da permissionária registrada.")
-    for rp in ouvidoria["respostas_permissionaria"]:
-        with st.expander(f"{rp['data_resposta'].strftime('%d/%m/%Y')} — por {rp['registrado_por_nome']}"):
-            st.text(rp["conteudo"])
+                col_info, col_dl, col_del = st.columns([3, 1, 1])
+                col_info.write(f"📎 **{an['nome_arquivo']}** ({tamanho_kb} KB)")
 
-# ── Tab: Anexos ──────────────────────────────────────────────────────────────
-with tab_anexos:
-    if ouvidoria["anexos"]:
-        for an in ouvidoria["anexos"]:
-            caminho = os.path.join(UPLOADS_DIR, an["nome_storage"])
-            tamanho_kb = round(an["tamanho"] / 1024, 1) if an["tamanho"] else "?"
-            col_info, col_dl, col_del = st.columns([4, 1, 1])
-            col_info.write(f"📎 **{an['nome_arquivo']}** ({tamanho_kb} KB) — {an['enviado_por_nome']} em {an['criado_em'].strftime('%d/%m/%Y %H:%M') if an['criado_em'] else '?'}")
-            if os.path.exists(caminho):
-                with open(caminho, "rb") as f:
-                    col_dl.download_button(
-                        "⬇",
-                        data=f.read(),
-                        file_name=an["nome_arquivo"],
-                        mime=an["tipo_mime"] or "application/octet-stream",
-                        key=f"dl_{an['id']}",
-                    )
-            if u.tipo == TipoUsuario.gestor:
-                if col_del.button("🗑", key=f"del_anexo_{an['id']}"):
-                    nome_storage = delete_anexo(an["id"])
-                    if nome_storage:
-                        try:
-                            os.remove(os.path.join(UPLOADS_DIR, nome_storage))
-                        except OSError:
-                            pass
-                    st.toast("Anexo excluído.")
+                if os.path.exists(caminho):
+                    with open(caminho, "rb") as f:
+                        col_dl.download_button(
+                            "⬇",
+                            data=f.read(),
+                            file_name=an["nome_arquivo"],
+                            mime=an["tipo_mime"] or "application/octet-stream",
+                            key=f"dl_{an['id']}",
+                            use_container_width=True,
+                        )
+
+                if u.tipo == TipoUsuario.gestor:
+                    if col_del.button("🗑", key=f"del_anexo_{an['id']}", use_container_width=True):
+                        nome_storage = delete_anexo(an["id"])
+                        if nome_storage:
+                            try:
+                                os.remove(os.path.join(UPLOADS_DIR, nome_storage))
+                            except OSError:
+                                pass
+                        st.toast("Anexo excluído.")
+                        st.rerun()
+        else:
+            st.info("Nenhum anexo.")
+
+        # Upload de novos anexos (gestor)
+        if u.tipo == TipoUsuario.gestor:
+            with st.expander("➕ Adicionar Anexos"):
+                novos_anexos = st.file_uploader(
+                    "Selecione arquivos",
+                    accept_multiple_files=True,
+                    type=["pdf", "png", "jpg", "jpeg", "gif", "bmp", "mp4", "avi", "mov", "mkv", "webm"],
+                    key="det_upload",
+                    label_visibility="collapsed",
+                )
+                if novos_anexos and st.button("📤 Enviar", use_container_width=True):
+                    anexos_meta = []
+                    for arq in novos_anexos:
+                        mime = arq.type or mimetypes.guess_type(arq.name)[0] or ""
+                        if mime not in ALLOWED_MIMES:
+                            st.error(f"Arquivo '{arq.name}' não é um tipo permitido.")
+                            continue
+                        ext = os.path.splitext(arq.name)[1]
+                        nome_storage = f"{uuid.uuid4().hex}{ext}"
+                        caminho_arq = os.path.join(UPLOADS_DIR, nome_storage)
+                        with open(caminho_arq, "wb") as f:
+                            f.write(arq.getbuffer())
+                        anexos_meta.append({
+                            "nome_arquivo": arq.name,
+                            "nome_storage": nome_storage,
+                            "tipo_mime": arq.type,
+                            "tamanho": arq.size,
+                            "enviado_por_id": u.id,
+                        })
+                    if anexos_meta:
+                        add_anexos(ouvidoria_id, anexos_meta)
+                    st.success("Anexos enviados.")
                     st.rerun()
-    else:
-        st.info("Nenhum anexo.")
 
-    # Upload de novos anexos (gestor)
-    if u.tipo == TipoUsuario.gestor:
-        st.divider()
-        novos_anexos = st.file_uploader(
-            "Adicionar anexos",
-            accept_multiple_files=True,
-            type=["pdf", "png", "jpg", "jpeg", "gif", "bmp", "mp4", "avi", "mov", "mkv", "webm"],
-            key="det_upload",
-        )
-        if novos_anexos and st.button("📤 Enviar anexos", key="btn_enviar_anexos"):
-            anexos_meta = []
-            for arq in novos_anexos:
-                mime = arq.type or mimetypes.guess_type(arq.name)[0] or ""
-                if mime not in ALLOWED_MIMES:
-                    st.error(f"Arquivo '{arq.name}' não é um tipo permitido.")
-                    continue
-                ext = os.path.splitext(arq.name)[1]
-                nome_storage = f"{uuid.uuid4().hex}{ext}"
-                caminho_arq = os.path.join(UPLOADS_DIR, nome_storage)
-                with open(caminho_arq, "wb") as f:
-                    f.write(arq.getbuffer())
-                anexos_meta.append({
-                    "nome_arquivo": arq.name,
-                    "nome_storage": nome_storage,
-                    "tipo_mime": arq.type,
-                    "tamanho": arq.size,
-                    "enviado_por_id": u.id,
-                })
-            if anexos_meta:
-                add_anexos(ouvidoria_id, anexos_meta)
-            st.success("Anexos enviados.")
+# ── Seção de ações finais (gestor) ──────────────────────────────────────────
+st.divider()
+
+if u.tipo == TipoUsuario.gestor:
+    col_acao1, col_acao2 = st.columns(2)
+
+    pode_concluir = ouvidoria["status"] == StatusOuvidoria.RETORNO_TECNICO.value
+    if pode_concluir:
+        if col_acao1.button("✅ Concluir Ouvidoria", type="primary", use_container_width=True):
+            concluir_ouvidoria(ouvidoria_id)
+            st.success("Ouvidoria concluída!")
             st.rerun()
-
-# ── Tab: Editar ───────────────────────────────────────────────────────────────
-with tab_edicao:
-    if u.tipo != TipoUsuario.gestor:
-        st.warning("Apenas gestores podem editar a ouvidoria.")
     else:
-        with st.form("form_editar"):
-            novo_protocolo = st.text_input("Protocolo", value=ouvidoria["protocolo"])
-            novo_conteudo = st.text_area("Conteúdo da Ouvidoria", value=ouvidoria["conteudo"], height=200)
-            novo_prazo = st.date_input("Prazo", value=ouvidoria["prazo"])
-            novo_prazo_perm = st.date_input(
-                "Prazo Permissionária",
-                value=ouvidoria["prazo_permissionaria"] or date.today(),
-                disabled=ouvidoria["prazo_permissionaria"] is None,
-            )
-            habilitar_prazo_perm = st.checkbox(
-                "Definir prazo da permissionária",
-                value=ouvidoria["prazo_permissionaria"] is not None,
-            )
-            status_opcoes = [s.value for s in StatusOuvidoria]
-            novo_status_val = st.selectbox(
-                "Status",
-                status_opcoes,
-                index=status_opcoes.index(ouvidoria["status"]),
-            )
-            salvar_edicao = st.form_submit_button("💾 Salvar alterações")
+        col_acao1.info("✅ Concluir ativado quando status for 'Retorno técnico'")
 
-        if salvar_edicao:
-            editar_ouvidoria(
-                ouvidoria_id,
-                novo_protocolo,
-                novo_conteudo,
-                novo_prazo,
-                novo_prazo_perm if habilitar_prazo_perm else None,
-                novo_status_val,
-            )
-            st.success("Ouvidoria atualizada.")
+    if not st.session_state.get("confirmar_exclusao"):
+        if col_acao2.button("🗑 Excluir Ouvidoria", type="secondary", use_container_width=True):
+            st.session_state["confirmar_exclusao"] = True
             st.rerun()
-
-        st.divider()
-        # Concluir
-        pode_concluir = ouvidoria["status"] == StatusOuvidoria.RETORNO_TECNICO.value
-        if pode_concluir:
-            if st.button("✅ Concluir Ouvidoria", type="primary"):
-                concluir_ouvidoria(ouvidoria_id)
-                st.success("Ouvidoria concluída!")
-                st.rerun()
-        else:
-            st.info("O botão 'Concluir' fica disponível quando o status for 'Retorno técnico'.")
-
-        st.divider()
-        # Excluir
-        if not st.session_state.get("confirmar_exclusao"):
-            if st.button("🗑 Excluir Ouvidoria", type="secondary"):
-                st.session_state["confirmar_exclusao"] = True
-                st.rerun()
-        else:
-            st.warning("⚠️ Esta ação não pode ser desfeita. Confirmar exclusão?")
-            col_s, col_n = st.columns(2)
-            if col_s.button("Sim, excluir", type="primary"):
-                for an in ouvidoria["anexos"]:
-                    try:
-                        os.remove(os.path.join(UPLOADS_DIR, an["nome_storage"]))
-                    except OSError:
-                        pass
-                excluir_ouvidoria(ouvidoria_id)
-                st.session_state.pop("confirmar_exclusao", None)
-                st.switch_page("pages/01_Ouvidorias.py")
-            if col_n.button("Cancelar"):
-                st.session_state.pop("confirmar_exclusao", None)
-                st.rerun()
+    else:
+        st.warning("⚠️ Esta ação não pode ser desfeita. Confirmar exclusão?")
+        col_s, col_n = st.columns(2)
+        if col_s.button("Sim, excluir", type="primary", use_container_width=True):
+            for an in ouvidoria["anexos"]:
+                try:
+                    os.remove(os.path.join(UPLOADS_DIR, an["nome_storage"]))
+                except OSError:
+                    pass
+            excluir_ouvidoria(ouvidoria_id)
+            st.session_state.pop("confirmar_exclusao", None)
+            st.switch_page("pages/01_Ouvidorias.py")
+        if col_n.button("Cancelar", use_container_width=True):
+            st.session_state.pop("confirmar_exclusao", None)
+            st.rerun()

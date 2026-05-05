@@ -226,7 +226,7 @@ else:
         status_label = f"{emoji_status} {o['status']}"
         status_opcoes = [s.value for s in StatusOuvidoria]
 
-        perm_label, perm_tip = prazo_circle_label(o["prazo_permissionaria"])
+        perm_label, perm_tip = prazo_circle_label(o["prazo_permissionaria"], o.get("data_resposta_perm"))
         resp_label, resp_tip = prazo_circle_label(o["prazo"], o.get("concluido_em"))
 
         entrada = o["criado_em"].strftime("%d/%m/%Y") if o["criado_em"] else "–"

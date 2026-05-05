@@ -117,6 +117,14 @@ def editar_ouvidoria(
                 o.concluido_em = None
 
 
+def atualizar_prazo_permissionaria(oid: int, prazo: date | None):
+    """Define ou apaga o prazo da permissionária. Aceita None para remover."""
+    with db_session() as s:
+        o = s.query(Ouvidoria).filter_by(id=oid).first()
+        if o:
+            o.prazo_permissionaria = prazo
+
+
 def atribuir_tecnico(ouvidoria_id: int, tecnico_id: int):
     """Atribui técnico a ouvidoria. Retorna False se já atribuído."""
     with db_session() as s:
