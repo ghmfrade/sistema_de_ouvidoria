@@ -5,13 +5,12 @@ import streamlit as st
 from repositories.autos_repo import (
     buscar_autos_por_trecho as _buscar_autos_por_trecho,
     get_autos_regioes_metropolitanas,
-    get_municipios_com_paradas,
     get_municipios_destino,
     get_permissionarias,
     get_todos_autos,
 )
 from repositories.municipios_repo import (
-    get_municipios_por_tipo_servico,
+    get_municipios_com_linhas,
     get_municipios_sp,
 )
 from repositories.types import AutoDict, MunicipioDict, PermissionariaDict
@@ -22,13 +21,13 @@ def carregar_cidades_por_tipo(tipo_servico: str) -> list[str]:
     """Cidades de origem filtradas pelo tipo de serviço, ordenadas."""
     if "Fretamento" in tipo_servico:
         return [m["nome"] for m in get_municipios_sp()]
-    return sorted([m["nome"] for m in get_municipios_por_tipo_servico(tipo_servico) if m["nome"]])
+    return sorted([m["nome"] for m in get_municipios_com_linhas(tipo_servico) if m["nome"]])
 
 
 @st.cache_data(ttl=300)
 def carregar_cidades(tipo_servico: str, perm_id: int | None = None, regiao: str | None = None) -> list[str]:
     """Cidades para busca por trecho, ordenadas."""
-    return sorted([m["nome"] for m in get_municipios_com_paradas(tipo_servico, perm_id, regiao) if m["nome"]])
+    return sorted([m["nome"] for m in get_municipios_com_linhas(tipo_servico, perm_id, regiao) if m["nome"]])
 
 
 def carregar_cidades_destino(tipo_servico: str, nome_origem: str,

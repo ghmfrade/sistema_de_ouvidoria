@@ -73,88 +73,59 @@ def _base_auto_query(session, tipo_servico: str, perm_id: int | None, regiao: st
 
 # ── Funções públicas ──────────────────────────────────────────────────────────
 
-def get_municipios_com_paradas(tipo_servico: str, perm_id: int | None = None,
-                                regiao: str | None = None) -> list[MunicipioDict]:
-    """Municípios que aparecem em pelo menos um trecho do tipo de serviço."""
-    with db_session() as s:
-        auto_q = (
-            s.query(AutoLinha.id)
-            .filter(AutoLinha.tipo == tipo_servico, AutoLinha.ativo == True)
-        )
-        if perm_id is not None:
-            auto_q = auto_q.filter(AutoLinha.permissionaria_id == perm_id)
-        if regiao is not None:
-            auto_q = auto_q.filter(AutoLinha.regiao_metropolitana == regiao)
-        auto_ids = [r[0] for r in auto_q.all()]
-
-        if not auto_ids:
-            return []
-
-        MunA = aliased(Municipio)
-        MunB = aliased(Municipio)
-
-        q_a = s.query(MunA).join(TrechoAutoLinha, TrechoAutoLinha.municipio_a_id == MunA.id).filter(
-            TrechoAutoLinha.auto_id.in_(auto_ids)
-        )
-        q_b = s.query(MunB).join(TrechoAutoLinha, TrechoAutoLinha.municipio_b_id == MunB.id).filter(
-            TrechoAutoLinha.auto_id.in_(auto_ids)
-        )
-
-        municipios = {m.id: m for m in q_a.all()}
-        municipios.update({m.id: m for m in q_b.all()})
-        return [_municipio_to_dict(m) for m in sorted(municipios.values(), key=lambda m: m.nome)]
-
-
-def get_municipios_destino(tipo_servico: str, nome_origem: str,
-                            perm_id: int | None = None,
-                            regiao: str | None = None) -> list[MunicipioDict]:
+def get_municipios_destino(
+    tipo_servico: str,
+    nome_origem: str,
+    perm_id: int | None = None,
+    regiao: str | None = None
+) -> list[MunicipioDict]:
     """Municípios alcançáveis a partir da origem (exceto a própria origem)."""
+
     with db_session() as s:
         origem_id = _resolver_municipio_id(s, nome_origem)
         if not origem_id:
             return []
 
-        auto_q = (
-            s.query(AutoLinha.id)
-            .filter(AutoLinha.tipo == tipo_servico, AutoLinha.ativo == True)
-        )
+        base_filter = [
+            AutoLinha.tipo == tipo_servico,
+            AutoLinha.ativo.is_(True)
+        ]
+
         if perm_id is not None:
-            auto_q = auto_q.filter(AutoLinha.permissionaria_id == perm_id)
+            base_filter.append(AutoLinha.permissionaria_id == perm_id)
+
         if regiao is not None:
-            auto_q = auto_q.filter(AutoLinha.regiao_metropolitana == regiao)
-        auto_ids = [r[0] for r in auto_q.all()]
+            base_filter.append(AutoLinha.regiao_metropolitana == regiao)
 
-        if not auto_ids:
-            return []
-
-        # Trechos onde origem é mun_a → retorna mun_b
+        # origem → destino (A → B)
         MunB = aliased(Municipio)
         q_b = (
             s.query(MunB)
             .join(TrechoAutoLinha, TrechoAutoLinha.municipio_b_id == MunB.id)
+            .join(AutoLinha, AutoLinha.id == TrechoAutoLinha.auto_id)
             .filter(
-                TrechoAutoLinha.auto_id.in_(auto_ids),
                 TrechoAutoLinha.municipio_a_id == origem_id,
                 MunB.id != origem_id,
+                *base_filter
             )
         )
 
-        # Trechos onde origem é mun_b → retorna mun_a
+        # destino → origem (B → A)
         MunA = aliased(Municipio)
         q_a = (
             s.query(MunA)
             .join(TrechoAutoLinha, TrechoAutoLinha.municipio_a_id == MunA.id)
+            .join(AutoLinha, AutoLinha.id == TrechoAutoLinha.auto_id)
             .filter(
-                TrechoAutoLinha.auto_id.in_(auto_ids),
                 TrechoAutoLinha.municipio_b_id == origem_id,
                 MunA.id != origem_id,
+                *base_filter
             )
         )
 
-        municipios = {m.id: m for m in q_b.all()}
-        municipios.update({m.id: m for m in q_a.all()})
-        return [_municipio_to_dict(m) for m in sorted(municipios.values(), key=lambda m: m.nome)]
+        munis = q_a.union(q_b).order_by(Municipio.nome).all()
 
+        return [_municipio_to_dict(m) for m in munis]
 
 def get_todos_autos(tipo_servico: str, perm_id: int | None = None,
                     regiao: str | None = None) -> list[AutoDict]:
