@@ -169,7 +169,7 @@ col_esq, col_dir = st.columns([2, 1])
 # ── COLUNA ESQUERDA ─────────────────────────────────────────────────────────
 with col_esq:
     st.markdown("### 📝 Conteúdo da Ouvidoria")
-    st.markdown(ouvidoria["conteudo"])
+    st.markdown(ouvidoria["conteudo"].replace("\n", "\n\n"))
 
     st.divider()
 
@@ -180,8 +180,9 @@ with col_esq:
         for rp in ouvidoria["respostas_permissionaria"]:
             data = rp['data_resposta'].strftime('%d/%m/%Y') if rp['data_resposta'] else "?"
             with st.expander(f"{data} — por {rp['registrado_por_nome']}"):
-                st.markdown(rp["conteudo"])
-
+                st.markdown(rp["conteudo"].replace("\n", "\n\n"))
+    if st.button("✍️ Inserir Resposta Permissionária", type="primary", use_container_width=False):
+        st.switch_page("pages/04_Resposta_Permissionaria.py")
     st.divider()
 
     st.markdown("### 👨‍🔧 Respostas Técnicas")
@@ -191,7 +192,7 @@ with col_esq:
         for resp in ouvidoria["respostas_tecnicas"]:
             data = resp['data_resposta'].strftime('%d/%m/%Y') if resp['data_resposta'] else "?"
             with st.expander(f"{resp['tecnico_nome']} – {data}"):
-                st.markdown(resp["texto_resposta"])
+                st.markdown(resp["texto_resposta"].replace("\n", "\n\n"))
 
     # Botão para técnico inserir resposta
     if u.tipo == TipoUsuario.tecnico and u.id in tecnicos_info:

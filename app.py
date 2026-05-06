@@ -26,14 +26,14 @@ def pagina_login():
 
         if entrar:
             if not email or not senha:
-                st.error("Preencha e-mail e senha.")
+                st.error("Preencha Login e senha.")
             else:
                 usuario = auth.autenticar(email, senha)
                 if usuario:
                     st.session_state["usuario"] = usuario
                     st.rerun()
                 else:
-                    st.error("E-mail ou senha incorretos.")
+                    st.error("Login ou senha incorretos.")
 
 
 def sidebar_usuario():
