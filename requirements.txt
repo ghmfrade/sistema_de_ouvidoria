@@ -1,4 +1,11 @@
 alembic==1.18.4
+fastapi==0.115.6
+python-multipart>=0.0.12
+uvicorn[standard]==0.34.0
+python-jose[cryptography]==3.4.0
+httpx==0.28.1
+pytest==8.3.5
+pytest-env==1.1.5
 altair==6.0.0
 asttokens==3.0.1
 attrs==25.4.0

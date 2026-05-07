@@ -7,29 +7,29 @@ import pandas as pd
 
 import auth
 from auth import usuario_logado
-from utils import (
-    fmt_ativo,
-    listar_categorias_e_status,
-    listar_coord_e_status,
-    listar_gerencias_e_status,
-    listar_subcat_e_status,
+from utils import fmt_ativo
+from api.client.admin_client import (
     listar_usuarios_e_status,
-    carregar_coordenacoes,
-    carregar_categorias,
-    carregar_todas_gerencias,
-)
-from utils.admin_ops import (
-    criar_categoria,
-    criar_coordenacao,
-    criar_gerencia,
-    criar_subcategoria,
-    criar_usuario,
+    listar_categorias_e_status,
+    listar_subcat_e_status,
+    listar_gerencias_e_status,
+    listar_coord_e_status,
     email_existe,
-    toggle_categoria,
-    toggle_coordenacao,
-    toggle_gerencia,
-    toggle_subcategoria,
+    criar_usuario,
     toggle_usuario,
+    criar_categoria,
+    toggle_categoria,
+    criar_subcategoria,
+    toggle_subcategoria,
+    criar_gerencia,
+    toggle_gerencia,
+    criar_coordenacao,
+    toggle_coordenacao,
+)
+from api.client.catalogo_client import (
+    carregar_categorias,
+    carregar_coordenacoes,
+    carregar_todas_gerencias,
 )
 from components import reduz_margem_side_bar, reduz_margem_topo_page
 
@@ -44,7 +44,7 @@ reduz_margem_topo_page()
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 reduz_margem_side_bar()
 with st.sidebar:
-    st.markdown(f"**{u.nome}**")
+    st.markdown(f"**{u['nome']}**")
     st.caption("Gestor")
     st.divider()
     if st.button("← Ouvidorias", use_container_width=True):
@@ -83,7 +83,6 @@ with tab_users:
     gerencias = carregar_todas_gerencias()
     ger_map = {nome: gid for gid, nome in gerencias}
 
-    # Gerência e Coordenação FORA do form para permitir atualização dinâmica
     col_ger, col_coord = st.columns(2)
     with col_ger:
         ger_sel = st.selectbox("Gerência", ["(Nenhuma)"] + [n for _, n in gerencias], key="nu_gerencia")
@@ -113,10 +112,7 @@ with tab_users:
             if email_existe(novo_email):
                 st.error("Já existe um usuário com este e-mail.")
             else:
-                criar_usuario(
-                    novo_nome, novo_email, auth.hash_senha(nova_senha),
-                    novo_tipo, ger_id_final, coord_id_final,
-                )
+                criar_usuario(novo_nome, novo_email, nova_senha, novo_tipo, ger_id_final, coord_id_final)
                 st.toast(f"Usuário {novo_email} criado com sucesso!", icon="✅")
                 st.rerun()
 

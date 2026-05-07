@@ -11,143 +11,132 @@ Sistema web para gerenciamento de ouvidorias (reclamações de passageiros) rece
 | Camada | Tecnologia |
 |---|---|
 | Frontend | Streamlit 1.54 (multi-page app) |
+| Backend API | FastAPI 0.115 + Uvicorn |
+| Autenticação | JWT (python-jose, HS256, 60 min) |
 | ORM | SQLAlchemy 2.0 (Declarative, `mapped_column`) |
-| Banco de dados | PostgreSQL 16 (local, porta 5432) |
-| Autenticação | bcrypt + `st.session_state` |
-| Leitura de dados | pandas (CSVs em Latin-1, separador `;`) |
-| Runtime | Python 3.14, venv em `.venv/` |
+| Banco de dados | PostgreSQL (psycopg2-binary) |
+| HTTP Client | httpx (Streamlit → FastAPI) |
+| Runtime | Python 3.13, venv em `.venv/` |
 
 ---
 
-## Estrutura de Arquivos
+## Arquitetura em Camadas
 
 ```
-sistema_de_ouvidoria/
-├── app.py                          # Entry point — tela de login
-├── auth.py                         # Hash de senha, verificação, guards de rota
-├── requirements.txt
-├── .env                            # Credenciais PostgreSQL (não versionar)
-│
-├── models/
-│   ├── base.py                     # DeclarativeBase
-│   ├── permissionaria.py           # Empresa operadora de linha
-│   ├── gerencia.py                 # Unidade organizacional (nível 1)
-│   ├── coordenacao.py              # Unidade organizacional (nível 2, ligada a gerência)
-│   ├── usuario.py                  # Usuário (gestor ou técnico)
-│   ├── categoria.py                # Categoria de reclamação (ex: Acessibilidade)
-│   ├── subcategoria.py             # Subcategoria vinculada a uma categoria
-│   ├── auto_linha.py               # Auto de linha; inclui TipoServico e campos metropolitanos
-│   ├── parada_auto_linha.py        # Municípios atendidos por cada auto (FK → municipios)
-│   ├── municipio.py                # Municípios do estado de SP (cod_ibge, populacao)
-│   ├── ouvidoria.py                # Processo de ouvidoria (entidade principal)
-│   ├── reclamacao.py               # Item de reclamação dentro de uma ouvidoria
-│   ├── anexo_ouvidoria.py          # Arquivo anexado a uma ouvidoria
-│   ├── associations.py             # OuvidoriaTecnico, ReclamacaoAuto (tabelas N:N)
-│   ├── resposta_permissionaria.py  # Resposta registrada pela permissionária
-│   ├── resposta_tecnica.py         # Resposta registrada por um técnico
-│   └── __init__.py                 # Re-exporta todos os modelos
-│
-├── database/
-│   ├── connection.py               # Engine, SessionLocal, get_session(), db_session(), init_db()
-│   └── seed.py                     # Importa CSVs + cria usuário admin padrão
-│
-├── repositories/                   # Camada de acesso a dados — ORM puro, retorna TypedDicts
-│   ├── types.py                    # Contratos de dados: todos os TypedDicts do projeto
-│   ├── ouvidoria_repo.py           # Leitura: get_ouvidoria_completa→OuvidoriaDetalheDict, …
-│   ├── ouvidoria_write_repo.py     # Escrita: criar_ouvidoria, registrar_resposta_tecnica, …
-│   ├── catalog_repo.py             # Leitura: get_categorias→list[CategoriaDict], …
-│   ├── admin_write_repo.py         # Escrita: criar_usuario, toggle_categoria, …
-│   ├── autos_repo.py               # Leitura: get_todos_autos→list[AutoDict], …
-│   ├── municipios_repo.py          # Leitura: get_municipios_sp→list[MunicipioDict]
-│   ├── dashboard/
-│   │   ├── produtividade_repo.py   # Queries ORM de produtividade (func, case, cast, joins)
-│   │   └── qualidade_repo.py       # Queries ORM de qualidade (func, case, cast, joins)
-│   └── __init__.py
-│
-├── utils/                          # Camada intermediária — cache, formatação, lógica frontend
-│   ├── loaders_ouvidoria.py        # Recebe TypedDicts do repo e monta estruturas para a UI
-│   ├── loaders_catalog.py          # Wrappers cacheados para catálogo (categorias, gerências…)
-│   ├── loaders_auto.py             # Wrappers cacheados para autos, cidades, permissionárias
-│   ├── loaders_admin.py            # Wrappers cacheados para listagens administrativas
-│   ├── loaders_dashboard.py        # Wrappers @st.cache_data(ttl=120) para dashboard
-│   ├── ouvidoria_ops.py            # Fachada: listar_ouvidorias (com formatação), atribuir_tecnico…
-│   ├── admin_ops.py                # Fachada: re-exporta operações de admin_write_repo
-│   ├── formatters.py               # Funções puras de formatação (fmt_auto, prazo_circle_label…)
-│   └── __init__.py                 # Re-exporta toda a API pública de utils/
-│
-├── pages/
-│   ├── 01_Ouvidorias.py            # Listagem com filtros, ações rápidas
-│   ├── 02_Nova_Ouvidoria.py        # Cadastro de ouvidoria + reclamações (Gestor)
-│   ├── 03_Detalhe_Ouvidoria.py     # Detalhe, edição, atribuição de técnicos (Gestor)
-│   ├── 04_Resposta_Permissionaria.py  # Registro de resposta da permissionária (Gestor)
-│   ├── 05_Responder.py             # Resposta técnica + edição de reclamações (Técnico)
-│   ├── 06_Dashboard_Produtividade.py  # Dashboard de produtividade interna
-│   ├── 07_Dashboard_Qualidade.py   # Dashboard de qualidade por empresa/categoria
-│   └── 08_Admin.py                 # CRUD: usuários, categorias, gerências, coordenações
-│
-├── docs/
-│   ├── architecture.md             # Este arquivo
-│   └── coding_rules.md             # Padrões de código do projeto
-│
-├── tasks/
-│   └── todo.md                     # Backlog e pendências
-│
-└── uploads/                        # Anexos salvos em disco
+┌─────────────────────────────────────────────┐
+│          Streamlit (pages/)                 │  UI pura
+│          auth.py, app.py                   │  sem SQLAlchemy
+└─────────────────┬───────────────────────────┘
+                  │ HTTP (httpx, JWT Bearer)
+┌─────────────────▼───────────────────────────┐
+│          FastAPI (api/routers/)             │  API REST
+│          api/services/                      │  orquestração
+│          api/schemas/                       │  Pydantic DTOs
+└─────────────────┬───────────────────────────┘
+                  │ chamadas diretas (Python)
+┌─────────────────▼───────────────────────────┐
+│          repositories/                      │  Data Access Layer
+│          (retornam TypedDicts)              │  sem ORM exposto
+└─────────────────┬───────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────┐
+│          models/ + database/                │  SQLAlchemy ORM
+│          PostgreSQL                         │
+└─────────────────────────────────────────────┘
+```
+
+**Regra fundamental:** nenhum arquivo de `pages/`, `auth.py` ou `app.py` pode importar de `repositories/`, `models/` ou `database/`.
+
+---
+
+## Autenticação
+
+1. `POST /auth/login` — valida email + senha (bcrypt), retorna JWT
+2. JWT armazenado em `st.session_state["api_session"]` (server-side, não vai ao browser)
+3. Todas as requests HTTP incluem `Authorization: Bearer <token>`
+4. `api/deps.py` — `usuario_corrente()` decodifica o token em cada endpoint
+5. `requer_gestor()` — bloqueia acesso de técnicos a endpoints administrativos
+
+```python
+# Variável obrigatória no .env
+JWT_SECRET_KEY=<chave-aleatória-64-chars>
 ```
 
 ---
 
-## Padrão de Camadas (regra fundamental)
+## Padrão de Sessão com Banco
 
-```
-pages/  →  utils/  →  repositories/  →  models/ + database/
-```
-
-| Camada | Responsabilidade | Contrato de retorno | O que NÃO deve fazer |
-|---|---|---|---|
-| **pages/** | Renderizar UI, ler `session_state`, chamar utils | — | Chamar `repositories/` ou `db_session()` diretamente |
-| **utils/** | Cache (`@st.cache_data`), formatar TypedDict→UI, coordenar lógica de negócio frontend | dicts, listas, tuples de primitivos | Retornar objetos ORM; duplicar queries que já existem nos repos |
-| **repositories/** | Queries e escritas ORM; converter ORM→TypedDict **dentro da sessão** | `TypedDict`, primitivos ou tuples (para agregações) | Importar `streamlit`; retornar objetos SQLAlchemy vivos; usar `expunge_all()` |
-| **models/** | Definir tabelas e relacionamentos SQLAlchemy | — | Ter lógica de negócio ou dependências externas |
-
-### Fluxo típico de leitura
+Apenas `db_session()` é usado (commit/rollback automático). A conversão ORM → TypedDict ocorre **dentro** do `with db_session()`.
 
 ```python
-# page → utils/loader → repository
-carregar_detalhe_ouvidoria(oid)              # utils/loaders_ouvidoria.py
-  └── get_ouvidoria_completa(oid)            # repositories/ouvidoria_repo.py
-        └── db_session() + joinedload        # database/connection.py + models/
-              └── _to_detalhe(o)             # conversão ORM→OuvidoriaDetalheDict dentro da sessão
+# Leitura — conversão dentro da sessão
+with db_session() as s:
+    objs = s.query(Modelo).options(joinedload(...)).all()
+    return [ModeloDict(id=o.id, ...) for o in objs]
+
+# Escrita — commit automático
+with db_session() as s:
+    s.add(NovoObjeto(...))
 ```
 
-### Fluxo típico de escrita
+Nenhum objeto SQLAlchemy vivo sai da sessão — eliminando `DetachedInstanceError`.
 
-```python
-# page → utils/*_ops → repository
-atribuir_tecnico(ouvidoria_id, tecnico_id)   # utils/ouvidoria_ops.py
-  └── _atribuir_tecnico(...)                 # repositories/ouvidoria_write_repo.py
-        └── db_session() + ORM writes
+---
+
+## Fluxo Típico de Leitura
+
+```
+pages/01_Ouvidorias.py
+  └── from api.client.ouvidoria_client import listar_ouvidorias
+        └── GET /ouvidorias  (httpx)
+              └── api/routers/ouvidorias.py → get_ouvidorias(...)
+                    └── repositories/ouvidoria_repo.py
+                          └── db_session() + ORM + _to_resumo()
+                                └── list[OuvidoriaResumoDict]
+```
+
+## Fluxo Típico de Escrita
+
+```
+pages/03_Detalhe_Ouvidoria.py
+  └── from api.client.ouvidoria_client import atribuir_tecnico
+        └── POST /ouvidorias/{id}/atribuir-tecnico  (httpx)
+              └── api/routers/ouvidorias.py → atribuir_tecnico(...)
+                    └── repositories/ouvidoria_write_repo.py
+                          └── db_session() + ORM writes
 ```
 
 ---
 
 ## Modelo de Dados
 
+### Status da Ouvidoria (fluxo)
+
+```
+AGUARDANDO_ACOES
+    → (gestor atribui técnico)       → EM_ANALISE_TECNICA
+    → (todos técnicos respondem)     → RETORNO_TECNICO
+    → (gestor conclui)               → CONCLUIDO
+
+    → (gestor ativa permissionária)  → AGUARDANDO_PERMISSIONARIA
+        → (gestor registra resposta) → AGUARDANDO_ACOES
+```
+
 ### Diagrama Entidade-Relacionamento (simplificado)
 
 ```
-municipios ──< paradas_auto_linha >──< autos_linha >── permissionarias
-                                            │
-                                     reclamacao_autos
-                                            │
+municipios ──< trechos_auto_linha >──< autos_linha >── permissionarias
+                                              │
+                                       reclamacao_autos
+                                              │
 gerencias ──< coordenacoes ──< usuarios
-                                   │
-                            ouvidoria_tecnicos >──┐
-                                                  │
-ouvidorias ──< reclamacoes                        │
-     │              └──< reclamacao_autos         │
-     │                                            │
-     ├──< ouvidoria_tecnicos >── usuarios ────────┘
+                                    │
+                             ouvidoria_tecnicos >──┐
+                                                   │
+ouvidorias ──< reclamacoes                         │
+     │              └──< reclamacao_autos          │
+     │                                             │
+     ├──< ouvidoria_tecnicos >── usuarios ─────────┘
      ├──< respostas_tecnicas >── usuarios
      ├──< respostas_permissionaria >── usuarios
      └──< anexos_ouvidoria >── usuarios
@@ -161,44 +150,38 @@ subcategorias ──< reclamacoes
 
 | Tabela | Modelo | Descrição |
 |---|---|---|
-| `permissionarias` | `Permissionaria` | Empresas operadoras (ex: COMETA) |
-| `autos_linha` | `AutoLinha` | Auto de linha; `tipo` (TipoServico), campos metropolitanos (`regiao_metropolitana`, `sub_regiao`, etc.), flag `ativo` |
-| `paradas_auto_linha` | `ParadaAutoLinha` | Municípios atendidos por cada auto (FK → `municipios.id`) |
-| `municipios` | `Municipio` | Municípios de SP com `cod_ibge` e `populacao` |
+| `permissionarias` | `Permissionaria` | Empresas operadoras |
+| `autos_linha` | `AutoLinha` | Auto de linha (tipo, região metropolitana) |
+| `trechos_auto_linha` | `TrechoAutoLinha` | Municípios A→B atendidos por cada auto |
+| `municipios` | `Municipio` | Municípios de SP (cod_ibge, populacao) |
 | `gerencias` | `Gerencia` | Gerências da ARTESP |
-| `coordenacoes` | `Coordenacao` | Coordenações, vinculadas a uma gerência |
-| `usuarios` | `Usuario` | Gestores e técnicos; ligados a gerência + coordenação |
-| `categorias` | `Categoria` | Categorias de reclamação (ex: Acessibilidade, Pontualidade) |
-| `subcategorias` | `Subcategoria` | Subcategorias vinculadas a uma categoria; têm flag `ativo` |
-| `ouvidorias` | `Ouvidoria` | Processo principal; tem protocolo, prazo, prazo_permissionaria, status |
-| `reclamacoes` | `Reclamacao` | Itens de reclamação; `tipo_servico` (TipoServico), `empresa_fretamento` |
-| `reclamacao_autos` | `ReclamacaoAuto` | Autos vinculados a uma reclamação (N:N, com pontuação proporcional) |
-| `ouvidoria_tecnicos` | `OuvidoriaTecnico` | Técnicos atribuídos a uma ouvidoria (N:N, com flag `respondido` e `respondido_em`) |
-| `respostas_tecnicas` | `RespostaTecnica` | Resposta registrada por cada técnico |
-| `respostas_permissionaria` | `RespostaPermissionaria` | Respostas recebidas da permissionária; registradas pelo gestor |
-| `anexos_ouvidoria` | `AnexoOuvidoria` | Arquivos anexados; `nome_storage` aponta para `uploads/` |
+| `coordenacoes` | `Coordenacao` | Coordenações (ligadas a gerência) |
+| `usuarios` | `Usuario` | Gestores e técnicos |
+| `categorias` | `Categoria` | Categorias de reclamação |
+| `subcategorias` | `Subcategoria` | Subcategorias vinculadas a categoria |
+| `ouvidorias` | `Ouvidoria` | Processo principal (protocolo, prazo, status) |
+| `reclamacoes` | `Reclamacao` | Itens de reclamação |
+| `reclamacao_autos` | `ReclamacaoAuto` | Autos vinculados (N:N, com pontuação) |
+| `ouvidoria_tecnicos` | `OuvidoriaTecnico` | Técnicos atribuídos (N:N, com `respondido`) |
+| `respostas_tecnicas` | `RespostaTecnica` | Resposta por técnico |
+| `respostas_permissionaria` | `RespostaPermissionaria` | Resposta da empresa |
+| `anexos_ouvidoria` | `AnexoOuvidoria` | Arquivos em disco (`uploads/nome_storage`) |
 
-### Enum TipoServico (em `auto_linha.py`)
+### Enums
 
-```
-REGULAR_INTERMUNICIPAL   = "Regular – Intermunicipal"
-REGULAR_METROPOLITANO    = "Regular – Metropolitano"
-FRETAMENTO_INTERMUNICIPAL = "Fretamento Intermunicipal"
-FRETAMENTO_METROPOLITANO  = "Fretamento Metropolitano"
-```
+```python
+TipoServico:
+    "Regular – Intermunicipal"
+    "Regular – Metropolitano"
+    "Fretamento Intermunicipal"
+    "Fretamento Metropolitano"
 
-### Status da Ouvidoria (fluxo)
-
-```
-AGUARDANDO_ACOES
-    → (gestor atribui técnico) → EM_ANALISE_TECNICA
-    → (todos técnicos respondem) → RETORNO_TECNICO
-    → (gestor conclui) → CONCLUIDO
-
-    → (gestor move manualmente) → AGUARDANDO_PERMISSIONARIA
-        → (gestor registra resposta da perm.) → AGUARDANDO_ACOES
-
-Em qualquer momento o gestor pode alterar manualmente o status.
+StatusOuvidoria:
+    "Aguardando ações"
+    "Aguardando resposta da permissionária"
+    "Em análise técnica"
+    "Retorno técnico"
+    "Concluído"
 ```
 
 ---
@@ -208,92 +191,84 @@ Em qualquer momento o gestor pode alterar manualmente o status.
 | Ação | Gestor | Técnico |
 |---|---|---|
 | Ver lista de ouvidorias | Todas | Apenas atribuídas |
-| Criar ouvidoria | ✅ | ❌ |
-| Editar SEI / prazo / status | ✅ | ❌ |
+| Criar / Editar / Excluir ouvidoria | ✅ | ❌ |
 | Atribuir técnicos | ✅ | ❌ |
-| Registrar resposta de permissionária | ✅ | ❌ |
-| Concluir / Excluir ouvidoria | ✅ | ❌ |
-| Registrar resposta técnica | ❌ | ✅ (atribuídas) |
-| Editar reclamações ao responder | ❌ | ✅ (atribuídas) |
-| Admin (usuários, categorias, gerências) | ✅ | ❌ |
-| Ver dashboards | ✅ | ❌ |
+| Resposta de permissionária | ✅ | ❌ |
+| Concluir ouvidoria | ✅ | ❌ |
+| Resposta técnica | ❌ | ✅ (atribuídas) |
+| Admin (usuários, categorias, etc.) | ✅ | ❌ |
+| Dashboards | ✅ | ❌ |
+
+A proteção ocorre em dois pontos:
+1. **API** — `requer_gestor()` nos endpoints administrativos (HTTP 403)
+2. **Streamlit** — `auth.require_gestor()` antes de renderizar a página (st.stop)
 
 ---
 
-## Fluxo de Sessão
+## Contratos de Dados
 
-1. `app.py` exibe formulário de login.
-2. `auth.autenticar()` verifica senha bcrypt e armazena o objeto `Usuario` em `st.session_state["usuario"]`.
-3. Todas as páginas chamam `auth.require_auth()` ou `auth.require_gestor()` no topo — redireciona para login se não autenticado.
-4. `auth.usuario_logado()` retorna o objeto do usuário da sessão.
-5. Logout limpa toda a `session_state` e redireciona para `app.py`.
+`repositories/types.py` define todos os TypedDicts. Os schemas Pydantic em `api/schemas/` são a contraparte HTTP — cada TypedDict tem um schema equivalente com `model_config = {"from_attributes": True}`.
+
+| TypedDict | Schema Pydantic | Endpoint |
+|---|---|---|
+| `OuvidoriaResumoDict` | `OuvidoriaResumoSchema` | `GET /ouvidorias` |
+| `OuvidoriaDetalheDict` | `OuvidoriaDetalheSchema` | `GET /ouvidorias/{id}` |
+| `CategoriaDict` | `CategoriaSchema` | `GET /catalogo/categorias` |
+| `AutoDict` | `AutoSchema` | `GET /autos` |
+| `UsuarioDict` | `UsuarioSchema` | `GET /admin/usuarios` |
 
 ---
 
-## Padrão de Sessão com Banco
+## Testes de Paridade
 
-Apenas o `db_session()` context manager é usado (commit/rollback automático).
+A suite em `tests/` verifica que cada endpoint retorna exatamente os mesmos dados que o repositório retorna diretamente:
 
 ```python
-# Leitura — conversão ORM→TypedDict dentro da sessão (sem expunge_all)
-with db_session() as s:
-    objs = s.query(Modelo).options(joinedload(...)).all()
-    return [ModeloDict(id=o.id, ...) for o in objs]
-
-# Escrita — commit automático ao sair do with
-with db_session() as s:
-    s.add(NovoObjeto(...))
+# Padrão dos testes de leitura
+esperado = get_categorias()               # repositório direto (fonte da verdade)
+r = client.get("/catalogo/categorias", headers=headers_gestor)
+assert {c["id"] for c in esperado} == {c["id"] for c in r.json()}
 ```
 
-**Regra**: A conversão ORM → dados acontece **dentro** do `with db_session()`. Nenhum
-objeto SQLAlchemy sai vivo da sessão — eliminando o risco de `DetachedInstanceError`.
+**Limpeza de dados de teste:** `conftest.py` cria usuários `_pytest_*` no início e remove **todos** os dados com prefixo `_pytest_%` no início e fim de cada sessão.
 
 ---
 
-## Contratos de Dados (TypedDict)
+## Como Rodar
 
-Todos os TypedDicts estão em `repositories/types.py`. As funções de repositório de
-**leitura** têm assinaturas explícitas com esses tipos:
+```bash
+# Terminal 1 — API FastAPI
+uvicorn api.main:app --port 8000 --reload
 
-| Função | Retorno |
-|---|---|
-| `get_municipios_sp()` | `list[MunicipioDict]` |
-| `get_categorias()` | `list[CategoriaDict]` |
-| `get_subcategorias(cat_id)` | `list[SubcategoriaDict]` |
-| `get_usuarios()` | `list[UsuarioDict]` |
-| `get_todos_autos(...)` | `list[AutoDict]` |
-| `get_ouvidorias(...)` | `list[OuvidoriaResumoDict]` |
-| `get_ouvidoria_completa(oid)` | `OuvidoriaDetalheDict \| None` |
-| `get_ouvidoria_permissionaria(oid)` | `OuvidoriaPermissionariaDict \| None` |
-| `get_atribuicao_tecnico(...)` | `AtribuicaoScalarDict \| None` |
-| `get_respostas_tecnico(...)` | `list[RespostaTecnicaDict]` |
-| `query_kpis_produtividade(...)` | `tuple[int, int, int]` (agregação — sem TypedDict) |
+# Terminal 2 — Streamlit
+streamlit run app.py
 
-`OuvidoriaDetalheDict` é o tipo mais complexo: contém `reclamacoes`, `atribuicoes`,
-`respostas_tecnicas`, `respostas_permissionaria` e `anexos` como listas de TypedDicts
-aninhados. A conversão é feita por funções helper privadas (`_to_detalhe`, `_to_reclamacao_dict`, etc.)
-dentro do módulo `ouvidoria_repo.py`.
+# Testes
+pytest tests/ -v
+
+# Documentação interativa da API
+# http://localhost:8000/docs
+```
 
 ---
 
-## Fontes de Dados
+## Como Adicionar um Endpoint
 
-| Arquivo | Encoding | Separador | Uso |
-|---|---|---|---|
-| `Autos de Linha Ativas.csv` | Latin-1 | `;` | Cria `autos_linha` e `permissionarias` (tipo REGULAR_INTERMUNICIPAL) |
-| `Pontos dos Autos de linha.csv` | Latin-1 | `;` | Cria `paradas_auto_linha` para linhas intermunicipais |
-| `linhas metropolitanas.xlsx` | UTF-8 | — | Cria `autos_linha` metropolitanos + suas paradas |
-| `pop_municipios.csv` | — | `;` | Cria tabela `municipios` com código IBGE e população |
+1. Criar/atualizar `api/schemas/*.py` (request e response)
+2. Adicionar função em `api/routers/*.py` (chamar repositório ou service)
+3. Criar em `api/services/` **apenas** se houver orquestração de múltiplos repositórios
+4. Adicionar função em `api/client/*.py` para o Streamlit consumir
+5. Adicionar teste de paridade em `tests/`
 
 ---
 
 ## Busca por Trecho
 
-A função `buscar_autos_por_trecho()` em `repositories/autos_repo.py` usa **EXISTS subqueries** sobre `paradas_auto_linha` com FK para `municipios`, filtrando por `tipo` de serviço, permissionária e região metropolitana:
+`repositories/autos_repo.py → buscar_autos_por_trecho()` usa **EXISTS subqueries** sobre `trechos_auto_linha` com FK para `municipios`:
 
 ```python
 q = q.filter(exists().where(
-    (ParadaAutoLinha.auto_id == AutoLinha.id) &
-    (ParadaAutoLinha.municipio_id == mun_id_a)
+    (TrechoAutoLinha.auto_id == AutoLinha.id) &
+    (TrechoAutoLinha.municipio_a_id == mun_id_a)
 ))
 ```

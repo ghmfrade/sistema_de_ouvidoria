@@ -71,20 +71,40 @@ def fmt_ativo(ativo: bool) -> str:
     return "✅" if ativo else "❌"
 
 
-def prazo_circle_label(prazo: date | None, concluido_em: datetime | None = None) -> tuple[str, str]:
-    """Retorna (label_curto, tooltip) para prazo. Quando concluída, usa data de conclusão como referência."""
-    if prazo is None:
+def _to_date(val) -> date | None:
+    """Converte string ISO, datetime ou date para date. Retorna None se inválido."""
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val.date()
+    if isinstance(val, date):
+        return val
+    if isinstance(val, str):
+        try:
+            return date.fromisoformat(val[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def prazo_circle_label(prazo, concluido_em=None) -> tuple[str, str]:
+    """Retorna (label_curto, tooltip) para prazo.
+
+    Aceita date, datetime ou string ISO em ambos os parâmetros.
+    """
+    prazo_date = _to_date(prazo)
+    if prazo_date is None:
         return "---", ""
-    if concluido_em:
-        ref = concluido_em.date() if isinstance(concluido_em, datetime) else concluido_em
-        dias = (prazo - ref).days
+    ref = _to_date(concluido_em)
+    if ref:
+        dias = (prazo_date - ref).days
         if dias >= 0:
-            return f"✅ -{dias}d", f"Concluído {dias}d antes — {prazo.strftime('%d/%m/%Y')}"
+            return f"✅ -{dias}d", f"Concluído {dias}d antes — {prazo_date.strftime('%d/%m/%Y')}"
         else:
-            return f"⚠️ +{abs(dias)}d", f"Concluído {abs(dias)}d atrasado — {prazo.strftime('%d/%m/%Y')}"
-    dias = (prazo - date.today()).days
+            return f"⚠️ +{abs(dias)}d", f"Concluído {abs(dias)}d atrasado — {prazo_date.strftime('%d/%m/%Y')}"
+    dias = (prazo_date - date.today()).days
     emoji = "🟢" if dias >= 0 else "🔴"
-    return f"{emoji} {dias}d", prazo.strftime("%d/%m/%Y")
+    return f"{emoji} {dias}d", prazo_date.strftime("%d/%m/%Y")
 
 
 def to_excel(df: pd.DataFrame) -> bytes:

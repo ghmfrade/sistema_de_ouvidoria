@@ -17,6 +17,16 @@ from models import (
 )
 
 
+def _resolve_tipo_servico(ts_val: str | None) -> TipoServico | None:
+    """Converte string de tipo de serviço para o enum TipoServico."""
+    if not ts_val:
+        return None
+    for ts in TipoServico:
+        if ts.value == ts_val:
+            return ts
+    return None
+
+
 def criar_ouvidoria(protocolo, conteudo, prazo, prazo_permissionaria,
                     status, criado_por_id, recs_draft, anexos_meta):
     """Cria ouvidoria com reclamações, autos e anexos em uma transação.
@@ -36,20 +46,12 @@ def criar_ouvidoria(protocolo, conteudo, prazo, prazo_permissionaria,
         session.flush()
 
         for rec_draft in recs_draft:
-            tipo_srv = None
-            ts_val = rec_draft.get("tipo_servico")
-            if ts_val:
-                for ts in TipoServico:
-                    if ts.value == ts_val:
-                        tipo_srv = ts
-                        break
-
             rec = Reclamacao(
                 ouvidoria_id=ouvidoria.id,
                 numero_item=rec_draft["numero_item"],
                 categoria_id=rec_draft["categoria_id"],
                 subcategoria_id=rec_draft.get("subcategoria_id"),
-                tipo_servico=tipo_srv,
+                tipo_servico=_resolve_tipo_servico(rec_draft.get("tipo_servico")),
                 local_embarque=rec_draft["local_embarque"],
                 local_desembarque=rec_draft["local_desembarque"],
                 descricao=rec_draft["descricao"],
@@ -205,22 +207,57 @@ def deletar_resposta_permissionaria(rp_id: int):
 
 
 def registrar_resposta_tecnica(ouvidoria_id, tecnico_id, texto, recs_edit):
-    """Salva edições nas reclamações, cria resposta técnica, marca atribuição respondida.
-    Retorna True se status mudou para RETORNO_TECNICO."""
-    with db_session() as session:
-        for rec_edit in recs_edit:
-            rec_db = session.query(Reclamacao).filter_by(id=rec_edit["id"]).first()
-            if not rec_db:
-                continue
-            rec_db.categoria_id = rec_edit["categoria_id"]
-            rec_db.subcategoria_id = rec_edit.get("subcategoria_id")
-            rec_db.local_embarque = rec_edit["local_embarque"]
-            rec_db.local_desembarque = rec_edit["local_desembarque"]
-            rec_db.descricao = rec_edit["descricao"]
-            rec_db.empresa_fretamento = rec_edit.get("empresa_fretamento")
+    """Aplica diff completo de reclamações, cria resposta técnica e marca atribuição respondida.
 
-            session.query(ReclamacaoAuto).filter_by(reclamacao_id=rec_db.id).delete()
-            session.flush()
+    recs_edit: lista de dicts com dados das reclamações após edição do usuário.
+      - id presente e não-nulo → atualiza reclamação existente
+      - id ausente ou None     → cria nova reclamação
+      - reclamações no banco sem id no payload → são excluídas
+
+    Retorna True se todas as atribuições responderam (status → RETORNO_TECNICO).
+    """
+    with db_session() as session:
+        # ── Diff de reclamações ───────────────────────────────────────────────
+        ids_no_banco = {
+            r.id for r in session.query(Reclamacao).filter_by(ouvidoria_id=ouvidoria_id).all()
+        }
+        ids_submetidos = {r["id"] for r in recs_edit if r.get("id")}
+
+        # Excluir reclamações removidas pelo usuário (cascade elimina ReclamacaoAuto)
+        for rec_id in ids_no_banco - ids_submetidos:
+            obj = session.get(Reclamacao, rec_id)
+            if obj:
+                session.delete(obj)
+        session.flush()
+
+        # Atualizar existentes / criar novas
+        for rec_edit in recs_edit:
+            if rec_edit.get("id"):
+                rec_db = session.query(Reclamacao).filter_by(id=rec_edit["id"]).first()
+                if not rec_db:
+                    continue
+                rec_db.categoria_id = rec_edit["categoria_id"]
+                rec_db.subcategoria_id = rec_edit.get("subcategoria_id")
+                rec_db.local_embarque = rec_edit["local_embarque"]
+                rec_db.local_desembarque = rec_edit["local_desembarque"]
+                rec_db.descricao = rec_edit["descricao"]
+                rec_db.empresa_fretamento = rec_edit.get("empresa_fretamento")
+                session.query(ReclamacaoAuto).filter_by(reclamacao_id=rec_db.id).delete()
+                session.flush()
+            else:
+                rec_db = Reclamacao(
+                    ouvidoria_id=ouvidoria_id,
+                    numero_item=rec_edit["numero_item"],
+                    categoria_id=rec_edit["categoria_id"],
+                    subcategoria_id=rec_edit.get("subcategoria_id"),
+                    tipo_servico=_resolve_tipo_servico(rec_edit.get("tipo_servico")),
+                    local_embarque=rec_edit["local_embarque"],
+                    local_desembarque=rec_edit["local_desembarque"],
+                    descricao=rec_edit["descricao"],
+                    empresa_fretamento=rec_edit.get("empresa_fretamento"),
+                )
+                session.add(rec_db)
+                session.flush()
 
             pontuacao = calcular_pontuacao_auto(len(rec_edit["autos"]))
             for a in rec_edit["autos"]:
@@ -230,13 +267,13 @@ def registrar_resposta_tecnica(ouvidoria_id, tecnico_id, texto, recs_edit):
                     pontuacao=pontuacao,
                 ))
 
-        resp = RespostaTecnica(
+        # ── Resposta técnica ──────────────────────────────────────────────────
+        session.add(RespostaTecnica(
             ouvidoria_id=ouvidoria_id,
             tecnico_id=tecnico_id,
             data_resposta=date.today(),
             texto_resposta=texto.strip(),
-        )
-        session.add(resp)
+        ))
 
         at = session.query(OuvidoriaTecnico).filter_by(
             ouvidoria_id=ouvidoria_id, tecnico_id=tecnico_id

@@ -1,37 +1,20 @@
-"""Utilitários de autenticação: hash de senha e controle de sessão Streamlit."""
-import bcrypt
+"""Autenticação via API FastAPI — sem acesso direto ao banco."""
 import streamlit as st
-from database.connection import get_session
-from models import Usuario, TipoUsuario
+from api.client.auth_client import login as _api_login
+from api.client.base import ApiError
 
 
-def hash_senha(senha: str) -> str:
-    return bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()
-
-
-def verificar_senha(senha: str, senha_hash: str) -> bool:
-    return bcrypt.checkpw(senha.encode(), senha_hash.encode())
-
-
-def autenticar(email: str, senha: str) -> Usuario | None:
-    """Retorna o Usuario se credenciais válidas, None caso contrário."""
-    session = get_session()
+def autenticar(email: str, senha: str) -> dict | None:
+    """Autentica via API. Retorna dict com dados do usuário ou None."""
     try:
-        usuario = session.query(Usuario).filter_by(email=email.strip(), ativo=True).first()
-        if usuario and verificar_senha(senha, usuario.senha_hash):
-            # Carrega relacionamentos necessários enquanto a sessão está aberta
-            _ = usuario.gerencia
-            _ = usuario.coordenacao
-            session.expunge(usuario)
-            return usuario
+        return _api_login(email, senha)
+    except ApiError:
         return None
-    finally:
-        session.close()
 
 
-def usuario_logado() -> Usuario | None:
-    """Retorna o usuário da sessão ou None."""
-    return st.session_state.get("usuario")
+def usuario_logado() -> dict | None:
+    """Retorna os dados do usuário logado (dict) ou None."""
+    return st.session_state.get("api_session")
 
 
 def require_auth():
@@ -45,10 +28,16 @@ def require_gestor():
     """Para a execução se o usuário não for gestor."""
     require_auth()
     u = usuario_logado()
-    if u and u.tipo != TipoUsuario.gestor:
+    if u and u.get("tipo") != "gestor":
         st.error("Acesso restrito a gestores.")
         st.stop()
 
 
 def fazer_logout():
-    st.session_state.pop("usuario", None)
+    st.session_state.pop("api_session", None)
+
+
+def hash_senha(senha: str) -> str:
+    """Mantido para compatibilidade com scripts de seed."""
+    import bcrypt
+    return bcrypt.hashpw(senha.encode(), bcrypt.gensalt()).decode()

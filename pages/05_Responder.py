@@ -2,7 +2,7 @@
 
 import os
 import sys
-from datetime import date, datetime
+from datetime import date
 
 import streamlit as st
 
@@ -10,35 +10,36 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth
 from auth import usuario_logado
-from models import StatusOuvidoria, TipoServico, TipoUsuario
-from repositories.ouvidoria_write_repo import (
+from api.client.enums import (
+    TIPO_USUARIO_GESTOR, TIPO_USUARIO_TECNICO,
+    STATUS_EM_ANALISE_TECNICA,
+)
+from api.client.catalogo_client import carregar_categorias, carregar_subcategorias
+from api.client.autos_client import carregar_cidades_atendidas, carregar_cidades_destino
+from api.client.catalogo_client import carregar_municipios
+from api.client.ouvidoria_client import (
+    carregar_ouvidoria_para_resposta_tecnica,
     deletar_resposta_permissionaria,
-    get_auto_permissionaria_nome,
     registrar_resposta_permissionaria,
     registrar_resposta_tecnica,
 )
-from utils import (
-    buscar_autos_por_trecho,
-    carregar_categorias,
-    carregar_cidades,
-    carregar_cidades_destino,
-    carregar_cidades_por_tipo,
-    carregar_municipios,
-    carregar_ouvidoria_para_resposta_tecnica,
-    carregar_permissionarias,
-    carregar_regioes_metropolitanas,
-    carregar_subcategorias,
-    carregar_todos_autos,
-    fmt_auto,
-)
 from components import reduz_margem_side_bar, reduz_margem_topo_page
+from components.reclamacoes import secao_nova_reclamacao, secao_vincular_autos
+
+_TIPO_SERVICO_FRET  = ("Fretamento Intermunicipal", "Fretamento Metropolitano")
+_TIPO_SERVICO_METRO = "Regular – Metropolitano"
+_TIPO_SERVICO_INTER = "Regular – Intermunicipal"
+_OPCAO_NAO_INFORMADO = "Não informado"
+_TIPO_BASE_MAP = {
+    "Fretamento Intermunicipal": _TIPO_SERVICO_INTER,
+    "Fretamento Metropolitano": _TIPO_SERVICO_METRO,
+}
 
 st.set_page_config(page_title="Registrar Resposta", page_icon="✍️", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
 auth.require_auth()
 
 u = usuario_logado()
-
 reduz_margem_topo_page()
 
 UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
@@ -46,42 +47,31 @@ UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 reduz_margem_side_bar()
 with st.sidebar:
-    st.markdown(f"**{u.nome}**")
-    st.caption(f"Perfil: {'Gestor' if u.tipo.value == 'gestor' else 'Técnico'}")
+    st.markdown(f"**{u['nome']}**")
+    st.caption(f"Perfil: {'Gestor' if u.get('tipo') == TIPO_USUARIO_GESTOR else 'Técnico'}")
     st.divider()
     if st.button("← Voltar", use_container_width=True):
         st.switch_page("pages/01_Ouvidorias.py")
     if st.button("Sair", use_container_width=True):
-        auth.fazer_logout()
-        st.rerun()
+        auth.fazer_logout(); st.rerun()
 
 ouvidoria_id = st.session_state.get("ouvidoria_id")
 if not ouvidoria_id:
     st.error("Nenhuma ouvidoria selecionada.")
     st.stop()
 
-
-# ── Dados auxiliares ─────────────────────────────────────────────────────────
-OPCAO_TODAS = "Todas"
-OPCAO_QUALQUER = "Qualquer"
-OPCAO_NAO_INFORMADO = "Não informado"
-
-
-# ── Carrega dados da ouvidoria ───────────────────────────────────────────────
-view = carregar_ouvidoria_para_resposta_tecnica(ouvidoria_id, u.id)
+view = carregar_ouvidoria_para_resposta_tecnica(ouvidoria_id, u["usuario_id"])
 if view is None:
     st.error("Ouvidoria não encontrada.")
     st.stop()
 
-ouvidoria          = view["ouvidoria"]
-atribuicao         = view["atribuicao"]
-resposta_existente = view["resposta_existente"]
-resps_tecnico_data = view["historico"]
-resps_perm         = ouvidoria["respostas_permissionaria"]
-anexos_data        = ouvidoria["anexos"]
+ouvidoria   = view["ouvidoria"]
+atribuicao  = view["atribuicao"]
+historico   = view["historico"]
+resps_perm  = ouvidoria["respostas_permissionaria"]
+anexos_data = ouvidoria["anexos"]
 
-# Verifica se o técnico tem acesso
-if u.tipo == TipoUsuario.tecnico and atribuicao is None:
+if u.get("tipo") == TIPO_USUARIO_TECNICO and atribuicao is None:
     st.error("Esta ouvidoria não está atribuída a você.")
     st.stop()
 
@@ -90,19 +80,19 @@ st.title(f"✍️ Resposta Técnica – Ouvidoria #{ouvidoria['id']}")
 with st.expander("Conteúdo da Ouvidoria", expanded=False):
     st.text(ouvidoria["conteudo"])
 st.write(f"**Status:** {ouvidoria['status']}")
-st.write(f"**Prazo:** {ouvidoria['prazo'].strftime('%d/%m/%Y')}")
+st.write(f"**Prazo:** {ouvidoria['prazo']}")
 
-# ── Inicializa estado de edição das reclamações ──────────────────────────────
+# ── Estado de edição das reclamações ─────────────────────────────────────────
 if "resp_recs_edit" not in st.session_state:
     st.session_state["resp_recs_edit"] = [
         {
             "id": r["id"],
             "numero_item": r["numero_item"],
             "categoria_id": r["categoria_id"],
-            "categoria": r["categoria_nome"],
+            "categoria_nome": r["categoria_nome"],
             "subcategoria_id": r["subcategoria_id"],
-            "subcategoria": r["subcategoria_nome"],
-            "tipo_servico": r["tipo_servico"] or TipoServico.REGULAR_INTERMUNICIPAL.value,
+            "subcategoria_nome": r["subcategoria_nome"],
+            "tipo_servico": r["tipo_servico"] or _TIPO_SERVICO_INTER,
             "local_embarque": r["local_embarque"],
             "local_desembarque": r["local_desembarque"],
             "descricao": r["descricao"],
@@ -111,8 +101,8 @@ if "resp_recs_edit" not in st.session_state:
                 {
                     "id": a["auto_id"],
                     "numero": a["numero"],
-                    "denominacao_a": a["denominacao_a"],
-                    "denominacao_b": a["denominacao_b"],
+                    "denominacao_a": a.get("denominacao_a"),
+                    "denominacao_b": a.get("denominacao_b"),
                     "permissionaria": a["permissionaria_nome"],
                 }
                 for a in r["autos"]
@@ -120,404 +110,204 @@ if "resp_recs_edit" not in st.session_state:
         }
         for r in ouvidoria["reclamacoes"]
     ]
-if "resp_autos_checklist" not in st.session_state:
-    st.session_state["resp_autos_checklist"] = []
-if "resp_rec_alvo_anterior" not in st.session_state:
-    st.session_state["resp_rec_alvo_anterior"] = None
+
+st.session_state.setdefault("resp_autos_checklist", [])
+st.session_state.setdefault("resp_rec_alvo_anterior", None)
 
 # ── Anexos (somente leitura) ─────────────────────────────────────────────────
 if anexos_data:
     with st.expander(f"Anexos ({len(anexos_data)})", expanded=False):
         for an in anexos_data:
             caminho = os.path.join(UPLOADS_DIR, an["nome_storage"])
-            tamanho_kb = round(an["tamanho"] / 1024, 1) if an["tamanho"] else "?"
+            tamanho_kb = round(an["tamanho"] / 1024, 1) if an.get("tamanho") else "?"
             if os.path.exists(caminho):
                 with open(caminho, "rb") as f:
                     st.download_button(
                         f"📎 {an['nome_arquivo']} ({tamanho_kb} KB)",
-                        data=f.read(),
-                        file_name=an["nome_arquivo"],
-                        mime=an["tipo_mime"] or "application/octet-stream",
+                        data=f.read(), file_name=an["nome_arquivo"],
+                        mime=an.get("tipo_mime") or "application/octet-stream",
                         key=f"dl_anexo_{an['id']}",
                     )
             else:
-                st.write(f"📎 {an['nome_arquivo']} — arquivo não encontrado no servidor")
+                st.write(f"📎 {an['nome_arquivo']} — arquivo não encontrado")
 
-# Se já respondeu, verifica se o status permite nova resposta
-if resposta_existente and atribuicao and atribuicao["respondido"]:
-    if ouvidoria["status"] != StatusOuvidoria.EM_ANALISE_TECNICA.value:
-        # Bloqueado: já respondeu e ouvidoria não foi retornada para análise
+# ── Verificar se já respondeu ─────────────────────────────────────────────────
+resposta_existente = historico[0] if historico else None
+if resposta_existente and atribuicao and atribuicao.get("respondido"):
+    if ouvidoria["status"] != STATUS_EM_ANALISE_TECNICA:
         st.success("Você já registrou sua resposta técnica para esta ouvidoria.")
-        if resps_tecnico_data:
-            with st.expander(f"Ver respostas anteriores ({len(resps_tecnico_data)})"):
-                for rt in resps_tecnico_data:
-                    st.write(f"**Data:** {rt['data_resposta'].strftime('%d/%m/%Y')}")
+        if historico:
+            with st.expander(f"Ver respostas anteriores ({len(historico)})"):
+                for rt in historico:
+                    st.write(f"**Data:** {rt['data_resposta']}")
                     st.write(f"**Texto:** {rt['texto_resposta']}")
                     st.divider()
         st.stop()
     else:
-        # Permitir nova resposta — gestor retornou o status para EM_ANALISE_TECNICA
         st.info("O gestor retornou esta ouvidoria para análise técnica. Você pode registrar uma nova resposta.")
-        if resps_tecnico_data:
-            with st.expander(f"Ver respostas anteriores ({len(resps_tecnico_data)})"):
-                for rt in resps_tecnico_data:
-                    st.write(f"**Data:** {rt['data_resposta'].strftime('%d/%m/%Y')}")
+        if historico:
+            with st.expander(f"Ver respostas anteriores ({len(historico)})"):
+                for rt in historico:
+                    st.write(f"**Data:** {rt['data_resposta']}")
                     st.write(f"**Texto:** {rt['texto_resposta']}")
                     st.divider()
 
 st.divider()
 
 categorias = carregar_categorias()
-cat_map = {nome: cid for cid, nome in categorias}
-cat_nomes = [nome for _, nome in categorias]
+cat_map    = {nome: cid for cid, nome in categorias}
+cat_nomes  = [nome for _, nome in categorias]
 
-# ── Reclamações editáveis ────────────────────────────────────────────────────
+# ── Reclamações editáveis ─────────────────────────────────────────────────────
 st.subheader("Reclamações")
 
+total_recs = len(st.session_state["resp_recs_edit"])
+
 for i, rec in enumerate(st.session_state["resp_recs_edit"]):
-    tipo_label = rec.get("tipo_servico", "")
-    is_fret = tipo_label in (TipoServico.FRETAMENTO_INTERMUNICIPAL.value, TipoServico.FRETAMENTO_METROPOLITANO.value)
-    tipo_base = {
-        TipoServico.REGULAR_INTERMUNICIPAL.value: TipoServico.REGULAR_INTERMUNICIPAL.value,
-        TipoServico.REGULAR_METROPOLITANO.value: TipoServico.REGULAR_METROPOLITANO.value,
-        TipoServico.FRETAMENTO_INTERMUNICIPAL.value: TipoServico.REGULAR_INTERMUNICIPAL.value,
-        TipoServico.FRETAMENTO_METROPOLITANO.value: TipoServico.REGULAR_METROPOLITANO.value,
-    }.get(tipo_label, tipo_label)
-    cidades_rec = carregar_cidades_por_tipo(tipo_base) if not is_fret else carregar_municipios()
+    tipo_label  = rec.get("tipo_servico", "")
+    is_fret     = tipo_label in _TIPO_SERVICO_FRET
+    tipo_base   = _TIPO_BASE_MAP.get(tipo_label, tipo_label)
+    cidades_rec = carregar_cidades_atendidas(tipo_base) if not is_fret else carregar_municipios()
+
+    # Chave única para widgets: usa id do banco quando existe, índice quando é rec nova
+    rec_id_key = rec["id"] if rec.get("id") else f"novo_{i}"
 
     with st.expander(
-        f"{rec['numero_item']} - {rec['categoria'] or 'Sem categoria'} - {tipo_label}",
+        f"{rec['numero_item']} - {rec.get('categoria_nome') or 'Sem categoria'} - {tipo_label}",
         expanded=False,
     ):
         st.write(f"**Tipo de Serviço:** {tipo_label}")
 
-        # Categoria
-        cat_idx = 0
-        if rec["categoria"] and rec["categoria"] in cat_nomes:
-            cat_idx = cat_nomes.index(rec["categoria"]) + 1
+        cat_idx = (cat_nomes.index(rec["categoria_nome"]) + 1) if rec.get("categoria_nome") and rec["categoria_nome"] in cat_nomes else 0
         cat_sel = st.selectbox(
             "Categoria", ["(Sem categoria)"] + cat_nomes,
-            index=cat_idx, key=f"resp_cat_{rec['id']}"
+            index=cat_idx, key=f"resp_cat_{rec_id_key}",
         )
         if cat_sel != "(Sem categoria)":
-            st.session_state["resp_recs_edit"][i]["categoria"] = cat_sel
-            st.session_state["resp_recs_edit"][i]["categoria_id"] = cat_map.get(cat_sel)
+            st.session_state["resp_recs_edit"][i].update({"categoria_nome": cat_sel, "categoria_id": cat_map.get(cat_sel)})
         else:
-            st.session_state["resp_recs_edit"][i]["categoria"] = None
-            st.session_state["resp_recs_edit"][i]["categoria_id"] = None
+            st.session_state["resp_recs_edit"][i].update({"categoria_nome": None, "categoria_id": None})
 
-        # Subcategoria (filtrada pela categoria selecionada)
         cat_id_atual = st.session_state["resp_recs_edit"][i].get("categoria_id")
         if cat_id_atual:
             subcats = carregar_subcategorias(cat_id_atual)
             if subcats:
-                subcat_nomes = [n for _, n in subcats]
+                subcat_nomes     = [n for _, n in subcats]
                 subcat_map_local = {n: sid for sid, n in subcats}
-                subcat_idx = 0
-                if rec.get("subcategoria") and rec["subcategoria"] in subcat_nomes:
-                    subcat_idx = subcat_nomes.index(rec["subcategoria"]) + 1
+                subcat_idx = (subcat_nomes.index(rec.get("subcategoria_nome")) + 1) if rec.get("subcategoria_nome") and rec["subcategoria_nome"] in subcat_nomes else 0
                 subcat_sel = st.selectbox(
                     "Subcategoria", ["(Nenhuma)"] + subcat_nomes,
-                    index=subcat_idx, key=f"resp_subcat_{rec['id']}"
+                    index=subcat_idx, key=f"resp_subcat_{rec_id_key}",
                 )
                 if subcat_sel != "(Nenhuma)":
-                    st.session_state["resp_recs_edit"][i]["subcategoria_id"] = subcat_map_local[subcat_sel]
-                    st.session_state["resp_recs_edit"][i]["subcategoria"] = subcat_sel
+                    st.session_state["resp_recs_edit"][i].update({"subcategoria_id": subcat_map_local[subcat_sel], "subcategoria_nome": subcat_sel})
                 else:
-                    st.session_state["resp_recs_edit"][i]["subcategoria_id"] = None
-                    st.session_state["resp_recs_edit"][i]["subcategoria"] = None
+                    st.session_state["resp_recs_edit"][i].update({"subcategoria_id": None, "subcategoria_nome": None})
 
-        # Empresa de fretamento
         if is_fret:
             emp_fret = st.text_input(
                 "Empresa de Fretamento",
                 value=rec.get("empresa_fretamento") or "",
-                key=f"resp_empfret_{rec['id']}"
+                key=f"resp_empfret_{rec_id_key}",
             )
             st.session_state["resp_recs_edit"][i]["empresa_fretamento"] = emp_fret or None
 
-        # Embarque
-        emb_idx = 0
-        if rec["local_embarque"] and rec["local_embarque"] in cidades_rec:
-            emb_idx = cidades_rec.index(rec["local_embarque"]) + 1
+        emb_idx = (cidades_rec.index(rec["local_embarque"]) + 1) if rec.get("local_embarque") and rec["local_embarque"] in cidades_rec else 0
         emb_sel = st.selectbox(
-            "Local de Embarque", [OPCAO_NAO_INFORMADO] + cidades_rec,
-            index=emb_idx, key=f"resp_emb_{rec['id']}"
+            "Local de Embarque", [_OPCAO_NAO_INFORMADO] + cidades_rec,
+            index=emb_idx, key=f"resp_emb_{rec_id_key}",
         )
-        emb_val = None if emb_sel == OPCAO_NAO_INFORMADO else emb_sel
+        emb_val = None if emb_sel == _OPCAO_NAO_INFORMADO else emb_sel
         st.session_state["resp_recs_edit"][i]["local_embarque"] = emb_val
 
-        # Desembarque
         if not is_fret and emb_val:
             cidades_dest_rec = carregar_cidades_destino(tipo_base, emb_val)
-            if cidades_dest_rec:
-                des_idx = 0
-                if rec["local_desembarque"] and rec["local_desembarque"] in cidades_dest_rec:
-                    des_idx = cidades_dest_rec.index(rec["local_desembarque"]) + 1
-                des_sel = st.selectbox(
-                    "Local de Desembarque", [OPCAO_NAO_INFORMADO] + cidades_dest_rec,
-                    index=des_idx, key=f"resp_des_{rec['id']}"
-                )
-            else:
-                st.info("Sem atendimento a partir desta cidade.")
-                des_sel = OPCAO_NAO_INFORMADO
-        else:
-            des_idx = 0
-            if rec["local_desembarque"] and rec["local_desembarque"] in cidades_rec:
-                des_idx = cidades_rec.index(rec["local_desembarque"]) + 1
-            des_sel = st.selectbox(
-                "Local de Desembarque", [OPCAO_NAO_INFORMADO] + cidades_rec,
-                index=des_idx, key=f"resp_des_{rec['id']}"
+            des_idx = (cidades_dest_rec.index(rec["local_desembarque"]) + 1) if cidades_dest_rec and rec.get("local_desembarque") and rec["local_desembarque"] in cidades_dest_rec else 0
+            des_sel = (
+                st.selectbox("Local de Desembarque", [_OPCAO_NAO_INFORMADO] + (cidades_dest_rec or []),
+                             index=des_idx, key=f"resp_des_{rec_id_key}")
+                if cidades_dest_rec else _OPCAO_NAO_INFORMADO
             )
-        st.session_state["resp_recs_edit"][i]["local_desembarque"] = (
-            None if des_sel == OPCAO_NAO_INFORMADO else des_sel
-        )
+        else:
+            des_idx = (cidades_rec.index(rec["local_desembarque"]) + 1) if rec.get("local_desembarque") and rec["local_desembarque"] in cidades_rec else 0
+            des_sel = st.selectbox(
+                "Local de Desembarque", [_OPCAO_NAO_INFORMADO] + cidades_rec,
+                index=des_idx, key=f"resp_des_{rec_id_key}",
+            )
+        st.session_state["resp_recs_edit"][i]["local_desembarque"] = None if des_sel == _OPCAO_NAO_INFORMADO else des_sel
 
-        # Descrição
-        desc = st.text_area("Descrição", value=rec["descricao"] or "", key=f"resp_desc_{rec['id']}", height=100)
+        desc = st.text_area("Descrição", value=rec["descricao"] or "", key=f"resp_desc_{rec_id_key}", height=100)
         st.session_state["resp_recs_edit"][i]["descricao"] = desc or None
 
-        # Autos vinculados (não exibir para fretamento)
         if not is_fret:
             st.markdown("**Autos vinculados:**")
             if rec["autos"]:
                 for a in rec["autos"]:
                     col_auto, col_rem = st.columns([5, 1])
-                    denom_a = " – ".join(filter(None, [a.get("denominacao_a"), a.get("denominacao_b")])) or a["numero"]
-                    col_auto.write(f"- {a['numero']} – {a['permissionaria']} – {denom_a}")
-                    if col_rem.button("✕", key=f"rem_auto_{rec['id']}_{a['id']}"):
-                        st.session_state["resp_recs_edit"][i]["autos"] = [
-                            x for x in rec["autos"] if x["id"] != a["id"]
-                        ]
+                    denom = " – ".join(filter(None, [a.get("denominacao_a"), a.get("denominacao_b")])) or a["numero"]
+                    col_auto.write(f"- {a['numero']} – {a.get('permissionaria', '')} – {denom}")
+                    if col_rem.button("✕", key=f"rem_auto_{rec_id_key}_{a['id']}"):
+                        st.session_state["resp_recs_edit"][i]["autos"] = [x for x in rec["autos"] if x["id"] != a["id"]]
                         st.rerun()
             else:
                 st.write("Nenhum auto vinculado")
 
-# ── Vincular Autos à Reclamação ──────────────────────────────────────────────
-recs_nao_fret = [
-    r for r in st.session_state["resp_recs_edit"]
-    if r.get("tipo_servico") not in (TipoServico.FRETAMENTO_INTERMUNICIPAL.value, TipoServico.FRETAMENTO_METROPOLITANO.value)
-]
-if recs_nao_fret:
-    st.divider()
-    st.subheader("Vincular Autos à Reclamação")
-
-    rec_labels = [
-        f"{r['numero_item']} - {r['categoria'] or 'Sem categoria'} - {r.get('tipo_servico', '')}"
-        for r in recs_nao_fret
-    ]
-    rec_idx_map = [
-        i for i, r in enumerate(st.session_state["resp_recs_edit"])
-        if r.get("tipo_servico") not in (TipoServico.FRETAMENTO_INTERMUNICIPAL.value, TipoServico.FRETAMENTO_METROPOLITANO.value)
-    ]
-    rec_sel_label = st.selectbox("Reclamação alvo", rec_labels, key="resp_rec_alvo_sel")
-    rec_idx = rec_idx_map[rec_labels.index(rec_sel_label)]
-
-    # Detecta troca de reclamação alvo
-    if st.session_state["resp_rec_alvo_anterior"] != rec_sel_label:
-        for a in st.session_state["resp_autos_checklist"]:
-            st.session_state.pop(f"resp_chk_{a['id']}", None)
-        st.session_state["resp_autos_checklist"] = []
-        st.session_state["resp_rec_alvo_anterior"] = rec_sel_label
-
-    rec_tipo_raw = st.session_state["resp_recs_edit"][rec_idx].get("tipo_servico", TipoServico.REGULAR_INTERMUNICIPAL.value)
-    rec_tipo = {
-        TipoServico.REGULAR_INTERMUNICIPAL.value: TipoServico.REGULAR_INTERMUNICIPAL.value,
-        TipoServico.REGULAR_METROPOLITANO.value: TipoServico.REGULAR_METROPOLITANO.value,
-        TipoServico.FRETAMENTO_INTERMUNICIPAL.value: TipoServico.REGULAR_INTERMUNICIPAL.value,
-        TipoServico.FRETAMENTO_METROPOLITANO.value: TipoServico.REGULAR_METROPOLITANO.value,
-    }.get(rec_tipo_raw, rec_tipo_raw)
-
-    rec_alvo = st.session_state["resp_recs_edit"][rec_idx]
-    auto_fill_orig = rec_alvo.get("local_embarque")
-    auto_fill_dest = rec_alvo.get("local_desembarque")
-    trecho_disabled = (auto_fill_orig is None and auto_fill_dest is None)
-
-    regiao_sel_val = None
-
-    if rec_tipo == TipoServico.REGULAR_METROPOLITANO.value:
-        regioes = carregar_regioes_metropolitanas()
-        regiao_sel = st.selectbox("Região Metropolitana", [OPCAO_QUALQUER] + regioes, key="resp_filtro_rm")
-        regiao_sel_val = None if regiao_sel == OPCAO_QUALQUER else regiao_sel
-
-    perms = carregar_permissionarias(rec_tipo, regiao=regiao_sel_val)
-    perm_nomes = [p["nome"] for p in perms]
-    perm_map = {p["nome"]: p["id"] for p in perms}
-
-    empresa_sel = st.selectbox("Empresa", [OPCAO_TODAS] + perm_nomes, key="resp_filtro_empresa")
-    perm_id_sel = None if empresa_sel == OPCAO_TODAS else perm_map.get(empresa_sel)
-
-    cidades = carregar_cidades(rec_tipo, perm_id=perm_id_sel, regiao=regiao_sel_val)
-
-    col_trecho, col_todos = st.columns(2)
-
-    with col_trecho:
-        st.markdown("**Buscar por Trecho**")
-
-        idx_orig = 0
-        if auto_fill_orig and auto_fill_orig in cidades:
-            idx_orig = cidades.index(auto_fill_orig) + 1
-
-        cidade_orig_sel = st.selectbox(
-            "Cidade de Origem", [OPCAO_NAO_INFORMADO] + cidades, index=idx_orig, key="resp_trecho_orig"
-        )
-
-        orig_val = None if cidade_orig_sel == OPCAO_NAO_INFORMADO else cidade_orig_sel
-        if orig_val:
-            destinos_trecho = carregar_cidades_destino(rec_tipo, orig_val, perm_id=perm_id_sel, regiao=regiao_sel_val)
-            if destinos_trecho:
-                idx_dest = 0
-                if auto_fill_dest and auto_fill_dest in destinos_trecho:
-                    idx_dest = destinos_trecho.index(auto_fill_dest) + 1
-                cidade_dest_sel = st.selectbox(
-                    "Cidade de Destino", [OPCAO_NAO_INFORMADO] + destinos_trecho, index=idx_dest, key="resp_trecho_dest"
-                )
-            else:
-                st.info("Sem atendimento a partir desta cidade.")
-                cidade_dest_sel = OPCAO_NAO_INFORMADO
-        else:
-            idx_dest = 0
-            if auto_fill_dest and auto_fill_dest in cidades:
-                idx_dest = cidades.index(auto_fill_dest) + 1
-            cidade_dest_sel = st.selectbox(
-                "Cidade de Destino", [OPCAO_NAO_INFORMADO] + cidades, index=idx_dest, key="resp_trecho_dest"
-            )
-
-        buscar_disabled = trecho_disabled and cidade_orig_sel == OPCAO_NAO_INFORMADO and cidade_dest_sel == OPCAO_NAO_INFORMADO
-        if st.button("🔍 Buscar por trecho", use_container_width=True, key="resp_btn_trecho", disabled=buscar_disabled):
-            orig = None if cidade_orig_sel == OPCAO_NAO_INFORMADO else cidade_orig_sel
-            dest = None if cidade_dest_sel == OPCAO_NAO_INFORMADO else cidade_dest_sel
-            if orig or dest:
-                encontrados = buscar_autos_por_trecho(
-                    rec_tipo, orig or "", dest or "",
-                    perm_id=perm_id_sel, regiao=regiao_sel_val,
-                )
-                ids_existentes = {a["id"] for a in st.session_state["resp_autos_checklist"]}
-                adicionados = 0
-                for auto in encontrados:
-                    if auto["id"] not in ids_existentes:
-                        st.session_state["resp_autos_checklist"].append({
-                            "id": auto["id"],
-                            "numero": auto["numero"],
-                            "denominacao_a": auto["denominacao_a"],
-                            "denominacao_b": auto["denominacao_b"],
-                            "empresa": auto["permissionaria_nome"],
-                        })
-                        ids_existentes.add(auto["id"])
-                        adicionados += 1
-                st.success(f"{adicionados} autos adicionados ({len(encontrados)} encontrados).")
-                st.rerun()
-            else:
-                st.warning("Selecione ao menos uma cidade.")
-
-    with col_todos:
-        st.markdown("**Todos os Autos**")
-        todos_autos = carregar_todos_autos(rec_tipo, perm_id=perm_id_sel, regiao=regiao_sel_val)
-        if todos_autos:
-            num_opcoes = [fmt_auto(a) for a in todos_autos]
-            num_sel = st.selectbox("Selecione o Auto", num_opcoes, key="resp_num_sel")
-            sel_idx = num_opcoes.index(num_sel)
-            if st.button("➕ Adicionar", use_container_width=True, key="resp_btn_num"):
-                auto_row = todos_autos[sel_idx]
-                ids_existentes = {a["id"] for a in st.session_state["resp_autos_checklist"]}
-                if auto_row["id"] not in ids_existentes:
-                    st.session_state["resp_autos_checklist"].append({
-                        "id": auto_row["id"],
-                        "numero": auto_row["numero"],
-                        "denominacao_a": auto_row["denominacao_a"],
-                        "denominacao_b": auto_row["denominacao_b"],
-                        "empresa": auto_row["permissionaria_nome"],
-                    })
-                    st.success(f"Auto {auto_row['numero']} adicionado.")
-                    st.rerun()
-                else:
-                    st.info("Auto já está na lista.")
-        else:
-            st.info("Nenhum auto encontrado para os filtros selecionados.")
-
-    # Checklist acumulada
-    if st.session_state["resp_autos_checklist"]:
-        st.markdown(f"**Lista de Autos ({len(st.session_state['resp_autos_checklist'])} encontrados) — marque os que deseja vincular:**")
-
-        ids_ja_salvos = {a["id"] for a in st.session_state["resp_recs_edit"][rec_idx]["autos"]}
-
-        for auto in st.session_state["resp_autos_checklist"]:
-            ja_salvo = auto["id"] in ids_ja_salvos
-            emp = auto.get('empresa', '')
-            denom = " – ".join(filter(None, [auto.get("denominacao_a"), auto.get("denominacao_b")])) or auto["numero"]
-            label = f"**{auto['numero']}** – {emp + ' – ' if emp else ''}{denom}"
-            if ja_salvo:
-                st.checkbox(label + "  ✅ *já vinculado*", key=f"resp_chk_{auto['id']}", value=True, disabled=True)
-            else:
-                st.checkbox(label, key=f"resp_chk_{auto['id']}", value=True)
-
-        col_btn1, col_btn2 = st.columns([2, 1])
-        with col_btn1:
-            if st.button("✔ Registrar Autos Selecionados", type="primary", use_container_width=True, key="resp_reg_autos"):
-                ids_existentes = {a["id"] for a in st.session_state["resp_recs_edit"][rec_idx]["autos"]}
-                novos = [
-                    a for a in st.session_state["resp_autos_checklist"]
-                    if st.session_state.get(f"resp_chk_{a['id']}", True) and a["id"] not in ids_existentes
-                ]
-                for a in novos:
-                    perm_nome = get_auto_permissionaria_nome(a["id"])
-                    st.session_state["resp_recs_edit"][rec_idx]["autos"].append({
-                        "id": a["id"],
-                        "numero": a["numero"],
-                        "denominacao_a": a.get("denominacao_a"),
-                        "denominacao_b": a.get("denominacao_b"),
-                        "permissionaria": perm_nome,
-                    })
+        # Botão de remoção: só exibido quando há mais de 1 reclamação
+        if total_recs > 1:
+            st.divider()
+            if st.button("🗑 Remover reclamação", key=f"rem_rec_{rec_id_key}", type="secondary"):
+                st.session_state["resp_recs_edit"].pop(i)
                 for a in st.session_state["resp_autos_checklist"]:
                     st.session_state.pop(f"resp_chk_{a['id']}", None)
                 st.session_state["resp_autos_checklist"] = []
-                st.success(f"{len(novos)} autos vinculados à reclamação.")
+                st.session_state["resp_rec_alvo_anterior"] = None
                 st.rerun()
-        with col_btn2:
-            if st.button("🗑 Limpar lista", use_container_width=True, key="resp_limpar"):
-                for a in st.session_state["resp_autos_checklist"]:
-                    st.session_state.pop(f"resp_chk_{a['id']}", None)
-                st.session_state["resp_autos_checklist"] = []
-                st.rerun()
-    else:
-        st.info("Use as buscas acima para encontrar e acumular autos na lista.")
+
+# ── Adicionar Reclamação ──────────────────────────────────────────────────────
+st.markdown("#### Adicionar Reclamação")
+secao_nova_reclamacao("resp_recs_edit", key_prefix="resp_")
+
+# ── Vincular Autos ────────────────────────────────────────────────────────────
+secao_vincular_autos(
+    recs_state_key="resp_recs_edit",
+    checklist_key="resp_autos_checklist",
+    alvo_anterior_key="resp_rec_alvo_anterior",
+    chk_prefix="resp_chk_",
+    btn_prefix="resp_",
+    extended_auto_info=True,
+)
 
 # ── Respostas da Permissionária ──────────────────────────────────────────────
 st.divider()
 st.subheader("Respostas da Permissionária")
-
 if resps_perm:
     for rp in resps_perm:
-        with st.expander(f"{rp['data_resposta'].strftime('%d/%m/%Y')} — por {rp['registrado_por_nome']}"):
+        with st.expander(f"{rp['data_resposta']} — por {rp['registrado_por_nome']}"):
             st.text(rp["conteudo"])
             if st.button("🗑 Excluir esta resposta", key=f"del_rp_{rp['id']}"):
-                deletar_resposta_permissionaria(rp["id"])
-                st.success("Resposta excluída.")
-                st.rerun()
+                deletar_resposta_permissionaria(rp["id"], ouvidoria_id)
+                st.success("Resposta excluída."); st.rerun()
 else:
     st.info("Nenhuma resposta da permissionária registrada.")
 
-# Nova manifestação da permissionária
 nova_manif = st.checkbox("Nova manifestação da permissionária?", key="nova_manif_check")
 if nova_manif:
-    with st.container():
-        manif_conteudo = st.text_area("Conteúdo da manifestação", height=150, key="manif_conteudo")
-        manif_data = st.date_input("Data da manifestação", value=date.today(), key="manif_data")
-        if st.button("📥 Registrar manifestação", key="btn_manif"):
-            if not manif_conteudo.strip():
-                st.error("O conteúdo da manifestação é obrigatório.")
-            else:
-                registrar_resposta_permissionaria(ouvidoria_id, manif_conteudo, manif_data, u.id)
-                st.success("Manifestação registrada.")
-                st.rerun()
+    manif_conteudo = st.text_area("Conteúdo da manifestação", height=150, key="manif_conteudo")
+    manif_data = st.date_input("Data da manifestação", value=date.today(), key="manif_data")
+    if st.button("📥 Registrar manifestação", key="btn_manif"):
+        if not manif_conteudo.strip():
+            st.error("O conteúdo da manifestação é obrigatório.")
+        else:
+            registrar_resposta_permissionaria(ouvidoria_id, manif_conteudo, manif_data, u["usuario_id"])
+            st.success("Manifestação registrada."); st.rerun()
 
-# ── Registrar Resposta Técnica ───────────────────────────────────────────────
+# ── Registrar Resposta Técnica ────────────────────────────────────────────────
 st.divider()
 st.subheader("Registrar Resposta")
 
 with st.form("form_resposta"):
     texto = st.text_area("Texto da resposta técnica *", height=200)
-    data_resp = st.date_input("Data da resposta", value=date.today(), disabled=True)
+    st.date_input("Data da resposta", value=date.today(), disabled=True)
     enviar = st.form_submit_button("📤 Enviar Resposta", type="primary")
 
 if enviar:
@@ -525,14 +315,24 @@ if enviar:
         st.error("O texto da resposta é obrigatório.")
     else:
         try:
-            todos_responderam = registrar_resposta_tecnica(
-                ouvidoria_id, u.id, texto, st.session_state["resp_recs_edit"]
-            )
-
-            st.session_state.pop("resp_recs_edit", None)
-            st.session_state.pop("resp_autos_checklist", None)
-            st.session_state.pop("resp_rec_alvo_anterior", None)
-
+            recs_edit_payload = [
+                {
+                    "id": r["id"],
+                    "numero_item": r["numero_item"],
+                    "categoria_id": r["categoria_id"],
+                    "subcategoria_id": r["subcategoria_id"],
+                    "tipo_servico": r["tipo_servico"],
+                    "local_embarque": r["local_embarque"],
+                    "local_desembarque": r["local_desembarque"],
+                    "empresa_fretamento": r["empresa_fretamento"],
+                    "descricao": r["descricao"],
+                    "autos": [{"id": a["id"]} for a in r["autos"]],
+                }
+                for r in st.session_state["resp_recs_edit"]
+            ]
+            todos_responderam = registrar_resposta_tecnica(ouvidoria_id, u["usuario_id"], texto, recs_edit_payload)
+            for k in ("resp_recs_edit", "resp_autos_checklist", "resp_rec_alvo_anterior"):
+                st.session_state.pop(k, None)
             msg = "Resposta registrada com sucesso!"
             if todos_responderam:
                 msg += " Status da ouvidoria atualizado para 'Retorno técnico'."

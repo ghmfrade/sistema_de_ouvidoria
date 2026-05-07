@@ -30,7 +30,7 @@ def pagina_login():
             else:
                 usuario = auth.autenticar(email, senha)
                 if usuario:
-                    st.session_state["usuario"] = usuario
+                    st.session_state["api_session"] = usuario
                     st.rerun()
                 else:
                     st.error("Login ou senha incorretos.")
@@ -40,8 +40,8 @@ def sidebar_usuario():
     u = usuario_logado()
     if u:
         with st.sidebar:
-            st.markdown(f"**{u.nome}**")
-            st.caption(f"Perfil: {'Gestor' if u.tipo.value == 'gestor' else 'Técnico'}")
+            st.markdown(f"**{u['nome']}**")
+            st.caption(f"Perfil: {'Gestor' if u.get('tipo') == 'gestor' else 'Técnico'}")
             st.divider()
             if st.button("Sair", use_container_width=True):
                 auth.fazer_logout()
