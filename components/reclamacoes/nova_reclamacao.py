@@ -56,11 +56,10 @@ def secao_nova_reclamacao(recs_state_key: str, key_prefix: str = "") -> None:
             subcat_nomes = [n for _, n in subcats]
             subcat_map_local = {n: sid for sid, n in subcats}
             subcat_sel = st.selectbox(
-                "Subcategoria", ["(Nenhuma)"] + subcat_nomes, key=f"{kp}novo_rec_subcat",
+                "Subcategoria *", subcat_nomes, key=f"{kp}novo_rec_subcat",
             )
-            if subcat_sel != "(Nenhuma)":
-                subcat_id_sel = subcat_map_local[subcat_sel]
-                subcat_nome_sel = subcat_sel
+            subcat_id_sel = subcat_map_local[subcat_sel]
+            subcat_nome_sel = subcat_sel
 
     col_emb, col_desemb = st.columns(2)
     if not is_fretamento:
@@ -115,6 +114,8 @@ def secao_nova_reclamacao(recs_state_key: str, key_prefix: str = "") -> None:
                 st.error("Cadastre ao menos uma categoria no Admin antes de criar reclamações.")
             elif cat_sel not in cat_map:
                 st.error("Selecione uma categoria válida.")
+            elif subcat_id_sel is None:
+                st.error("Selecione uma subcategoria. Caso não existam subcategorias para esta categoria, cadastre-as no Admin.")
             else:
                 recs = st.session_state[recs_state_key]
                 proximo_item = max((r["numero_item"] for r in recs), default=0) + 1

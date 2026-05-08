@@ -63,7 +63,7 @@ def secao_vincular_autos(
     st.subheader("Vincular Autos à Reclamação")
 
     rec_labels = [
-        f"{r['numero_item']} - {r.get('categoria_nome') or 'Sem categoria'} - {r.get('tipo_servico', '')}"
+        f"{r['numero_item']} - {r.get('categoria_nome') or 'Sem categoria'} - {r.get('subcategoria_nome') or 'Sem subcategoria'} - {r.get('tipo_servico', '')}"
         for r in recs_com_autos
     ]
     rec_idx_map = [i for i, r in enumerate(recs) if r.get("tipo_servico") not in _TIPO_SERVICO_FRET]

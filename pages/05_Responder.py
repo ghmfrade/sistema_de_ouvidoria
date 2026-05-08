@@ -172,8 +172,9 @@ for i, rec in enumerate(st.session_state["resp_recs_edit"]):
     # Chave única para widgets: usa id do banco quando existe, índice quando é rec nova
     rec_id_key = rec["id"] if rec.get("id") else f"novo_{i}"
 
+    subcat_label = rec.get("subcategoria_nome") or "Sem subcategoria"
     with st.expander(
-        f"{rec['numero_item']} - {rec.get('categoria_nome') or 'Sem categoria'} - {tipo_label}",
+        f"{rec['numero_item']} - {rec.get('categoria_nome') or 'Sem categoria'} - {subcat_label} - {tipo_label}",
         expanded=False,
     ):
         st.write(f"**Tipo de Serviço:** {tipo_label}")

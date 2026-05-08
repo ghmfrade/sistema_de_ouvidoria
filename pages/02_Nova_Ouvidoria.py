@@ -78,8 +78,9 @@ if st.session_state["reclamacoes_draft"]:
         label_emb    = rec["local_embarque"]   or "Não informado"
         label_desemb = rec["local_desembarque"] or "Não informado"
         tipo_label   = rec.get("tipo_servico", "")
+        subcat_label = rec.get("subcategoria_nome") or "Sem subcategoria"
         with st.expander(
-            f"{rec['numero_item']} - {rec.get('categoria_nome') or 'Sem categoria'} - {tipo_label} "
+            f"{rec['numero_item']} - {rec.get('categoria_nome') or 'Sem categoria'} - {subcat_label} - {tipo_label} "
             f"({label_emb} → {label_desemb})", expanded=False,
         ):
             st.write(f"**Tipo de Serviço:** {tipo_label}")
