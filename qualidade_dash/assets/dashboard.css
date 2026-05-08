@@ -1,0 +1,16 @@
+/* Remove linha vermelha/accent padrão do Dash nas abas */
+.tab--selected {
+    border-bottom: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: 3px solid #0d47a1 !important;
+    box-shadow: 0 3px 10px rgba(13, 71, 161, 0.25) !important;
+}
+
+.tab {
+    border-bottom: none !important;
+}
+
+.tabs--top .tab--selected {
+    border-bottom: none !important;
+}
