@@ -31,7 +31,7 @@ from models import (
     Permissionaria,
     Usuario,
 )
-from utils.loaders_auto import buscar_autos_por_trecho
+from repositories.autos_repo import buscar_autos_por_trecho
 from repositories.pontuacao import calcular_pontuacao_auto
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

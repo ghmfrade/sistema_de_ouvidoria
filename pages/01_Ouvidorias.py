@@ -23,6 +23,9 @@ from api.client.ouvidoria_client import (
     listar_ouvidorias, atribuir_tecnico, editar_ouvidoria,
     concluir_ouvidoria, excluir_ouvidoria,
 )
+from api.client.base import API_BASE
+
+
 from utils import prazo_circle_label
 from components import reduz_margem_side_bar, reduz_margem_topo_page, reduz_gap_elementos_body
 
@@ -33,7 +36,6 @@ reduz_gap_elementos_body()
 auth.require_auth()
 
 st.session_state.setdefault("ov_cache_buster", 0)
-_resumo_id = st.session_state.pop("abrir_resumo_id", None)
 u = usuario_logado()
 
 STATUS_EMOJI = {
@@ -242,7 +244,10 @@ else:
         with cols[9]:
             with st.popover("🛠️"):
                 if st.button("📋 Resumo da Ouvidoria", key=f"resumo_{o['id']}"):
-                    st.session_state["abrir_resumo_id"] = o["id"]; st.rerun()
+                    components.html(
+                        f'<script>window.open("{API_BASE}/ouvidorias/{o['id']}/resumo-html","_blank");</script>',
+                        height=0,
+                    )
                 st.divider()
                 if st.button("🔍 Abrir detalhe", key=f"abrir_{o['id']}"):
                     st.session_state["ouvidoria_id"] = o["id"]
@@ -283,11 +288,3 @@ else:
                     if st.button("📤 Resposta Permissionária", key=f"resp_perm_tec_{o['id']}"):
                         st.session_state["ouvidoria_id"] = o["id"]
                         st.switch_page("pages/04_Resposta_Permissionaria.py")
-
-# ── Abrir resumo em nova aba ───────────────────────────────────────────────────
-if _resumo_id:
-    from api.client.base import API_BASE
-    components.html(
-        f'<script>window.open("{API_BASE}/ouvidorias/{_resumo_id}/resumo-html","_blank");</script>',
-        height=0,
-    )

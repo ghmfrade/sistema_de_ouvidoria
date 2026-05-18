@@ -164,7 +164,7 @@ def _aba_regular(tab_id: str):
         _graph_card(f"g3-empresas-{tab_id}", "Incidência de Reclamação do Serviço"),
 
         # G4: Empresas por incidência irregular
-        _graph_card(f"g4-irregular-{tab_id}", "Incidência de Transporte Irregular por Empresa"),
+        _graph_card(f"g4-irregular-{tab_id}", "Indicador de Vulnerabilidade a Transporte Irregular por Empresa"),
 
         # G5: Heatmap assunto × empresa (paginado)
         dbc.Card(dbc.CardBody([
@@ -185,7 +185,7 @@ def _aba_regular(tab_id: str):
 
         # G7: Autos por incidência irregular (paginado)
         dbc.Card(dbc.CardBody([
-            html.H6("Autos por Incidência de Transporte Irregular",
+            html.H6("Autos por Vulnerabilidade a Transporte Irregular",
                     className="fw-semibold text-secondary mb-3"),
             dcc.Store(id=f"g7-pagina-{tab_id}", data=1),
             dcc.Graph(id=f"g7-irregular-{tab_id}", config=GRAPH_CONFIG),
