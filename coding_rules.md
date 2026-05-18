@@ -639,6 +639,120 @@ Antes de fazer commit/PR, verifique:
    count = len(ouvidorias)  # ← Carrega tudo
    ```
 
+## 🌐 FastAPI — Padrões da API REST
+
+O diretório `api/` expõe endpoints REST consumidos principalmente pelo Dashboard de Qualidade (Plotly Dash). Siga as convenções abaixo ao criar ou editar routers, schemas e services.
+
+### Estrutura de Router
+
+```python
+# api/routers/meu_dominio.py
+from fastapi import APIRouter, Depends, HTTPException
+from api.deps import usuario_corrente, requer_gestor
+from api.schemas.meu_dominio import MeuSchema, CriarMeuRequest
+from repositories.meu_repo import listar_meus, get_meu
+
+router = APIRouter()
+
+# ── Leitura ──────────────────────────────────────────────────
+@router.get("", response_model=list[MeuSchema])
+def listar(_=Depends(usuario_corrente)):
+    return listar_meus()
+
+@router.get("/{id}", response_model=MeuSchema)
+def detalhe(id: int, _=Depends(usuario_corrente)):
+    dado = get_meu(id)
+    if dado is None:
+        raise HTTPException(status_code=404, detail="Não encontrado")
+    return dado
+
+# ── Escrita ──────────────────────────────────────────────────
+@router.post("", response_model=MeuSchema)
+def criar(body: CriarMeuRequest, _=Depends(requer_gestor)):
+    ...
+```
+
+**Regras:**
+- Separe rotas de leitura e escrita com comentários `# ── Leitura` / `# ── Escrita`
+- Use `Depends(usuario_corrente)` em todas as rotas autenticadas
+- Use `Depends(requer_gestor)` para operações restritas a gestores
+- Routers chamam diretamente repositórios (read) ou services (write complexa)
+
+### Schemas Pydantic
+
+```python
+# api/schemas/meu_dominio.py
+from pydantic import BaseModel
+from datetime import date
+
+# ── Response schemas (leitura) ────────────────────────────────
+class MeuSchema(BaseModel):
+    id: int
+    nome: str
+    criado_em: date
+
+    model_config = {"from_attributes": True}  # permite .from_orm()
+
+# ── Request schemas (escrita) ─────────────────────────────────
+class CriarMeuRequest(BaseModel):
+    nome: str
+    data: date
+```
+
+**Regras:**
+- Schemas de resposta recebem `model_config = {"from_attributes": True}` quando construídos a partir de TypedDicts ou objetos ORM
+- Schemas de request (body) ficam no mesmo arquivo, separados por comentário
+- Nunca reutilize um schema de resposta como schema de request — os campos quase sempre diferem
+
+### Services (lógica de escrita complexa)
+
+Use `api/services/` apenas quando a operação envolve mais de uma chamada a repositórios ou lógica de negócio não trivial:
+
+```python
+# api/services/meu_service.py
+from repositories.meu_write_repo import criar_meu
+from repositories.outro_repo import get_outro
+
+def criar_com_dependencia(body: CriarMeuRequest) -> int:
+    outro = get_outro(body.outro_id)
+    if outro is None:
+        raise ValueError("Dependência não encontrada")
+    return criar_meu(body.nome, outro["campo"])
+```
+
+Para operações simples, o router pode chamar o repositório diretamente — sem service intermediário.
+
+### Autenticação JWT
+
+```python
+# Injeção de dependência — sempre via Depends, nunca manualmente
+@router.get("/")
+def rota(payload: dict = Depends(usuario_corrente)):
+    usuario_id = int(payload["sub"])
+    tipo = payload["tipo"]  # "gestor" | "tecnico"
+```
+
+O token JWT é validado em `api/deps.py`. O payload contém `sub` (id do usuário) e `tipo`.
+
+### Registro de Router
+
+Ao criar um novo router, registre-o em `api/main.py`:
+
+```python
+from api.routers import meu_dominio
+
+app.include_router(meu_dominio.router, prefix="/meu-dominio", tags=["meu-dominio"])
+```
+
+### Checklist FastAPI
+
+- [ ] Router registrado em `api/main.py`
+- [ ] Todas as rotas têm `Depends(usuario_corrente)` ou `Depends(requer_gestor)`
+- [ ] Schemas de resposta com `response_model=` explícito
+- [ ] Rotas de leitura chamam repositórios diretamente (sem service)
+- [ ] `HTTPException(404)` quando recurso não encontrado
+- [ ] Schemas em `api/schemas/`, services em `api/services/`
+
 ## 📋 Referências Internas
 
 - [architecture.md](architecture.md) - Padrões de design e arquitetura

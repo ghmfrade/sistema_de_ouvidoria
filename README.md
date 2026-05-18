@@ -1,40 +1,48 @@
-# 📋 Sistema de Ouvidorias ARTESP
+# Sistema de Ouvidorias ARTESP
 
 Sistema web de gerenciamento de ouvidorias desenvolvido para a ARTESP (Agência de Transporte Estadual de São Paulo), permitindo o acompanhamento integrado de reclamações e solicitações de usuários sobre serviços de transporte.
 
-## 🎯 Visão Geral
+## Visão Geral
 
-O Sistema de Ouvidorias ARTESP foi desenvolvido para centralizar e gerenciar o fluxo de ouvidorias (reclamações, sugestões e elogios) relacionadas aos serviços de transporte sob regulação da ARTESP. O sistema integra:
+O Sistema de Ouvidorias ARTESP centraliza e gerencia o fluxo de ouvidorias (reclamações, sugestões e elogios) relacionadas aos serviços de transporte sob regulação da ARTESP. O sistema integra:
 
 - **Gestão de Ouvidorias**: Registro, acompanhamento e conclusão de ouvidorias
 - **Atribuição de Responsáveis**: Distribuição de tarefas entre técnicos por gerência/coordenação
 - **Respostas Técnicas**: Documentação de análises e respostas às reclamações
 - **Respostas de Permissionárias**: Gerenciamento de respostas das empresas de transporte
-- **Análise de Dados**: Dashboards de produtividade e qualidade
-- **Relatórios**: Geração de relatórios consolidados
+- **Análise de Dados**: Dashboard de produtividade (Streamlit) e qualidade (Plotly Dash)
+- **Relatórios**: Geração de relatórios consolidados em HTML
 
-## 🏗️ Arquitetura
+## Arquitetura
 
 ```
 sistema_de_ouvidoria/
 ├── app.py                      # Ponto de entrada principal (Streamlit)
 ├── auth.py                     # Autenticação e controle de sessão
+├── run_dash.py                 # Ponto de entrada do Dashboard de Qualidade (Dash)
+├── gerador_de_relatorios.py    # Geração de relatórios HTML
+├── alembic.ini                 # Configuração do Alembic
 ├── models/                     # SQLAlchemy ORM models
-├── database/                   # Configuração de banco de dados
+├── database/                   # Configuração do banco de dados
 ├── repositories/               # Data access layer (read/write)
+├── api/                        # Backend FastAPI (rotas REST)
 ├── pages/                      # Páginas Streamlit numeradas
 ├── components/                 # Componentes Streamlit reutilizáveis
-├── relatorios/                 # Geração de relatórios
-├── utils/                      # Utilitários diversos
-└── migrations/                 # Alembic migrations (versionamento de schema)
+├── qualidade_dash/             # App Plotly Dash (Dashboard de Qualidade)
+├── relatorios/                 # Relatórios HTML gerados
+├── migrations/                 # Alembic migrations (versionamento de schema)
+├── tasks/                      # Tarefas assíncronas/agendadas
+├── tests/                      # Testes automatizados
+├── tools/                      # Scripts utilitários pontuais
+├── docs/                       # Documentação adicional
+└── utils/                      # Utilitários diversos
 ```
 
-## 🚀 Quickstart
+## Quickstart
 
 ### Requisitos
-- Python 3.10+
+- Python 3.11+
 - PostgreSQL 12+
-- pip ou conda
 
 ### Instalação
 
@@ -59,34 +67,52 @@ sistema_de_ouvidoria/
    ```
 
 4. **Configure variáveis de ambiente**
-   ```bash
-   cp .env.example .env
-   # Edite .env com suas credenciais PostgreSQL
+
+   Crie um arquivo `.env` na raiz com as seguintes variáveis:
+   ```env
+   POSTGRES_USER=seu_usuario
+   POSTGRES_PASSWORD=sua_senha
+   POSTGRES_HOST=localhost
+   POSTGRES_PORT=5432
+   POSTGRES_DB=sistema_de_ouvidoria
    ```
 
 5. **Inicialize o banco de dados**
    ```bash
-   # Crie o banco e execute migrations
    alembic upgrade head
+   python database/seed.py
    ```
 
-6. **Inicie a aplicação**
+6. **Inicie a aplicação Streamlit**
    ```bash
    streamlit run app.py
    ```
 
-A aplicação estará disponível em `http://localhost:8501`
+7. **(Opcional) Inicie o Dashboard de Qualidade**
+   ```bash
+   python run_dash.py
+   ```
 
-## 📖 Guia de Uso
+8. **(Opcional) Inicie o backend FastAPI**
+   ```bash
+   uvicorn api.main:app --reload
+   ```
+
+A aplicação Streamlit estará disponível em `http://localhost:8501`.
+O Dashboard de Qualidade estará disponível em `http://localhost:8050`.
+A API FastAPI estará disponível em `http://localhost:8000`.
+
+## Guia de Uso
 
 ### Autenticação
 - Login com e-mail e senha
-- Suporte a dois tipos de usuário: **Gestor** (acesso administrativo) e **Técnico** (acesso a análises)
+- Dois tipos de usuário: **Gestor** (acesso administrativo) e **Técnico** (acesso a análises)
+- Usuário padrão: `admin@artesp.sp.gov.br` / `admin123`
 
 ### Páginas Principais
 
 #### 01 - Ouvidorias
-Listagem e gerenciamento de ouvidorias com filtros por status, prazo e responsáveis. Visualize todas as ouvidorias em processamento ou concluídas.
+Listagem e gerenciamento de ouvidorias com filtros por status, prazo e responsáveis. Gestores visualizam todas; técnicos visualizam apenas as atribuídas a eles.
 
 #### 02 - Nova Ouvidoria
 Formulário para registro de novas ouvidorias. Inclui vinculação de reclamações a autos (linhas de transporte), categorização e atribuição inicial de responsáveis.
@@ -112,8 +138,8 @@ Métricas de produtividade da equipe técnica:
 - Tempo médio de resposta
 
 #### 07 - Dashboard Qualidade
-Análise da qualidade de respostas e categorização:
-- Distribuição por categoria
+Redireciona para o app Plotly Dash (`run_dash.py`) com análise avançada:
+- Distribuição por categoria e subcategoria
 - Análise por permissionária
 - Mapas de calor por região
 - Pontuações de qualidade
@@ -124,7 +150,7 @@ Painel administrativo (restrito a gestores):
 - Configuração de catálogos (categorias, subcategorias, gerências, coordenações)
 - Gestão de autos (linhas de transporte) e permissionárias
 
-## 🏢 Estrutura de Dados
+## Estrutura de Dados
 
 ### Entidades Principais
 
@@ -137,24 +163,22 @@ Painel administrativo (restrito a gestores):
 - Pode especificar local de embarque/desembarque
 
 **Auto (Linha de Transporte)**: Linha de transporte específica sob regulação ARTESP.
-- Identificado por número único
-- Vinculado a permissionária e região metropolitana
+- Identificado por número único (ex.: `0001-A`)
+- Vinculado a permissionária e municípios atendidos
 
 **Usuário**: Usuário do sistema com dois perfis:
 - Gestor: Acesso administrativo completo
 - Técnico: Acesso restrito a análises e respostas
 
-**Atribuição Técnico**: Vínculo entre Ouvidoria e Técnico, rastreando quem é responsável pela resposta.
-
 **Resposta Técnica**: Análise e conclusão técnica sobre uma ouvidoria.
 
 **Resposta Permissionária**: Resposta da empresa de transporte à reclamação.
 
-## 🛠️ Desenvolvimento
+## Desenvolvimento
 
 ### Estrutura de Repositórios
 
-O projeto segue o padrão **Repository Pattern** com separação clara entre leitura e escrita:
+O projeto segue o padrão **Repository Pattern** com separação entre leitura e escrita:
 
 - **Read Repositories** (`*_repo.py`): Consultas e carregamento de dados
   - Retornam TypedDicts (contratos de dados imutáveis)
@@ -162,13 +186,25 @@ O projeto segue o padrão **Repository Pattern** com separação clara entre lei
   - Conversões ORM → TypedDict ocorrem dentro de `with db_session()`
 
 - **Write Repositories** (`*_write_repo.py`): Inserção, atualização e exclusão
-  - Operações de escrita no banco de dados
-  - Gerenciamento de transações
-  - Validação de integridade referencial
+  - Gerenciamento de transações e validação de integridade referencial
 
-### Convenções de Código
+### Backend FastAPI
 
-Consulte [coding_rules.md](coding_rules.md) para detalhes completos sobre:
+O diretório `api/` expõe endpoints REST consumidos pelo Dashboard de Qualidade (Dash) e potencialmente por integrações externas:
+
+```
+api/
+├── main.py          # FastAPI app + registro de routers
+├── deps.py          # Dependências (sessão DB, auth)
+├── routers/         # Endpoints por domínio
+├── schemas/         # Pydantic schemas (request/response)
+├── services/        # Lógica de negócio
+└── client/          # Cliente HTTP para uso interno
+```
+
+### Conventions de Código
+
+Consulte [coding_rules.md](coding_rules.md) para detalhes sobre:
 - Nomenclatura de funções e variáveis
 - Organização de imports
 - Padrões de tratamento de erros
@@ -176,8 +212,6 @@ Consulte [coding_rules.md](coding_rules.md) para detalhes completos sobre:
 - Padrões Streamlit
 
 ### Migrations
-
-Utilizamos **Alembic** para versionamento de schema do banco de dados.
 
 ```bash
 # Criar nova migration
@@ -190,27 +224,19 @@ alembic upgrade head
 alembic downgrade -1
 ```
 
-### Testes
+## Relatórios
 
-Para executar testes (quando configurados):
-```bash
-pytest
-```
+O sistema gera relatórios consolidados em **HTML com gráficos interativos** (Plotly).
 
-## 📊 Relatórios
-
-O sistema gera relatórios consolidados em **HTML com gráficos interativos** (Plotly):
-
-Execute via script:
 ```bash
 python gerador_de_relatorios.py
 ```
 
 Relatórios gerados em `relatorios/`:
-- **relatorio_reclamacoes_2025.html** - Reclamações do ano 2025
-- **relatorio_reclamacoes_2026.html** - Reclamações do ano 2026
+- `relatorio_reclamacoes_2025.html` — Reclamações de 2025
+- `relatorio_reclamacoes_2026.html` — Reclamações de 2026
 
-**Conteúdo dos Relatórios:**
+**Conteúdo dos relatórios:**
 - KPIs por sistema (Regular Metropolitano, Regular Intermunicipal, Fretamento)
 - Evolução mensal de reclamações
 - Top 15 autos com mais reclamações
@@ -219,24 +245,13 @@ Relatórios gerados em `relatorios/`:
 - Heatmap de assuntos por empresa
 - Distribuição por tipo de serviço
 
-Abra o arquivo HTML em qualquer navegador para visualizar.
-
-## 🔐 Segurança
+## Segurança
 
 - Senhas armazenadas com hash bcrypt
 - Controle de acesso baseado em perfil (Gestor/Técnico)
-- Validação de entrada em formulários
 - Proteção contra SQL injection via SQLAlchemy ORM
 
-## 📝 Logging
-
-Os logs da aplicação são armazenados em `logs/` (quando configurado). Configure o nível de log via variáveis de ambiente:
-
-```bash
-LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
-```
-
-## 🤝 Contribuindo
+## Contribuindo
 
 1. Crie uma branch para sua feature (`git checkout -b feature/sua-feature`)
 2. Commit suas mudanças (`git commit -m 'Adiciona sua feature'`)
@@ -245,18 +260,16 @@ LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 Consulte [coding_rules.md](coding_rules.md) para orientações sobre estilo de código e padrões do projeto.
 
-## 📞 Suporte
+## Documentação Adicional
 
-Para dúvidas ou problemas, entre em contato com a equipe de desenvolvimento ou abra uma issue no repositório.
-
-## 📄 Licença
-
-Este projeto é propriedade da ARTESP. Todos os direitos reservados.
-
-## 📚 Documentação Adicional
-
-- [Architecture](architecture.md) - Detalhes da arquitetura do sistema
-- [Coding Rules](coding_rules.md) - Padrões e convenções de código
+- [Architecture](architecture.md) — Detalhes da arquitetura do sistema
+- [Coding Rules](coding_rules.md) — Padrões e convenções de código
 - [Alembic Docs](https://alembic.sqlalchemy.org/)
 - [Streamlit Docs](https://docs.streamlit.io/)
 - [SQLAlchemy Docs](https://docs.sqlalchemy.org/)
+- [FastAPI Docs](https://fastapi.tiangolo.com/)
+- [Plotly Dash Docs](https://dash.plotly.com/)
+
+## Licença
+
+Este projeto é propriedade da ARTESP. Todos os direitos reservados.
