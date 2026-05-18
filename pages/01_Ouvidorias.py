@@ -1,6 +1,5 @@
 """Lista de Ouvidorias – visão geral com filtros."""
 
-import base64
 import os
 import sys
 from datetime import date
@@ -22,7 +21,7 @@ from api.client.enums import (
 from api.client.catalogo_client import carregar_categorias, carregar_subcategorias, carregar_tecnicos_disponiveis
 from api.client.ouvidoria_client import (
     listar_ouvidorias, atribuir_tecnico, editar_ouvidoria,
-    concluir_ouvidoria, excluir_ouvidoria, gerar_html_resumo,
+    concluir_ouvidoria, excluir_ouvidoria,
 )
 from utils import prazo_circle_label
 from components import reduz_margem_side_bar, reduz_margem_topo_page, reduz_gap_elementos_body
@@ -285,12 +284,10 @@ else:
                         st.session_state["ouvidoria_id"] = o["id"]
                         st.switch_page("pages/04_Resposta_Permissionaria.py")
 
-# ── Download automático do resumo ─────────────────────────────────────────────
+# ── Abrir resumo em nova aba ───────────────────────────────────────────────────
 if _resumo_id:
-    _b64 = base64.b64encode(gerar_html_resumo(_resumo_id).encode("utf-8")).decode()
+    from api.client.base import API_BASE
     components.html(
-        f'<a id="dl" href="data:text/html;base64,{_b64}"'
-        f' download="resumo_ouvidoria_{_resumo_id}.html"></a>'
-        f'<script>document.getElementById("dl").click();</script>',
+        f'<script>window.open("{API_BASE}/ouvidorias/{_resumo_id}/resumo-html","_blank");</script>',
         height=0,
     )

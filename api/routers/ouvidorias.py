@@ -87,7 +87,7 @@ def resposta_tecnica_view(
 
 
 @router.get("/{ouvidoria_id}/resumo-html", response_class=HTMLResponse)
-def resumo_html(ouvidoria_id: int, _=Depends(usuario_corrente)):
+def resumo_html(ouvidoria_id: int):
     from utils.html_resumo import gerar_html_resumo
     return gerar_html_resumo(ouvidoria_id)
 
