@@ -1,489 +1,250 @@
-# 🏗️ Architecture — Sistema de Ouvidorias ARTESP
+# Architecture — Sistema de Ouvidorias ARTESP
 
 Documentação da arquitetura técnica, padrões de design e decisões arquiteturais do sistema.
 
-## 📐 Visão Geral
+## Visão Geral
 
-O Sistema de Ouvidorias ARTESP segue uma arquitetura em camadas com separação clara de responsabilidades:
+O sistema é composto por três processos independentes que se comunicam via HTTP:
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│              Streamlit Frontend (UI Layer)              │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  pages/                                          │  │
-│  │  • 01_Ouvidorias.py (Listagem)                   │  │
-│  │  • 02_Nova_Ouvidoria.py (Criação)                │  │
-│  │  • 03_Detalhe_Ouvidoria.py (Visualização)        │  │
-│  │  • 04_Resposta_Permissionaria.py                 │  │
-│  │  • 05_Responder.py (Análise Técnica)             │  │
-│  │  • 06_Dashboard_Produtividade.py                 │  │
-│  │  • 07_Dashboard_Qualidade.py                     │  │
-│  │  • 08_Admin.py (Gestão)                          │  │
-│  └──────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  components/  (Componentes Streamlit)            │  │
-│  └──────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│         Application Logic & Services Layer              │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  auth.py (Autenticação)                          │  │
-│  │  utils/ (Utilitários diversos)                   │  │
-│  │  relatorios/ (Geração de relatórios)             │  │
-│  └──────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│          Data Access Layer (Repository Pattern)        │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  repositories/                                   │  │
-│  │  • *_repo.py (Read-only queries)                 │  │
-│  │  • *_write_repo.py (Insert/Update/Delete)        │  │
-│  │  • types.py (TypedDict contracts)                │  │
-│  └──────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│           ORM & Domain Layer (SQLAlchemy)              │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  models/                                         │  │
-│  │  • Entities (Ouvidoria, Reclamacao, Usuario...)  │  │
-│  │  • Relationships (1:N, N:N)                      │  │
-│  │  • Enums (StatusOuvidoria, TipoUsuario...)       │  │
-│  └──────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────┐
-│            Database Layer (PostgreSQL)                  │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  database/                                       │  │
-│  │  • connection.py (Pool de conexões, db_session)  │  │
-│  │  • migrations/ (Alembic versioning)              │  │
-│  │  • Tabelas normalizadas                          │  │
-│  └──────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  Streamlit App  (porta 8501)                                     │
+│  app.py  +  pages/                                               │
+│  Interface principal: login, ouvidorias, admin, dashboards       │
+└──────────────────────────────┬───────────────────────────────────┘
+                               │ HTTP (api/client/)
+┌──────────────────────────────▼───────────────────────────────────┐
+│  FastAPI  (porta 8000)                                           │
+│  api/main.py  →  api/routers/  →  repositories/  →  PostgreSQL  │
+│  REST API interna; endpoints de analytics sem autenticação       │
+└──────────────────────────────┬───────────────────────────────────┘
+                               │ HTTP (/dashboard/qualidade-v2/*)
+┌──────────────────────────────▼───────────────────────────────────┐
+│  Plotly Dash  (porta 8050)                                       │
+│  run_dash.py  →  qualidade_dash/                                 │
+│  Dashboard interativo de qualidade/fiscalização                  │
+└──────────────────────────────────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼───────────────────────────────────┐
+│  PostgreSQL  (porta 5432  —  banco: sistema_de_ouvidoria)        │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-## 🎯 Padrões de Design
+## Estrutura de Diretórios
+
+```
+app.py                          # Entry point Streamlit (login)
+auth.py                         # bcrypt + session_state
+run_dash.py                     # Entry point Plotly Dash
+
+pages/
+  01_Ouvidorias.py              # Listagem (gestor: todas | técnico: atribuídas)
+  02_Nova_Ouvidoria.py          # Criar ouvidoria + reclamações
+  03_Detalhe_Ouvidoria.py       # Detalhe, editar, atribuir técnicos
+  04_Resposta_Permissionaria.py # Resposta da permissionária
+  05_Responder.py               # Análise técnica (técnico)
+  06_Dashboard_Produtividade.py # Dashboard produtividade (Streamlit nativo)
+  07_Dashboard_Qualidade.py     # Iframe/link para o app Dash
+  08_Admin.py                   # CRUD usuários, categorias, gerências
+
+api/
+  main.py                       # FastAPI app + inclusão de routers
+  deps.py                       # Dependências compartilhadas (auth, DB)
+  routers/
+    auth.py                     # POST /auth/login
+    ouvidorias.py               # CRUD /ouvidorias
+    catalogo.py                 # GET /catalogo (categorias, permissionárias)
+    autos.py                    # GET /autos (busca por trecho/número)
+    dashboard.py                # GET /dashboard (produtividade)
+    dashboard_qualidade_novo.py # GET /dashboard/qualidade-v2/* (consumido pelo Dash)
+    admin.py                    # CRUD /admin (usuários, gerências)
+  schemas/                      # Pydantic models (request/response)
+  services/                     # Lógica de negócio (auth_service, ouvidoria_service)
+  client/                       # Clientes HTTP usados pelo Streamlit
+
+qualidade_dash/
+  app.py                        # Dash app object
+  layout.py                     # build_layout() — estrutura dos componentes
+  callbacks.py                  # register_callbacks(app) — interatividade
+  api_client.py                 # Chamadas para FastAPI /dashboard/qualidade-v2/*
+
+repositories/
+  types.py                      # TypedDicts (contratos de dados)
+  ouvidoria_repo.py             # Queries read-only de ouvidorias
+  ouvidoria_write_repo.py       # Insert/Update/Delete de ouvidorias
+  catalog_repo.py               # Categorias, permissionárias
+  autos_repo.py                 # Autos de linha e paradas
+  municipios_repo.py            # Cidades / municípios
+  admin_write_repo.py           # CRUD usuários, gerências, coordenações
+  pontuacao.py                  # Cálculo de pontuação de reclamações
+  dashboard/
+    produtividade_repo.py       # Queries do dashboard de produtividade
+    qualidade_novo_repo.py      # Queries do dashboard de qualidade (Dash v2)
+  relatorios/
+    reclamacoes_repo.py         # Queries para geração de relatórios
+
+models/                         # SQLAlchemy ORM (Declarative, mapped_column)
+database/
+  connection.py                 # engine, db_session() context manager, init_db()
+  seed.py                       # Importa CSVs + cria admin padrão
+migrations/                     # Alembic (versões do schema)
+```
+
+## Padrões de Design
 
 ### 1. Repository Pattern
 
-Separação clara entre **leitura** e **escrita** de dados:
+Separação explícita entre leitura e escrita:
 
-#### Read Repositories
 ```python
+# Read — nunca modifica, retorna TypedDicts
 # repositories/ouvidoria_repo.py
 def listar_ouvidorias(...) -> list[OuvidoriaResumoDict]:
-    """Retorna lista de Ouvidorias como TypedDict (imutável)."""
     with db_session() as s:
-        # Query e conversão ORM → TypedDict
-        # Nunca retorna instâncias SQLAlchemy fora da sessão
-```
+        # Query → conversão ORM → TypedDict (dentro da sessão)
+        ...
 
-**Características:**
-- Não modificam o banco de dados
-- Retornam **TypedDicts** (contratos de dados imutáveis)
-- Conversão ORM → TypedDict acontece **dentro** de `with db_session()`
-- Garantem que instâncias ORM nunca escapem da sessão
-
-#### Write Repositories
-```python
+# Write — insert/update/delete, retorna ID ou None
 # repositories/ouvidoria_write_repo.py
-def criar_ouvidoria(protocolo: str, ...) -> int:
-    """Cria ouvidoria e retorna seu ID."""
+def criar_ouvidoria(...) -> int:
     with db_session() as s:
-        # Criação de instâncias
-        # Commit automático ao sair do context manager
+        ...  # commit automático ao sair
 ```
-
-**Características:**
-- Inserem, atualizam ou deletam registros
-- Gerenciam transações automaticamente
-- Validam integridade referencial
-- Retornam valores escalares ou IDs
 
 ### 2. Type Safety com TypedDicts
-
-Contratos de dados explícitos definem exatamente o que cada função retorna:
 
 ```python
 # repositories/types.py
 class OuvidoriaResumoDict(TypedDict):
     id: int
     protocolo: str | None
-    status: str  # StatusOuvidoria.value
+    status: str
     prazo: date | None
     atribuicoes: list[OuvidoriaTecnicoDict]
 ```
 
-**Benefícios:**
-- Autocompletar em IDEs (`.` + atributo é seguro)
-- Documentação implícita (não precisa de docstring)
-- Type checking estático (mypy, pyright)
-- Evita retornar dados desnecessários (selectivity)
+Instâncias ORM nunca saem do `with db_session()` — a conversão para TypedDict acontece **dentro** do context manager para evitar `DetachedInstanceError`.
 
-### 3. Session Management com Context Manager
+### 3. Session Management
 
 ```python
 from database.connection import db_session
 
 with db_session() as s:
-    # Session válida aqui
-    # Commit automático ao sair
-    pass  # Session fechada automaticamente
+    # commit automático em sucesso
+    # rollback automático em exceção
+    # session sempre fechada
 ```
 
-**Garantias:**
-- ✅ Commit automático em sucesso
-- ✅ Rollback automático em exceção
-- ✅ Session sempre fechada
-- ✅ Sem "connection leaks"
+### 4. Camada de Cliente HTTP (Streamlit → FastAPI)
 
-### 4. Lazy Loading com Joinedload
-
-Carregamento eficiente de relacionamentos:
+O Streamlit não acessa o banco diretamente nas páginas; usa os clientes de `api/client/`:
 
 ```python
-# Carrega ouvidoria com reclamações em uma query (eager loading)
-ouvidoria = session.query(Ouvidoria).options(
-    joinedload(Ouvidoria.reclamacoes)
-).first()
+# pages/01_Ouvidorias.py
+from api.client.ouvidoria_client import listar_ouvidorias
+
+ouvidorias = listar_ouvidorias(token=st.session_state["token"], ...)
 ```
 
-**Por quê:**
-- N+1 query problem evitado
-- Performance melhorada
-- Dados consistentes mesmo após session.close()
+Os clientes encapsulam URLs, headers de autenticação e deserialização de resposta.
 
-## 🗄️ Estrutura de Dados
+## Fluxo de Dados
 
-### Diagrama ER (Conceitual)
+### Criar Nova Ouvidoria
 
 ```
-                    ┌──────────────┐
-                    │   Usuario    │
-                    │──────────────│
-                    │ id (PK)      │
-                    │ email        │
-                    │ tipo         │
-                    │ gerencia_id  │
-                    └──────────────┘
-                          ▲
-                          │
-        ┌─────────────────┼─────────────────┐
-        │ (1:N)           │ (1:N)           │
-        │ criado_por      │ atribuicao      │
-        │                 │                 │
-    ┌───┴────────┐   ┌────┴──────────┐
-    │ Ouvidoria  │   │OuvidoriaTecnico
-    │────────────│   │─────────────────┤
-    │ id (PK)    │◄──┤ ouvidoria_id (FK)
-    │ protocolo  │   │ tecnico_id (FK)
-    │ status     │   │ respondido
-    │ prazo      │   │ respondido_em
-    │ conteudo   │   └─────────────────┘
-    └────┬───────┘
-         │ (1:N) possui
-         │
-    ┌────▼──────────────┐
-    │   Reclamacao      │
-    │───────────────────│
-    │ id (PK)           │
-    │ numero_item       │
-    │ categoria_id (FK) │
-    │ descricao         │
-    │ local_embarque    │
-    └────┬──────────────┘
-         │ (N:N) via ReclamacaoAuto
-         │
-    ┌────▼──────────────┐
-    │   AutoLinha       │
-    │───────────────────│
-    │ id (PK)           │
-    │ numero            │
-    │ permissionaria_id │
-    │ tipo              │
-    └───────────────────┘
+Formulário (02_Nova_Ouvidoria.py)
+  → api/client/ouvidoria_client.py  (HTTP POST /ouvidorias)
+  → api/routers/ouvidorias.py
+  → api/services/ouvidoria_service.py
+  → repositories/ouvidoria_write_repo.py
+  → PostgreSQL (commit)
+  → retorna ID
+  → st.rerun() → 03_Detalhe_Ouvidoria.py
+```
+
+### Dashboard de Qualidade (Dash)
+
+```
+Usuário acessa 07_Dashboard_Qualidade.py (Streamlit)
+  → iframe / link para Dash em porta 8050
+
+Dash (qualidade_dash/callbacks.py)
+  → qualidade_dash/api_client.py  (HTTP GET /dashboard/qualidade-v2/*)
+  → api/routers/dashboard_qualidade_novo.py
+  → repositories/dashboard/qualidade_novo_repo.py
+  → PostgreSQL (read-only)
+  → JSON → Plotly figures
+```
+
+## Autenticação
+
+- Login via `POST /auth/login` (FastAPI) → retorna JWT
+- Streamlit armazena token em `st.session_state["token"]`
+- Páginas validam sessão com `@require_auth()` / `@require_gestor()`
+- Senhas com hash bcrypt — nunca texto plano
+- Endpoints do dashboard de qualidade são públicos (analytics interno, read-only)
+
+## Diagrama ER (Conceitual)
+
+```
+Usuario ─────────────────────────────────────┐
+  │ criado_por (1:N)                          │ atribuição (1:N)
+  │                                           │
+Ouvidoria ◄──── OuvidoriaTecnico ────────── Tecnico
+  │ (1:N)            respondido / respondido_em
+  │
+Reclamacao ──── (N:M via ReclamacaoAuto) ──── AutoLinha
+  │ categoria_id                                │ permissionaria_id
+  │                                             │
+Categoria                                  Permissionaria
+  └── subcategoria
 ```
 
 ### Entidades Principais
 
-#### Ouvidoria (Central)
-- **Propósito**: Agrupa uma ou mais reclamações do mesmo usuário sobre o mesmo tema
-- **Status**: Aguardando ações → Em análise técnica → Concluído
-- **Relacionamentos**:
-  - 1:N com Reclamacao (detalhes da reclamação)
-  - 1:N com OuvidoriaTecnico (atribuições)
-  - 1:N com RespostaTecnica (análises)
-  - 1:N com RespostaPermissionaria (respostas empresariais)
+| Entidade | Propósito |
+|---|---|
+| **Ouvidoria** | Agrupa ≥1 reclamação; ciclo de vida: Aguardando → Em análise → Concluído |
+| **Reclamacao** | Item específico com categoria, subcategoria, local embarque/desembarque |
+| **AutoLinha** | Linha de transporte (ex: `3100-A — SAUDE/PRAIA GRANDE`) |
+| **ParadaAutoLinha** | Cidades atendidas por um auto; usada em busca por trecho |
+| **OuvidoriaTecnico** | Rastreia atribuição técnico ↔ ouvidoria e status de resposta |
+| **RespostaTecnica** | Análise do técnico (pontuação, categorização, texto) |
+| **Usuario** | Gestor ou Técnico; vinculado a Gerência e Coordenação |
 
-#### Reclamacao
-- **Propósito**: Item específico dentro de uma ouvidoria
-- **Detalhes**: Categoria, subcategoria, local embarque/desembarque
-- **Relacionamentos**:
-  - N:M com AutoLinha via ReclamacaoAuto
-  - 1:N com Ouvidoria
-
-#### AutoLinha (Serviço de Transporte)
-- **Propósito**: Linha de transporte específica (ex: 3100-10 SAUDE/PRAIA GRANDE)
-- **Atributos**: Número, denominação A/B, tipo, região TC
-- **Relacionamentos**:
-  - 1:N com Permissionaria (empresa operadora)
-  - N:M com Reclamacao via ReclamacaoAuto
-
-#### Usuario
-- **Perfis**: Gestor (admin), Técnico (responde)
-- **Vinculação**: Gerência e Coordenação (unidade organizacional)
-- **Segurança**: Senha com hash bcrypt
-
-#### OuvidoriaTecnico (Atribuição)
-- **Propósito**: Rastreia qual técnico é responsável por qual ouvidoria
-- **Rastreamento**: Data de atribuição, resposta, quem respondeu
-- **Índice**: Facilita queries "ouvidorias de um técnico"
-
-## 🔄 Fluxo de Dados
-
-### Caso de Uso: Criar Nova Ouvidoria
-
-```
-1. Usuário preenche formulário (pages/02_Nova_Ouvidoria.py)
-   ↓
-2. Validação de entrada (email, campos obrigatórios)
-   ↓
-3. Chamada write_repo.criar_ouvidoria(...)
-   ↓
-4. Repository cria instâncias ORM dentro de db_session()
-   ↓
-5. SQLAlchemy persiste no PostgreSQL
-   ↓
-6. db_session() faz commit automático
-   ↓
-7. Repository retorna ID da ouvidoria criada
-   ↓
-8. UI redireciona para detalhe (st.rerun())
-   ↓
-9. pages/03_Detalhe_Ouvidoria.py carrega dados via ouvidoria_repo.get_detalhe(id)
-   ↓
-10. Repository converte ORM → TypedDict e retorna
-```
-
-### Caso de Uso: Responder Ouvidoria (Técnico)
-
-```
-1. Técnico acessa pages/05_Responder.py
-   ↓
-2. Carrega ouvidorias atribuídas via ouvidoria_repo.listar_atribuidas_tecnico()
-   ↓
-3. Seleciona ouvidoria e entra formulário de resposta
-   ↓
-4. Preenche análise técnica, categorização, pontuação
-   ↓
-5. Submit → ouvidoria_write_repo.criar_resposta_tecnica(...)
-   ↓
-6. Repository cria RespostaTecnica + atualiza OuvidoriaTecnico.respondido=true
-   ↓
-7. db_session() faz commit automático
-   ↓
-8. Opcional: Se responder TODAS as reclamações → marca Ouvidoria.status = CONCLUÍDO
-```
-
-## 🔐 Autenticação e Autorização
-
-### Fluxo de Autenticação
-
-```python
-# 1. Login (app.py)
-usuario = auth.autenticar(email, senha)
-st.session_state["usuario"] = usuario
-
-# 2. Verificação em tempo de acesso
-@require_auth()  # Para qualquer página
-@require_gestor()  # Apenas gestores
-def pagina_admin():
-    pass
-```
-
-**Armazenamento de Senha:**
-- Hash bcrypt no banco (irreversível)
-- Never store plain text
-- Verify on login: `bcrypt.checkpw(entrada, hash_armazenado)`
-
-**Sessão:**
-- Streamlit `st.session_state` persiste na memória do cliente
-- Logout: remove entrada da session_state
-- Rerun automático redireciona para login
-
-## 📊 Dashboards
-
-### Dashboard Produtividade
-- Métrica: Ouvidorias por técnico
-- Métrica: Taxa de conclusão
-- Métrica: Tempo médio para resposta
-
-**Query Pattern:**
-```python
-# repositories/dashboard/produtividade_repo.py
-def metricas_por_tecnico() -> list[MetricaTecnicoDict]:
-    # Agregação de OuvidoriaTecnico.respondido_em, count(*)
-```
-
-### Dashboard Qualidade
-- Métrica: Distribuição por categoria
-- Métrica: Análise por permissionária
-- Métrica: Pontuação média
-
-**Query Pattern:**
-```python
-# repositories/dashboard/qualidade_repo.py
-def metrica_qualidade() -> list[QualidadeDict]:
-    # Join com Reclamacao, Categoria, Permissionaria
-    # Group by e agregação de pontuação
-```
-
-## 🚀 Performance
-
-### Índices no Banco
-
-Consulte `migrations/` para índices definidos em:
-- `ouvidorias.protocolo` (unique, busca rápida)
-- `ouvidorias.status` (filtros frequentes)
-- `ouvidorias_tecnicos.tecnico_id` (queries por técnico)
-- `reclamacoes.categoria_id` (agrupamentos)
-
-### Lazy Loading vs Eager Loading
-
-**Lazy Loading (default):**
-```python
-ouvidoria = session.query(Ouvidoria).first()
-print(ouvidoria.reclamacoes)  # ⚠️ N+1 query aqui!
-```
-
-**Eager Loading (bom):**
-```python
-ouvidoria = session.query(Ouvidoria).options(
-    joinedload(Ouvidoria.reclamacoes)
-).first()
-print(ouvidoria.reclamacoes)  # ✅ Já carregado
-```
-
-### Caching (quando aplicável)
-
-Streamlit cache:
-```python
-@st.cache_data
-def listar_categorias():
-    return catalog_repo.listar_categorias()
-```
-
-**Invalidação:** Cache é invalidado quando mudanças são feitas via write repos.
-
-## 🔄 Migrations (Alembic)
-
-### Estrutura
-
-```
-migrations/
-├── env.py              # Configuração do Alembic
-├── script.py.mako      # Template para novas migrations
-└── versions/           # Migrations históricas
-    ├── 0001_initial.py
-    ├── 0002_add_prazo_permissionaria.py
-    └── ...
-```
-
-### Workflow
+## Como Iniciar
 
 ```bash
-# 1. Fazer mudança no models/
-# 2. Gerar migration auto
-alembic revision --autogenerate -m "add prazo_permissionaria"
+# 1. Banco + seed (primeira vez)
+python database/seed.py
 
-# 3. Revisar migrations/versions/xxxxx_add_prazo_permissionaria.py
-# 4. Aplicar
+# 2. FastAPI
+uvicorn api.main:app --reload --port 8000
+
+# 3. Streamlit
+streamlit run app.py
+
+# 4. Dashboard Qualidade (opcional)
+python run_dash.py          # porta 8050
+# ou: DASH_PORT=8050 DASH_DEBUG=true python run_dash.py
+```
+
+## Migrations (Alembic)
+
+```bash
+# Após alterar models/
+alembic revision --autogenerate -m "descricao"
+# Revisar migrations/versions/xxxxx_descricao.py
 alembic upgrade head
-
-# 5. Commitar: migration file + models/
+# Commitar: migration + models/
 ```
 
-## 🛡️ Tratamento de Erros
+## Referências
 
-### Padrão Recomendado
-
-```python
-# pages/01_Ouvidorias.py
-try:
-    ouvidorias = ouvidoria_repo.listar(...)
-except ValueError as e:
-    st.error(f"Filtro inválido: {e}")
-except Exception as e:
-    st.error(f"Erro ao carregar: {e}")
-    logger.error(f"DB error", exc_info=True)
-```
-
-### Erros Esperados (Validação)
-- ValueError: entrada inválida
-- KeyError: recurso não encontrado
-
-### Erros Não Esperados (System)
-- SQLAlchemy exceptions: problemas de DB
-- IOError: problemas de arquivo
-
-**Sempre:**
-- Log do erro completo (`exc_info=True`)
-- Mensagem amigável ao usuário
-- Nunca exponha stack trace ao usuário
-
-## 📝 Logging
-
-Configure em `.env`:
-
-```env
-LOG_LEVEL=INFO
-LOG_FILE=logs/app.log
-```
-
-**Níveis:**
-- DEBUG: Queries SQL, valores de variáveis
-- INFO: Ações principais (login, criação)
-- WARNING: Comportamentos inesperados
-- ERROR: Erros que precisam atenção
-- CRITICAL: Sistema indisponível
-
-## 🔗 Extensibilidade
-
-### Adicionar Nova Página
-
-```
-1. Criar pages/XX_NovaFeature.py
-2. Implementar com @require_auth() ou @require_gestor()
-3. Usar repositórios existing (não duplicar lógica)
-4. Adicionar ao menu lateral em app.py (Streamlit carrega automaticamente)
-```
-
-### Adicionar Nova Entidade
-
-```
-1. Criar models/nova_entidade.py (SQLAlchemy model)
-2. Criar migration alembic
-3. Criar repositories/nova_entidade_repo.py e *_write_repo.py
-4. Adicionar TypedDicts em repositories/types.py
-5. Usar em pages/
-```
-
-### Modificar Schema
-
-```
-1. Editar models/*.py
-2. Gerar migration: alembic revision --autogenerate -m "descricao"
-3. Revisar migration em migrations/versions/
-4. Aplicar: alembic upgrade head
-5. Commitar migration + models/
-```
-
-## 🔗 Referências
-
-- [SQLAlchemy ORM](https://docs.sqlalchemy.org/en/20/)
-- [Alembic Migrations](https://alembic.sqlalchemy.org/)
-- [Streamlit Documentation](https://docs.streamlit.io/)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [SQLAlchemy ORM 2.0](https://docs.sqlalchemy.org/en/20/)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Plotly Dash](https://dash.plotly.com/)
+- [Alembic](https://alembic.sqlalchemy.org/)
+- [Streamlit](https://docs.streamlit.io/)
