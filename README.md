@@ -190,7 +190,7 @@ O projeto segue o padrão **Repository Pattern** com separação entre leitura e
 
 ### Backend FastAPI
 
-O diretório `api/` expõe endpoints REST consumidos pelo Dashboard de Qualidade (Dash) e potencialmente por integrações externas:
+O diretório `api/` expõe endpoints REST consumidos por todos os clientes: Streamlit (`api/client/`), Plotly Dash (`qualidade_dash/api_client.py`) e potencialmente integrações externas:
 
 ```
 api/
@@ -204,7 +204,7 @@ api/
 
 ### Conventions de Código
 
-Consulte [coding_rules.md](coding_rules.md) para detalhes sobre:
+Consulte [docs/coding_rules.md](docs/coding_rules.md) para detalhes sobre:
 - Nomenclatura de funções e variáveis
 - Organização de imports
 - Padrões de tratamento de erros
@@ -258,12 +258,12 @@ Relatórios gerados em `relatorios/`:
 3. Push para a branch (`git push origin feature/sua-feature`)
 4. Abra um Pull Request
 
-Consulte [coding_rules.md](coding_rules.md) para orientações sobre estilo de código e padrões do projeto.
+Consulte [docs/coding_rules.md](docs/coding_rules.md) para orientações sobre estilo de código e padrões do projeto.
 
 ## Documentação Adicional
 
-- [Architecture](architecture.md) — Detalhes da arquitetura do sistema
-- [Coding Rules](coding_rules.md) — Padrões e convenções de código
+- [Architecture](docs/architecture.md) — Detalhes da arquitetura do sistema
+- [Coding Rules](docs/coding_rules.md) — Padrões e convenções de código
 - [Alembic Docs](https://alembic.sqlalchemy.org/)
 - [Streamlit Docs](https://docs.streamlit.io/)
 - [SQLAlchemy Docs](https://docs.sqlalchemy.org/)

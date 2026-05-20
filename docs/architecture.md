@@ -1,8 +1,46 @@
 # Arquitetura – Sistema de Ouvidorias ARTESP
 
+Documentação da arquitetura técnica, padrões de design e decisões arquiteturais do sistema.
+
 ## Visão Geral
 
-Sistema web para gerenciamento de ouvidorias (reclamações de passageiros) recebidas pela ARTESP. Dois perfis de usuário operam o sistema: **Gestor** (SUCOL) e **Técnico** (gerências/coordenações). O fluxo começa com o Gestor cadastrando uma ouvidoria e termina com ele concluindo após receber as respostas técnicas.
+O sistema é composto por três processos independentes. **Streamlit** e **Plotly Dash** são clientes HTTP distintos que consomem a mesma API FastAPI. Não há dependência direta entre Streamlit e Dash.
+
+```
+┌──────────────────────────┐        ┌──────────────────────────────┐
+│  Streamlit  (porta 8501) │        │  Plotly Dash  (porta 8050)   │
+│  app.py + pages/         │        │  run_dash.py                 │
+│  auth.py                 │        │  qualidade_dash/             │
+└────────────┬─────────────┘        └───────────────┬──────────────┘
+             │ HTTP (httpx)                         │ HTTP (httpx)
+             │ api/client/                          │ qualidade_dash/api_client.py
+             └───────────────────┬──────────────────┘
+                                 ▼
+┌────────────────────────────────────────────────────────────────────┐
+│  FastAPI  (porta 8000)                                             │
+│  api/main.py  →  api/routers/  →  api/services/                   │
+│  auth · ouvidorias · catalogo · autos · admin ·                    │
+│  dashboard produtividade · dashboard qualidade                     │
+└────────────────────────────────┬───────────────────────────────────┘
+                                 │ chamadas diretas (Python)
+┌────────────────────────────────▼───────────────────────────────────┐
+│  repositories/                                                     │
+│  ouvidoria_repo.py         ouvidoria_write_repo.py                 │
+│  catalog_repo.py           autos_repo.py                          │
+│  admin_write_repo.py       municipios_repo.py                     │
+│  pontuacao.py                                                      │
+│  dashboard/produtividade_repo.py                                   │
+│  dashboard/qualidade_novo_repo.py                                  │
+│  relatorios/reclamacoes_repo.py                                    │
+└────────────────────────────────┬───────────────────────────────────┘
+                                 │ SQLAlchemy ORM
+┌────────────────────────────────▼───────────────────────────────────┐
+│  models/  +  database/                                             │
+│  PostgreSQL  (porta 5432  —  banco: sistema_de_ouvidoria)          │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+**Regra fundamental:** nenhum arquivo de `pages/`, `auth.py` ou `app.py` pode importar de `repositories/`, `models/` ou `database/` — todo acesso ao banco passa pela API.
 
 ---
 
@@ -10,42 +48,168 @@ Sistema web para gerenciamento de ouvidorias (reclamações de passageiros) rece
 
 | Camada | Tecnologia |
 |---|---|
-| Frontend | Streamlit 1.54 (multi-page app) |
+| Frontend principal | Streamlit 1.54 (multi-page app) |
+| Dashboard interativo | Plotly Dash |
 | Backend API | FastAPI 0.115 + Uvicorn |
 | Autenticação | JWT (python-jose, HS256, 60 min) |
 | ORM | SQLAlchemy 2.0 (Declarative, `mapped_column`) |
 | Banco de dados | PostgreSQL (psycopg2-binary) |
-| HTTP Client | httpx (Streamlit → FastAPI) |
+| HTTP Client | httpx (Streamlit → FastAPI, Dash → FastAPI) |
 | Runtime | Python 3.13, venv em `.venv/` |
 
 ---
 
-## Arquitetura em Camadas
+## Estrutura de Diretórios
 
 ```
-┌─────────────────────────────────────────────┐
-│          Streamlit (pages/)                 │  UI pura
-│          auth.py, app.py                   │  sem SQLAlchemy
-└─────────────────┬───────────────────────────┘
-                  │ HTTP (httpx, JWT Bearer)
-┌─────────────────▼───────────────────────────┐
-│          FastAPI (api/routers/)             │  API REST
-│          api/services/                      │  orquestração
-│          api/schemas/                       │  Pydantic DTOs
-└─────────────────┬───────────────────────────┘
-                  │ chamadas diretas (Python)
-┌─────────────────▼───────────────────────────┐
-│          repositories/                      │  Data Access Layer
-│          (retornam TypedDicts)              │  sem ORM exposto
-└─────────────────┬───────────────────────────┘
-                  │
-┌─────────────────▼───────────────────────────┐
-│          models/ + database/                │  SQLAlchemy ORM
-│          PostgreSQL                         │
-└─────────────────────────────────────────────┘
+app.py                          # Entry point Streamlit (login)
+auth.py                         # bcrypt + session_state
+run_dash.py                     # Entry point Plotly Dash
+
+pages/
+  01_Ouvidorias.py              # Listagem (gestor: todas | técnico: atribuídas)
+  02_Nova_Ouvidoria.py          # Criar ouvidoria + reclamações
+  03_Detalhe_Ouvidoria.py       # Detalhe, editar, atribuir técnicos
+  04_Resposta_Permissionaria.py # Resposta da permissionária
+  05_Responder.py               # Análise técnica (técnico)
+  06_Dashboard_Produtividade.py # Dashboard produtividade (Streamlit nativo)
+  07_Dashboard_Qualidade.py     # Iframe/link para o app Dash
+  08_Admin.py                   # CRUD usuários, categorias, gerências
+
+api/
+  main.py                       # FastAPI app + inclusão de routers
+  deps.py                       # Dependências compartilhadas (auth, DB)
+  routers/
+    auth.py                     # POST /auth/login
+    ouvidorias.py               # CRUD /ouvidorias
+    catalogo.py                 # GET /catalogo (categorias, permissionárias)
+    autos.py                    # GET /autos (busca por trecho/número)
+    dashboard.py                # GET /dashboard (produtividade)
+    dashboard_qualidade_novo.py # GET /dashboard/qualidade-v2/* (consumido pelo Dash)
+    admin.py                    # CRUD /admin (usuários, gerências)
+  schemas/                      # Pydantic models (request/response)
+  services/                     # Lógica de negócio (auth_service, ouvidoria_service)
+  client/                       # Clientes HTTP usados pelo Streamlit
+
+qualidade_dash/
+  app.py                        # Dash app object
+  layout.py                     # build_layout() — estrutura dos componentes
+  callbacks.py                  # register_callbacks(app) — interatividade
+  api_client.py                 # Chamadas para FastAPI /dashboard/qualidade-v2/*
+
+repositories/
+  types.py                      # TypedDicts (contratos de dados)
+  ouvidoria_repo.py             # Queries read-only de ouvidorias
+  ouvidoria_write_repo.py       # Insert/Update/Delete de ouvidorias
+  catalog_repo.py               # Categorias, permissionárias
+  autos_repo.py                 # Autos de linha e paradas
+  municipios_repo.py            # Cidades / municípios
+  admin_write_repo.py           # CRUD usuários, gerências, coordenações
+  pontuacao.py                  # Cálculo de pontuação de reclamações
+  dashboard/
+    produtividade_repo.py       # Queries do dashboard de produtividade
+    qualidade_novo_repo.py      # Queries do dashboard de qualidade (Dash v2)
+  relatorios/
+    reclamacoes_repo.py         # Queries para geração de relatórios
+
+models/                         # SQLAlchemy ORM (Declarative, mapped_column)
+database/
+  connection.py                 # engine, db_session() context manager, init_db()
+  seed.py                       # Importa CSVs + cria admin padrão
+migrations/                     # Alembic (versões do schema)
 ```
 
-**Regra fundamental:** nenhum arquivo de `pages/`, `auth.py` ou `app.py` pode importar de `repositories/`, `models/` ou `database/`.
+---
+
+## Padrões de Design
+
+### 1. Repository Pattern
+
+Separação explícita entre leitura e escrita:
+
+```python
+# Read — nunca modifica, retorna TypedDicts
+# repositories/ouvidoria_repo.py
+def listar_ouvidorias(...) -> list[OuvidoriaResumoDict]:
+    with db_session() as s:
+        # Query → conversão ORM → TypedDict (dentro da sessão)
+        ...
+
+# Write — insert/update/delete, retorna ID ou None
+# repositories/ouvidoria_write_repo.py
+def criar_ouvidoria(...) -> int:
+    with db_session() as s:
+        ...  # commit automático ao sair
+```
+
+### 2. Type Safety com TypedDicts
+
+```python
+# repositories/types.py
+class OuvidoriaResumoDict(TypedDict):
+    id: int
+    protocolo: str | None
+    status: str
+    prazo: date | None
+    atribuicoes: list[OuvidoriaTecnicoDict]
+```
+
+Instâncias ORM nunca saem do `with db_session()` — a conversão para TypedDict acontece **dentro** do context manager para evitar `DetachedInstanceError`.
+
+### 3. Session Management
+
+```python
+from database.connection import db_session
+
+with db_session() as s:
+    # commit automático em sucesso
+    # rollback automático em exceção
+    # session sempre fechada
+```
+
+### 4. Camada de Cliente HTTP
+
+Streamlit e Dash não acessam o banco diretamente — tudo passa pela API:
+
+```python
+# pages/01_Ouvidorias.py
+from api.client.ouvidoria_client import listar_ouvidorias
+ouvidorias = listar_ouvidorias(token=st.session_state["token"], ...)
+
+# qualidade_dash/api_client.py
+response = httpx.get(f"{API_BASE}/dashboard/qualidade-v2/...")
+```
+
+---
+
+## Fluxos de Dados
+
+### Criar Nova Ouvidoria
+
+```
+Formulário (02_Nova_Ouvidoria.py)
+  → api/client/ouvidoria_client.py  (HTTP POST /ouvidorias)
+  → api/routers/ouvidorias.py
+  → api/services/ouvidoria_service.py
+  → repositories/ouvidoria_write_repo.py
+  → PostgreSQL (commit)
+  → retorna ID
+  → st.rerun() → 03_Detalhe_Ouvidoria.py
+```
+
+### Dashboard de Qualidade (Dash)
+
+```
+Usuário acessa 07_Dashboard_Qualidade.py (Streamlit)
+  → iframe / link para Dash em porta 8050
+
+Dash (qualidade_dash/callbacks.py)
+  → qualidade_dash/api_client.py  (HTTP GET /dashboard/qualidade-v2/*)
+  → api/routers/dashboard_qualidade_novo.py
+  → repositories/dashboard/qualidade_novo_repo.py
+  → PostgreSQL (read-only)
+  → JSON → Plotly figures
+```
 
 ---
 
@@ -56,6 +220,7 @@ Sistema web para gerenciamento de ouvidorias (reclamações de passageiros) rece
 3. Todas as requests HTTP incluem `Authorization: Bearer <token>`
 4. `api/deps.py` — `usuario_corrente()` decodifica o token em cada endpoint
 5. `requer_gestor()` — bloqueia acesso de técnicos a endpoints administrativos
+6. Endpoints do dashboard de qualidade são públicos (analytics interno, read-only)
 
 ```python
 # Variável obrigatória no .env
@@ -64,47 +229,17 @@ JWT_SECRET_KEY=<chave-aleatória-64-chars>
 
 ---
 
-## Padrão de Sessão com Banco
+## Contratos de Dados
 
-Apenas `db_session()` é usado (commit/rollback automático). A conversão ORM → TypedDict ocorre **dentro** do `with db_session()`.
+`repositories/types.py` define todos os TypedDicts. Os schemas Pydantic em `api/schemas/` são a contraparte HTTP — cada TypedDict tem um schema equivalente com `model_config = {"from_attributes": True}`.
 
-```python
-# Leitura — conversão dentro da sessão
-with db_session() as s:
-    objs = s.query(Modelo).options(joinedload(...)).all()
-    return [ModeloDict(id=o.id, ...) for o in objs]
-
-# Escrita — commit automático
-with db_session() as s:
-    s.add(NovoObjeto(...))
-```
-
-Nenhum objeto SQLAlchemy vivo sai da sessão — eliminando `DetachedInstanceError`.
-
----
-
-## Fluxo Típico de Leitura
-
-```
-pages/01_Ouvidorias.py
-  └── from api.client.ouvidoria_client import listar_ouvidorias
-        └── GET /ouvidorias  (httpx)
-              └── api/routers/ouvidorias.py → get_ouvidorias(...)
-                    └── repositories/ouvidoria_repo.py
-                          └── db_session() + ORM + _to_resumo()
-                                └── list[OuvidoriaResumoDict]
-```
-
-## Fluxo Típico de Escrita
-
-```
-pages/03_Detalhe_Ouvidoria.py
-  └── from api.client.ouvidoria_client import atribuir_tecnico
-        └── POST /ouvidorias/{id}/atribuir-tecnico  (httpx)
-              └── api/routers/ouvidorias.py → atribuir_tecnico(...)
-                    └── repositories/ouvidoria_write_repo.py
-                          └── db_session() + ORM writes
-```
+| TypedDict | Schema Pydantic | Endpoint |
+|---|---|---|
+| `OuvidoriaResumoDict` | `OuvidoriaResumoSchema` | `GET /ouvidorias` |
+| `OuvidoriaDetalheDict` | `OuvidoriaDetalheSchema` | `GET /ouvidorias/{id}` |
+| `CategoriaDict` | `CategoriaSchema` | `GET /catalogo/categorias` |
+| `AutoDict` | `AutoSchema` | `GET /autos` |
+| `UsuarioDict` | `UsuarioSchema` | `GET /admin/usuarios` |
 
 ---
 
@@ -122,7 +257,7 @@ AGUARDANDO_ACOES
         → (gestor registra resposta) → AGUARDANDO_ACOES
 ```
 
-### Diagrama Entidade-Relacionamento (simplificado)
+### Diagrama ER (Conceitual)
 
 ```
 municipios ──< trechos_auto_linha >──< autos_linha >── permissionarias
@@ -205,49 +340,39 @@ A proteção ocorre em dois pontos:
 
 ---
 
-## Contratos de Dados
-
-`repositories/types.py` define todos os TypedDicts. Os schemas Pydantic em `api/schemas/` são a contraparte HTTP — cada TypedDict tem um schema equivalente com `model_config = {"from_attributes": True}`.
-
-| TypedDict | Schema Pydantic | Endpoint |
-|---|---|---|
-| `OuvidoriaResumoDict` | `OuvidoriaResumoSchema` | `GET /ouvidorias` |
-| `OuvidoriaDetalheDict` | `OuvidoriaDetalheSchema` | `GET /ouvidorias/{id}` |
-| `CategoriaDict` | `CategoriaSchema` | `GET /catalogo/categorias` |
-| `AutoDict` | `AutoSchema` | `GET /autos` |
-| `UsuarioDict` | `UsuarioSchema` | `GET /admin/usuarios` |
-
----
-
-## Testes de Paridade
-
-A suite em `tests/` verifica que cada endpoint retorna exatamente os mesmos dados que o repositório retorna diretamente:
-
-```python
-# Padrão dos testes de leitura
-esperado = get_categorias()               # repositório direto (fonte da verdade)
-r = client.get("/catalogo/categorias", headers=headers_gestor)
-assert {c["id"] for c in esperado} == {c["id"] for c in r.json()}
-```
-
-**Limpeza de dados de teste:** `conftest.py` cria usuários `_pytest_*` no início e remove **todos** os dados com prefixo `_pytest_%` no início e fim de cada sessão.
-
----
-
-## Como Rodar
+## Como Iniciar
 
 ```bash
-# Terminal 1 — API FastAPI
-uvicorn api.main:app --port 8000 --reload
+# 1. Banco + seed (primeira vez)
+python database/seed.py
 
-# Terminal 2 — Streamlit
+# 2. FastAPI
+uvicorn api.main:app --reload --port 8000
+
+# 3. Streamlit
 streamlit run app.py
+
+# 4. Dashboard Qualidade (opcional)
+python run_dash.py          # porta 8050
+# ou: DASH_PORT=8050 DASH_DEBUG=true python run_dash.py
 
 # Testes
 pytest tests/ -v
 
 # Documentação interativa da API
 # http://localhost:8000/docs
+```
+
+---
+
+## Migrations (Alembic)
+
+```bash
+# Após alterar models/
+alembic revision --autogenerate -m "descricao"
+# Revisar migrations/versions/xxxxx_descricao.py
+alembic upgrade head
+# Commitar: migration + models/
 ```
 
 ---
@@ -262,13 +387,24 @@ pytest tests/ -v
 
 ---
 
-## Busca por Trecho
+## Testes de Paridade
 
-`repositories/autos_repo.py → buscar_autos_por_trecho()` usa **EXISTS subqueries** sobre `trechos_auto_linha` com FK para `municipios`:
+A suite em `tests/` verifica que cada endpoint retorna exatamente os mesmos dados que o repositório retorna diretamente:
 
 ```python
-q = q.filter(exists().where(
-    (TrechoAutoLinha.auto_id == AutoLinha.id) &
-    (TrechoAutoLinha.municipio_a_id == mun_id_a)
-))
+esperado = get_categorias()               # repositório direto (fonte da verdade)
+r = client.get("/catalogo/categorias", headers=headers_gestor)
+assert {c["id"] for c in esperado} == {c["id"] for c in r.json()}
 ```
+
+**Limpeza de dados de teste:** `conftest.py` cria usuários `_pytest_*` no início e remove **todos** os dados com prefixo `_pytest_%` no início e fim de cada sessão.
+
+---
+
+## Referências
+
+- [SQLAlchemy ORM 2.0](https://docs.sqlalchemy.org/en/20/)
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Plotly Dash](https://dash.plotly.com/)
+- [Alembic](https://alembic.sqlalchemy.org/)
+- [Streamlit](https://docs.streamlit.io/)
