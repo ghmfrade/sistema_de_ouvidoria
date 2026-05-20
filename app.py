@@ -56,5 +56,5 @@ if not u:
 else:
     reduz_margem_side_bar()
     sidebar_usuario()
-    st.title("📋 Sistema de Ouvidorias – ARTESP")
+    st.title("📋 SIGOSUCOL - Sistema Integrado de Gestão de Ouvidorias – SUCOL/ARTESP")
     st.info("Use o menu na barra lateral para navegar.")
