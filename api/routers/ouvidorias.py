@@ -26,7 +26,8 @@ router = APIRouter()
 @router.get("", response_model=list[OuvidoriaResumoSchema])
 def listar_ouvidorias(
     filtro_status: Optional[str] = None,
-    filtro_periodo: Optional[str] = None,
+    filtro_de: Optional[str] = None,
+    filtro_ate: Optional[str] = None,
     ocultar_concluidos: bool = True,
     usuario_id: Optional[int] = None,
     usuario_tipo: Optional[str] = None,
@@ -38,7 +39,8 @@ def listar_ouvidorias(
 ):
     return get_ouvidorias(
         filtro_status=filtro_status,
-        filtro_periodo=filtro_periodo,
+        filtro_de=filtro_de,
+        filtro_ate=filtro_ate,
         ocultar_concluidos=ocultar_concluidos,
         usuario_id=usuario_id,
         usuario_tipo=usuario_tipo,

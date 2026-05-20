@@ -8,7 +8,8 @@ from api.client.base import get, post, patch, delete, post_file
 
 def listar_ouvidorias(
     filtro_status: str | None = None,
-    filtro_periodo: str | None = None,
+    filtro_de: date | None = None,
+    filtro_ate: date | None = None,
     ocultar_concluidos: bool = True,
     usuario_id: int | None = None,
     usuario_tipo: str | None = None,
@@ -21,8 +22,10 @@ def listar_ouvidorias(
     params = {"ocultar_concluidos": ocultar_concluidos, "filtrar_apenas_atribuidas": filtrar_apenas_atribuidas}
     if filtro_status:
         params["filtro_status"] = filtro_status
-    if filtro_periodo:
-        params["filtro_periodo"] = filtro_periodo
+    if filtro_de:
+        params["filtro_de"] = filtro_de.isoformat()
+    if filtro_ate:
+        params["filtro_ate"] = filtro_ate.isoformat()
     if usuario_id:
         params["usuario_id"] = usuario_id
     if usuario_tipo:

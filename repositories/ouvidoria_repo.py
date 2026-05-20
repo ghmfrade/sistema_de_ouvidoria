@@ -233,7 +233,7 @@ def get_id_por_protocolo(protocolo: str) -> int | None:
         return row[0] if row else None
 
 
-def get_ouvidorias(filtro_status=None, filtro_periodo=None,
+def get_ouvidorias(filtro_status=None, filtro_de=None, filtro_ate=None,
                    ocultar_concluidos=True,
                    usuario_id: int | None = None, usuario_tipo: str | None = None,
                    filtro_categoria_id: int | None = None,
@@ -263,9 +263,8 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
             q = q.filter(Ouvidoria.status == filtro_status)
         elif ocultar_concluidos:
             q = q.filter(Ouvidoria.status != StatusOuvidoria.CONCLUIDO)
-        if filtro_periodo:
-            inicio, fim = filtro_periodo
-            q = q.filter(Ouvidoria.criado_em >= inicio, Ouvidoria.criado_em <= fim)
+        if filtro_de and filtro_ate:
+            q = q.filter(Ouvidoria.criado_em >= filtro_de, Ouvidoria.criado_em <= filtro_ate)
         if filtro_categoria_id:
             q = q.filter(Ouvidoria.reclamacoes.any(
                 Reclamacao.categoria_id == filtro_categoria_id

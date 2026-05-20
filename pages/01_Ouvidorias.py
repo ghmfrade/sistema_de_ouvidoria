@@ -115,12 +115,12 @@ with col_nova:
         if st.button("+ Nova Ouvidoria", use_container_width=True, type="primary"):
             st.switch_page("pages/02_Nova_Ouvidoria.py")
 
-periodo = (data_ini, data_fim) if usar_periodo and data_ini and data_fim else None
 _filtro_cat_id = sel_categoria[0] if sel_categoria[0] else None
 _filtro_sub_id = sel_subcategoria[0] if sel_subcategoria[0] else None
 
 ouvidorias = listar_ouvidorias(
-    filtro_periodo=periodo,
+    filtro_de=data_ini if usar_periodo else None,
+    filtro_ate=data_fim if usar_periodo else None,
     ocultar_concluidos=ocultar_concluidos,
     usuario_id=u["usuario_id"],
     usuario_tipo=u.get("tipo"),
