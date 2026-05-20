@@ -23,7 +23,7 @@ from api.client.ouvidoria_client import (
     listar_ouvidorias, atribuir_tecnico, editar_ouvidoria,
     concluir_ouvidoria, excluir_ouvidoria,
 )
-from api.client.base import API_BASE
+from api.client.base import API_PUBLIC_URL
 
 
 from utils import prazo_circle_label
@@ -249,7 +249,7 @@ else:
             with st.popover("🛠️"):
                 if st.button("📋 Resumo da Ouvidoria", key=f"resumo_{o['id']}"):
                     components.html(
-                        f'<script>window.open("{API_BASE}/ouvidorias/{o['id']}/resumo-html","_blank");</script>',
+                        f'<script>window.open("{API_PUBLIC_URL}/ouvidorias/{o["id"]}/resumo-html","_blank");</script>',
                         height=0,
                     )
                 st.divider()
