@@ -1,5 +1,6 @@
 """Consultas ao banco para carregamento de ouvidorias."""
 
+from datetime import date, datetime, timedelta
 from sqlalchemy.orm import joinedload
 
 from database.connection import db_session
@@ -264,7 +265,9 @@ def get_ouvidorias(filtro_status=None, filtro_de=None, filtro_ate=None,
         elif ocultar_concluidos:
             q = q.filter(Ouvidoria.status != StatusOuvidoria.CONCLUIDO)
         if filtro_de and filtro_ate:
-            q = q.filter(Ouvidoria.criado_em >= filtro_de, Ouvidoria.criado_em <= filtro_ate)
+            de = datetime.combine(date.fromisoformat(filtro_de), datetime.min.time())
+            ate = datetime.combine(date.fromisoformat(filtro_ate), datetime.min.time()) + timedelta(days=1)
+            q = q.filter(Ouvidoria.criado_em >= de, Ouvidoria.criado_em < ate)
         if filtro_categoria_id:
             q = q.filter(Ouvidoria.reclamacoes.any(
                 Reclamacao.categoria_id == filtro_categoria_id
