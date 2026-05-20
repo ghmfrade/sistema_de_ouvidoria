@@ -41,18 +41,21 @@ sistema_de_ouvidoria/
 ## Quickstart
 
 ### Requisitos
+
 - Python 3.11+
 - PostgreSQL 12+
 
 ### Instalação
 
 1. **Clone o repositório**
+
    ```bash
    git clone <repository-url>
    cd sistema_de_ouvidoria
    ```
 
 2. **Crie um ambiente virtual**
+
    ```bash
    python -m venv .venv
    # Windows
@@ -62,6 +65,7 @@ sistema_de_ouvidoria/
    ```
 
 3. **Instale as dependências**
+
    ```bash
    pip install -r requirements.txt
    ```
@@ -69,26 +73,33 @@ sistema_de_ouvidoria/
 4. **Configure variáveis de ambiente**
 
    Crie um arquivo `.env` na raiz com as seguintes variáveis:
+
    ```env
    POSTGRES_USER=seu_usuario
    POSTGRES_PASSWORD=sua_senha
    POSTGRES_HOST=localhost
    POSTGRES_PORT=5432
    POSTGRES_DB=sistema_de_ouvidoria
+   POSTGRES_SCHEMA=ouvidoria
+
+   JWT_SECRET_KEY=chave_para_uso_da_api
    ```
 
 5. **Inicialize o banco de dados**
+
    ```bash
    alembic upgrade head
    python database/seed.py
    ```
 
 6. **Inicie a aplicação Streamlit**
+
    ```bash
    streamlit run app.py
    ```
 
 7. **(Opcional) Inicie o Dashboard de Qualidade**
+
    ```bash
    python run_dash.py
    ```
@@ -105,6 +116,7 @@ A API FastAPI estará disponível em `http://localhost:8000`.
 ## Guia de Uso
 
 ### Autenticação
+
 - Login com e-mail e senha
 - Dois tipos de usuário: **Gestor** (acesso administrativo) e **Técnico** (acesso a análises)
 - Usuário padrão: `admin@artesp.sp.gov.br` / `admin123`
@@ -112,13 +124,17 @@ A API FastAPI estará disponível em `http://localhost:8000`.
 ### Páginas Principais
 
 #### 01 - Ouvidorias
+
 Listagem e gerenciamento de ouvidorias com filtros por status, prazo e responsáveis. Gestores visualizam todas; técnicos visualizam apenas as atribuídas a eles.
 
 #### 02 - Nova Ouvidoria
+
 Formulário para registro de novas ouvidorias. Inclui vinculação de reclamações a autos (linhas de transporte), categorização e atribuição inicial de responsáveis.
 
 #### 03 - Detalhe Ouvidoria
+
 Visualização completa de uma ouvidoria com:
+
 - Reclamações vinculadas
 - Atribuições de técnicos
 - Respostas técnicas registradas
@@ -126,26 +142,34 @@ Visualização completa de uma ouvidoria com:
 - Anexos (documentos suportivos)
 
 #### 04 - Resposta Permissionária
+
 Formulário para registrar respostas das empresas de transporte às reclamações.
 
 #### 05 - Responder
+
 Página de resposta técnica para técnicos registrarem suas análises e conclusões sobre as reclamações.
 
 #### 06 - Dashboard Produtividade
+
 Métricas de produtividade da equipe técnica:
+
 - Quantidade de ouvidorias por técnico
 - Taxa de conclusão
 - Tempo médio de resposta
 
 #### 07 - Dashboard Qualidade
+
 Redireciona para o app Plotly Dash (`run_dash.py`) com análise avançada:
+
 - Distribuição por categoria e subcategoria
 - Análise por permissionária
 - Mapas de calor por região
 - Pontuações de qualidade
 
 #### 08 - Admin
+
 Painel administrativo (restrito a gestores):
+
 - Gerenciamento de usuários
 - Configuração de catálogos (categorias, subcategorias, gerências, coordenações)
 - Gestão de autos (linhas de transporte) e permissionárias
@@ -155,18 +179,22 @@ Painel administrativo (restrito a gestores):
 ### Entidades Principais
 
 **Ouvidoria**: Registro central que agrupa uma ou mais reclamações de um mesmo usuário sobre um mesmo tema.
+
 - Status: Aguardando ações → Em análise técnica → Concluído
 - Relacionamentos: Reclamações, Atribuições de técnicos, Respostas técnicas, Respostas de permissionárias
 
 **Reclamação**: Item individual dentro de uma ouvidoria, vinculado a um ou mais autos (linhas de transporte).
+
 - Inclui categoria, subcategoria e descrição detalhada
 - Pode especificar local de embarque/desembarque
 
 **Auto (Linha de Transporte)**: Linha de transporte específica sob regulação ARTESP.
+
 - Identificado por número único (ex.: `0001-A`)
 - Vinculado a permissionária e municípios atendidos
 
 **Usuário**: Usuário do sistema com dois perfis:
+
 - Gestor: Acesso administrativo completo
 - Técnico: Acesso restrito a análises e respostas
 
@@ -205,6 +233,7 @@ api/
 ### Conventions de Código
 
 Consulte [docs/coding_rules.md](docs/coding_rules.md) para detalhes sobre:
+
 - Nomenclatura de funções e variáveis
 - Organização de imports
 - Padrões de tratamento de erros
@@ -233,10 +262,12 @@ python gerador_de_relatorios.py
 ```
 
 Relatórios gerados em `relatorios/`:
+
 - `relatorio_reclamacoes_2025.html` — Reclamações de 2025
 - `relatorio_reclamacoes_2026.html` — Reclamações de 2026
 
 **Conteúdo dos relatórios:**
+
 - KPIs por sistema (Regular Metropolitano, Regular Intermunicipal, Fretamento)
 - Evolução mensal de reclamações
 - Top 15 autos com mais reclamações
