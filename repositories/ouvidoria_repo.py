@@ -238,7 +238,8 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
                    usuario_id: int | None = None, usuario_tipo: str | None = None,
                    filtro_categoria_id: int | None = None,
                    filtro_subcategoria_id: int | None = None,
-                   filtro_tipo_servico: str | None = None) -> list[OuvidoriaResumoDict]:
+                   filtro_tipo_servico: str | None = None,
+                   filtrar_apenas_atribuidas: bool = True) -> list[OuvidoriaResumoDict]:
     """Lista de ouvidorias com filtros e atribuições. Retorna list[OuvidoriaResumoDict]."""
     with db_session() as s:
         q = (
@@ -253,7 +254,7 @@ def get_ouvidorias(filtro_status=None, filtro_periodo=None,
                 joinedload(Ouvidoria.respostas_permissionaria),
             )
         )
-        if usuario_id and usuario_tipo == TipoUsuario.tecnico.value:
+        if usuario_id and usuario_tipo == TipoUsuario.tecnico.value and filtrar_apenas_atribuidas:
             q = (
                 q.join(OuvidoriaTecnico, OuvidoriaTecnico.ouvidoria_id == Ouvidoria.id)
                 .filter(OuvidoriaTecnico.tecnico_id == usuario_id)

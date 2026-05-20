@@ -95,8 +95,11 @@ _subs = carregar_subcategorias(_cat_id_sel) if _cat_id_sel else []
 
 with col_sub:
     sel_subcategoria = st.selectbox("Subcategoria", [(0, "Todas Subcategorias")] + _subs, format_func=lambda x: x[1])
+_filtrar_apenas_atribuidas = True
 with col_checks:
     ocultar_concluidos = st.checkbox("Ocultar Concluídas", value=True)
+    if u.get("tipo") != TIPO_USUARIO_GESTOR:
+        _filtrar_apenas_atribuidas = st.checkbox("Apenas atribuídas", value=True)
     usar_periodo = st.checkbox("Filtrar por período")
 
 data_ini = data_fim = None
@@ -124,6 +127,7 @@ ouvidorias = listar_ouvidorias(
     filtro_categoria_id=_filtro_cat_id,
     filtro_subcategoria_id=_filtro_sub_id,
     filtro_tipo_servico=_filtro_tipo,
+    filtrar_apenas_atribuidas=_filtrar_apenas_atribuidas,
     cache_buster=st.session_state["ov_cache_buster"],
 )
 

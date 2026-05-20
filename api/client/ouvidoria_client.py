@@ -15,9 +15,10 @@ def listar_ouvidorias(
     filtro_categoria_id: int | None = None,
     filtro_subcategoria_id: int | None = None,
     filtro_tipo_servico: str | None = None,
+    filtrar_apenas_atribuidas: bool = True,
     cache_buster: int = 0,
 ) -> list[dict]:
-    params = {"ocultar_concluidos": ocultar_concluidos}
+    params = {"ocultar_concluidos": ocultar_concluidos, "filtrar_apenas_atribuidas": filtrar_apenas_atribuidas}
     if filtro_status:
         params["filtro_status"] = filtro_status
     if filtro_periodo:

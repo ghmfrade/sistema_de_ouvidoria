@@ -95,18 +95,49 @@ def test_distribuicao_status(client, headers_gestor):
 
 
 def test_kpis_qualidade(client, headers_gestor):
-    r = client.get("/dashboard/qualidade/kpis", headers=headers_gestor,
-                   params={"data_ini": DATA_INI, "data_fim": DATA_FIM})
+    ano = date.today().year
+    r = client.get("/dashboard/qualidade-v2/resumo", headers=headers_gestor,
+                   params={"ano": ano})
     assert r.status_code == 200
     data = r.json()
     assert "total_reclamacoes" in data
+    assert "assunto_top" in data
 
 
 def test_evolucao_mensal_qualidade(client, headers_gestor):
-    r = client.get("/dashboard/qualidade/evolucao-mensal", headers=headers_gestor,
-                   params={"data_ini": DATA_INI, "data_fim": DATA_FIM})
+    ano = date.today().year
+    r = client.get("/dashboard/qualidade-v2/evolucao-mensal", headers=headers_gestor,
+                   params={"ano": ano})
     assert r.status_code == 200
-    assert isinstance(r.json(), list)
+    resultado = r.json()
+    assert isinstance(resultado, list)
+    for item in resultado:
+        assert "mes" in item and "total" in item
+
+
+def test_filtrar_apenas_atribuidas_false_retorna_todas(client, headers_tecnico, _tecnico_id):
+    """Técnico com filtrar_apenas_atribuidas=False vê o mesmo total que a consulta sem filtro de técnico."""
+    esperado = get_ouvidorias()
+    r = client.get("/ouvidorias", headers=headers_tecnico,
+                   params={"usuario_id": _tecnico_id, "usuario_tipo": "tecnico",
+                           "filtrar_apenas_atribuidas": False})
+    assert r.status_code == 200
+    assert len(r.json()) == len(esperado)
+
+
+def test_filtrar_apenas_atribuidas_true_subconjunto(client, headers_tecnico, _tecnico_id):
+    """Técnico com filtrar_apenas_atribuidas=True vê apenas as atribuídas (subconjunto do total)."""
+    r_todas = client.get("/ouvidorias", headers=headers_tecnico,
+                         params={"usuario_id": _tecnico_id, "usuario_tipo": "tecnico",
+                                 "filtrar_apenas_atribuidas": False})
+    r_atrib = client.get("/ouvidorias", headers=headers_tecnico,
+                         params={"usuario_id": _tecnico_id, "usuario_tipo": "tecnico",
+                                 "filtrar_apenas_atribuidas": True})
+    assert r_atrib.status_code == 200
+    assert len(r_atrib.json()) <= len(r_todas.json())
+    ids_todas = {o["id"] for o in r_todas.json()}
+    for o in r_atrib.json():
+        assert o["id"] in ids_todas
 
 
 def test_tecnico_nao_acessa_dashboard(client, headers_tecnico):

@@ -33,6 +33,7 @@ def listar_ouvidorias(
     filtro_categoria_id: Optional[int] = None,
     filtro_subcategoria_id: Optional[int] = None,
     filtro_tipo_servico: Optional[str] = None,
+    filtrar_apenas_atribuidas: bool = True,
     _=Depends(usuario_corrente),
 ):
     return get_ouvidorias(
@@ -44,6 +45,7 @@ def listar_ouvidorias(
         filtro_categoria_id=filtro_categoria_id,
         filtro_subcategoria_id=filtro_subcategoria_id,
         filtro_tipo_servico=filtro_tipo_servico,
+        filtrar_apenas_atribuidas=filtrar_apenas_atribuidas,
     )
 
 
