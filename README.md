@@ -1,10 +1,10 @@
-# Sistema de Ouvidorias ARTESP
+# SIGO-SUCOL — Sistema Integrado de Gestão de Ouvidorias da SUCOL
 
 Sistema web de gerenciamento de ouvidorias desenvolvido para a ARTESP (Agência de Transporte Estadual de São Paulo), permitindo o acompanhamento integrado de reclamações e solicitações de usuários sobre serviços de transporte.
 
 ## Visão Geral
 
-O Sistema de Ouvidorias ARTESP centraliza e gerencia o fluxo de ouvidorias (reclamações, sugestões e elogios) relacionadas aos serviços de transporte sob regulação da ARTESP. O sistema integra:
+O SIGO-SUCOL centraliza e gerencia o fluxo de ouvidorias (reclamações, sugestões e elogios) relacionadas aos serviços de transporte sob regulação da ARTESP. O sistema integra:
 
 - **Gestão de Ouvidorias**: Registro, acompanhamento e conclusão de ouvidorias
 - **Atribuição de Responsáveis**: Distribuição de tarefas entre técnicos por gerência/coordenação
