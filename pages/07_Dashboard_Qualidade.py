@@ -4,7 +4,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
+from dotenv import load_dotenv
 import auth
+
+load_dotenv()
 from components import reduz_margem_side_bar, reduz_margem_topo_page
 
 st.set_page_config(page_title="Dashboard Qualidade", layout="wide")
