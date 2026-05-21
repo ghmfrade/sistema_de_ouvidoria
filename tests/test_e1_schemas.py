@@ -79,7 +79,7 @@ def test_schema_municipios():
 # ── Ouvidorias ────────────────────────────────────────────────────────────────
 
 def test_schema_ouvidoria_resumo():
-    dados = get_ouvidorias()
+    dados = get_ouvidorias(ocultar_concluidos=False)
     assert len(dados) > 0, "Banco não tem ouvidorias — execute o seed"
     parsed = [OuvidoriaResumoSchema(**d) for d in dados]
     assert all(p.id > 0 for p in parsed)
