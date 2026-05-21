@@ -105,13 +105,23 @@ sistema_de_ouvidoria/
    ```
 
 8. **(Opcional) Inicie o backend FastAPI**
+
+   **Windows:**
+   ```powershell
+   .venv\Scripts\uvicorn.exe api.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+   **Linux/macOS:**
    ```bash
-   uvicorn api.main:app --reload
+   .venv/bin/uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 A aplicação Streamlit estará disponível em `http://localhost:8501`.
 O Dashboard de Qualidade estará disponível em `http://localhost:8050`.
-A API FastAPI estará disponível em `http://localhost:8000`.
+A API FastAPI estará disponível em:
+- **Localmente**: `http://localhost:8000` ou `http://127.0.0.1:8000`
+- **De outro PC na rede**: `http://<seu-ip>:8000` (ex: `http://10.23.42.237:8000`)
+- **Documentação Swagger**: `http://localhost:8000/docs`
 
 ## Guia de Uso
 
