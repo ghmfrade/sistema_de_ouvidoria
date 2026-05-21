@@ -1,4 +1,4 @@
-"""Smoke tests para todos os endpoints de dashboard.
+"""Smoke tests para endpoints de dashboard de produtividade.
 
 Verifica que cada endpoint:
   1. Retorna HTTP 200
@@ -7,6 +7,8 @@ Verifica que cada endpoint:
 
 Não verifica paridade de dados — apenas que o endpoint não explode.
 Técnico não tem acesso a dashboards (403 esperado).
+
+Os endpoints de qualidade (v2) são cobertos por test_qualidade_v2.py.
 """
 from datetime import date, timedelta
 
@@ -28,22 +30,7 @@ ENDPOINTS_PRODUTIVIDADE = [
     ("/dashboard/produtividade/ranking-coordenacoes",    {},                    list),
 ]
 
-ENDPOINTS_QUALIDADE = [
-    ("/dashboard/qualidade/kpis",               {},                    dict),
-    ("/dashboard/qualidade/top-permissionaria", {},                    dict),
-    ("/dashboard/qualidade/top-categoria",      {},                    dict),
-    ("/dashboard/qualidade/sla",                {},                    dict),
-    ("/dashboard/qualidade/evolucao-mensal",    {},                    list),
-    ("/dashboard/qualidade/top-autos",          {"top_n": 5},          list),
-    ("/dashboard/qualidade/empresas-pontuacao", {},                    list),
-    ("/dashboard/qualidade/categorias-pizza",   {},                    list),
-    ("/dashboard/qualidade/cidades",            {},                    list),
-    ("/dashboard/qualidade/heatmap-cat-empresa",{},                    list),
-    ("/dashboard/qualidade/tendencia-empresa",  {},                    list),
-    ("/dashboard/qualidade/tabela-analitica",   {},                    list),
-]
-
-ALL_ENDPOINTS = ENDPOINTS_PRODUTIVIDADE + ENDPOINTS_QUALIDADE
+ALL_ENDPOINTS = ENDPOINTS_PRODUTIVIDADE
 
 
 @pytest.mark.parametrize(
