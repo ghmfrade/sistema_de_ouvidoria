@@ -8,6 +8,9 @@ from typing import Any
 
 import httpx
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
 
 API_BASE = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000")
 API_PUBLIC_URL = os.environ.get("API_PUBLIC_URL", API_BASE)
