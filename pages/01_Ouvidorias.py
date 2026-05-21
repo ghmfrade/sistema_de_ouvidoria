@@ -5,7 +5,6 @@ import sys
 from datetime import date
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -247,11 +246,10 @@ else:
 
         with cols[9]:
             with st.popover("🛠️"):
-                if st.button("📋 Resumo da Ouvidoria", key=f"resumo_{o['id']}"):
-                    components.html(
-                        f'<script>window.open("{API_PUBLIC_URL}/ouvidorias/{o["id"]}/resumo-html","_blank");</script>',
-                        height=0,
-                    )
+                st.link_button(
+                    "📋 Resumo da Ouvidoria",
+                    url=f"{API_PUBLIC_URL}/ouvidorias/{o['id']}/resumo-html",
+                )
                 st.divider()
                 if st.button("🔍 Abrir detalhe", key=f"abrir_{o['id']}"):
                     st.session_state["ouvidoria_id"] = o["id"]
