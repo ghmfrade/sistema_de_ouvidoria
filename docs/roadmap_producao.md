@@ -15,17 +15,17 @@
 
 ### A2. Bug – Nova Ouvidoria: troca para "fretamento" mantém autos vinculados
 
-- **Problema:** ao preencher reclamações e trocar o tipo para "fretamento", o bloco de vínculo de autos permanece visível/preenchido, gerando dados inconsistentes.
+- **Problema:** ao preencher reclamações e não salvar a ouvidoria, em seguida trocar o tipo para "fretamento" (metropolitano ou intermunicipal), o bloco de vínculo de autos permanece visível/preenchido, gerando inconsistência, pois reclamações de fretamento não deveriam ter autos de linha vinculados..
 - **Correção:** limpar e ocultar o seletor de autos ao detectar mudança de tipo para fretamento (usar `st.session_state` + rerun ou lógica condicional no formulário).
 
 ### A3. Resposta técnica – reorganizar UX
 
 - Separar **edição da ouvidoria** em aba distinta da resposta técnica, reduzindo confusão para o técnico.
-- Adicionar **resumo no topo** com: categorias vinculadas + autos vinculados (leitura rápida antes de responder).
+- Adicionar **resumo no topo** com: Conteudo da ouvidoria + categorias vinculadas + autos vinculados (leitura rápida antes de responder).
 - Estrutura sugerida para a página `04_Responder.py`:
-  - Aba 1: "Responder" – formulário de resposta técnica.
+  - Aba 1: "Responder" – formulário de resposta técnica. e adicionar resposta da permisionária (se houver)
   - Aba 2: "Editar Ouvidoria" – campos editáveis da ouvidoria.
-  - Topo fixo: resumo de categorias e autos.
+  - Topo fixo: resumo de categorias e autos (os autos de linha devem ter a Empresa operadora, origem/destino da linha e Regional se tiver(exemplo TC1 - Campinas))
 
 ---
 

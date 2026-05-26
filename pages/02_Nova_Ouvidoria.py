@@ -44,13 +44,28 @@ with st.sidebar:
     if st.button("Sair", use_container_width=True):
         auth.fazer_logout(); st.rerun()
 
+_NOVA_OUV_DRAFT_KEYS = ["reclamacoes_draft", "autos_checklist", "rec_alvo_anterior"]
+
+
+def _limpar_draft_nova_ouvidoria():
+    for k in _NOVA_OUV_DRAFT_KEYS:
+        st.session_state.pop(k, None)
+    for k in list(st.session_state.keys()):
+        if k.startswith("chk_"):
+            del st.session_state[k]
+
+
 # ── Estado ────────────────────────────────────────────────────────────────────
 st.session_state.setdefault("reclamacoes_draft", [])
 st.session_state.setdefault("autos_checklist", [])
 st.session_state.setdefault("rec_alvo_anterior", None)
 
 # ── Cabeçalho da Ouvidoria ────────────────────────────────────────────────────
-st.title("➕ Nova Ouvidoria")
+col_titulo, col_limpar = st.columns([6, 1])
+col_titulo.title("➕ Nova Ouvidoria")
+if col_limpar.button("🗑 Limpar tudo", use_container_width=True):
+    _limpar_draft_nova_ouvidoria()
+    st.rerun()
 
 protocolo = st.text_input("Protocolo da Ouvidoria *", placeholder="Ex.: 202405241486076")
 conteudo  = st.text_area("Conteúdo da Ouvidoria *", height=300, placeholder="Cole aqui o conteúdo completo da ouvidoria...")
@@ -99,7 +114,7 @@ if st.session_state["reclamacoes_draft"]:
 
 # ── Adicionar Reclamação ──────────────────────────────────────────────────────
 st.markdown("#### Adicionar Reclamação")
-secao_nova_reclamacao("reclamacoes_draft")
+secao_nova_reclamacao("reclamacoes_draft", checklist_key="autos_checklist", chk_prefix="chk_")
 
 # ── Vincular Autos ────────────────────────────────────────────────────────────
 secao_vincular_autos(
@@ -163,9 +178,7 @@ if st.button("💾 Salvar Ouvidoria", type="primary", use_container_width=True):
             for nome_orig, conteudo_bytes, mime in arquivos_bytes:
                 add_anexo(oid, conteudo_bytes, nome_orig, mime)
 
-            st.session_state["reclamacoes_draft"] = []
-            st.session_state["autos_checklist"] = []
-            st.session_state["rec_alvo_anterior"] = None
+            _limpar_draft_nova_ouvidoria()
             st.success("Ouvidoria salva com sucesso!")
             st.switch_page("pages/01_Ouvidorias.py")
         except Exception as e:

@@ -17,12 +17,19 @@ _TIPO_BASE_MAP = {
 }
 
 
-def secao_nova_reclamacao(recs_state_key: str, key_prefix: str = "") -> None:
+def secao_nova_reclamacao(
+    recs_state_key: str,
+    key_prefix: str = "",
+    checklist_key: str | None = None,
+    chk_prefix: str = "",
+) -> None:
     """Renderiza o formulário de adicionar reclamação e anexa o resultado em session_state[recs_state_key].
 
     Args:
         recs_state_key: chave em st.session_state que contém a lista de reclamações.
         key_prefix: prefixo para widgets keys (use para evitar conflito entre páginas).
+        checklist_key: chave do checklist de autos a limpar ao trocar para fretamento.
+        chk_prefix: prefixo das chaves de checkbox de autos (ex: "chk_" ou "resp_chk_").
     """
     kp = key_prefix
 
@@ -30,10 +37,20 @@ def secao_nova_reclamacao(recs_state_key: str, key_prefix: str = "") -> None:
     cat_map = {nome: cid for cid, nome in categorias}
     cat_nomes = [nome for _, nome in categorias]
 
+    st.session_state.setdefault(f"{kp}prev_tipo_servico", None)
+
     tipo_servico_sel = st.radio(
         "Tipo de Serviço *", TIPO_SERVICO, horizontal=True, key=f"{kp}novo_rec_tipo",
     )
     is_fretamento = tipo_servico_sel in _TIPO_SERVICO_FRET
+
+    prev_tipo = st.session_state[f"{kp}prev_tipo_servico"]
+    if checklist_key and prev_tipo not in _TIPO_SERVICO_FRET and tipo_servico_sel in _TIPO_SERVICO_FRET:
+        st.session_state[checklist_key] = []
+        for k in list(st.session_state.keys()):
+            if k.startswith(chk_prefix) and k != checklist_key:
+                del st.session_state[k]
+    st.session_state[f"{kp}prev_tipo_servico"] = tipo_servico_sel
     tipo_base = _TIPO_BASE_MAP.get(tipo_servico_sel, tipo_servico_sel)
 
     empresa_fretamento_val = None

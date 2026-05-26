@@ -26,8 +26,11 @@ def listar_coord_e_status(gerencia_id: int | None = None) -> list[dict]:
     return get("/admin/coordenacoes", params=params)
 
 
-def email_existe(email: str) -> bool:
-    return get("/admin/usuarios/email-existe", params={"email": email})
+def email_existe(email: str, apenas_ativos: bool = False, exclude_id: int | None = None) -> bool:
+    params: dict = {"email": email, "apenas_ativos": apenas_ativos}
+    if exclude_id is not None:
+        params["exclude_id"] = exclude_id
+    return get("/admin/usuarios/email-existe", params=params)
 
 
 # ── Escrita ───────────────────────────────────────────────────────────────────
@@ -42,6 +45,10 @@ def criar_usuario(nome: str, email: str, senha: str, tipo: str,
 
 def toggle_usuario(usuario_id: int, ativo: bool) -> None:
     patch(f"/admin/usuarios/{usuario_id}/toggle", json={"ativo": ativo})
+
+
+def editar_usuario(usuario_id: int, nova_senha: str | None, tipo: str) -> None:
+    patch(f"/admin/usuarios/{usuario_id}/editar", json={"nova_senha": nova_senha, "tipo": tipo})
 
 
 def criar_categoria(nome: str, descricao: str | None = None) -> None:

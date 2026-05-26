@@ -17,6 +17,7 @@ from api.client.admin_client import (
     email_existe,
     criar_usuario,
     toggle_usuario,
+    editar_usuario,
     criar_categoria,
     toggle_categoria,
     criar_subcategoria,
@@ -26,6 +27,7 @@ from api.client.admin_client import (
     criar_coordenacao,
     toggle_coordenacao,
 )
+from api.client.base import ApiError
 from api.client.catalogo_client import (
     carregar_categorias,
     carregar_coordenacoes,
@@ -63,7 +65,7 @@ tab_users, tab_cats, tab_subcats, tab_ger, tab_coord = st.tabs(
 # Tab: Usuários
 # ════════════════════════════════════════════════════════════════════════════
 with tab_users:
-    st.subheader("Usuários Técnicos")
+    st.subheader("Usuários")
 
     users = listar_usuarios_e_status()
     if users:
@@ -78,59 +80,97 @@ with tab_users:
         st.dataframe(df.drop(columns=cols_ocultar), use_container_width=True, hide_index=True)
 
     st.divider()
-    st.markdown("#### Novo Usuário / Editar Senha")
 
-    gerencias = carregar_todas_gerencias()
-    ger_map = {nome: gid for gid, nome in gerencias}
+    subtab_novo, subtab_editar, subtab_toggle = st.tabs(
+        ["➕ Novo Usuário", "✏️ Editar Usuário", "🔄 Ativar / Desativar"]
+    )
 
-    col_ger, col_coord = st.columns(2)
-    with col_ger:
-        ger_sel = st.selectbox("Gerência", ["(Nenhuma)"] + [n for _, n in gerencias], key="nu_gerencia")
-    ger_id_sel = ger_map.get(ger_sel) if ger_sel != "(Nenhuma)" else None
-    coords = carregar_coordenacoes(ger_id_sel) if ger_id_sel else []
-    coord_map = {nome: cid for cid, nome in coords}
-    with col_coord:
-        coord_sel = st.selectbox("Coordenação", ["(Nenhuma)"] + [n for _, n in coords], key="nu_coordenacao")
+    # ── Sub-tab: Novo Usuário ─────────────────────────────────────────────────
+    with subtab_novo:
+        gerencias = carregar_todas_gerencias()
+        ger_map = {nome: gid for gid, nome in gerencias}
 
-    with st.form("form_novo_user"):
-        col1, col2 = st.columns(2)
-        with col1:
-            novo_nome = st.text_input("Nome *")
-            novo_email = st.text_input("E-mail *")
-        with col2:
-            nova_senha = st.text_input("Senha *", type="password")
-            novo_tipo = st.selectbox("Perfil *", ["tecnico", "gestor"])
+        col_ger, col_coord = st.columns(2)
+        with col_ger:
+            ger_sel = st.selectbox("Gerência", ["(Nenhuma)"] + [n for _, n in gerencias], key="nu_gerencia")
+        ger_id_sel = ger_map.get(ger_sel) if ger_sel != "(Nenhuma)" else None
+        coords = carregar_coordenacoes(ger_id_sel) if ger_id_sel else []
+        coord_map = {nome: cid for cid, nome in coords}
+        with col_coord:
+            coord_sel = st.selectbox("Coordenação", ["(Nenhuma)"] + [n for _, n in coords], key="nu_coordenacao")
 
-        criar = st.form_submit_button("➕ Criar Usuário", type="primary")
+        with st.form("form_novo_user"):
+            col1, col2 = st.columns(2)
+            with col1:
+                novo_nome = st.text_input("Nome *")
+                novo_email = st.text_input("E-mail *")
+            with col2:
+                nova_senha = st.text_input("Senha *", type="password")
+                novo_tipo = st.selectbox("Perfil *", ["tecnico", "gestor"])
 
-    if criar:
-        ger_id_final = ger_map.get(st.session_state.get("nu_gerencia", "(Nenhuma)"))
-        coord_id_final = coord_map.get(st.session_state.get("nu_coordenacao", "(Nenhuma)"))
-        if not novo_nome.strip() or not novo_email.strip() or not nova_senha:
-            st.error("Nome, e-mail e senha são obrigatórios.")
-        else:
-            if email_existe(novo_email):
-                st.error("Já existe um usuário com este e-mail.")
+            criar = st.form_submit_button("➕ Criar Usuário", type="primary")
+
+        if criar:
+            ger_id_final = ger_map.get(st.session_state.get("nu_gerencia", "(Nenhuma)"))
+            coord_id_final = coord_map.get(st.session_state.get("nu_coordenacao", "(Nenhuma)"))
+            if not novo_nome.strip() or not novo_email.strip() or not nova_senha:
+                st.error("Nome, e-mail e senha são obrigatórios.")
+            elif email_existe(novo_email, apenas_ativos=True):
+                st.error("Já existe um usuário ativo com este e-mail.")
             else:
                 criar_usuario(novo_nome, novo_email, nova_senha, novo_tipo, ger_id_final, coord_id_final)
                 st.toast(f"Usuário {novo_email} criado com sucesso!", icon="✅")
                 st.rerun()
 
-    st.divider()
-    st.markdown("#### Ativar / Desativar Usuário")
-    if users:
-        user_emails = [f"{usr['nome']} ({usr['email']})" for usr in users]
-        sel_user_label = st.selectbox("Selecionar usuário", user_emails, key="toggle_user")
-        sel_user_id = users[user_emails.index(sel_user_label)]["id"]
-        col_at, col_dat = st.columns(2)
-        if col_at.button("Ativar"):
-            toggle_usuario(sel_user_id, True)
-            st.toast("Usuário ativado!", icon="✅")
-            st.rerun()
-        if col_dat.button("Desativar"):
-            toggle_usuario(sel_user_id, False)
-            st.toast("Usuário desativado!", icon="⛔")
-            st.rerun()
+    # ── Sub-tab: Editar Usuário ───────────────────────────────────────────────
+    with subtab_editar:
+        if not users:
+            st.info("Nenhum usuário cadastrado.")
+        else:
+            edit_labels = [
+                f"{usr['nome']} ({usr['email']})" + (" [inativo]" if not usr["ativo"] else "")
+                for usr in users
+            ]
+            sel_edit_label = st.selectbox("Selecionar usuário para editar", edit_labels, key="edit_user_sel")
+            sel_edit_usr = users[edit_labels.index(sel_edit_label)]
+
+            with st.form("form_editar_user"):
+                edit_senha = st.text_input(
+                    "Nova Senha (deixe em branco para não alterar)",
+                    type="password",
+                    key="edit_senha",
+                )
+                tipos = ["tecnico", "gestor"]
+                tipo_idx = tipos.index(sel_edit_usr["tipo"]) if sel_edit_usr["tipo"] in tipos else 0
+                edit_tipo = st.selectbox("Perfil *", tipos, index=tipo_idx, key="edit_tipo")
+                salvar_edit = st.form_submit_button("💾 Salvar Alterações", type="primary")
+
+            if salvar_edit:
+                editar_usuario(sel_edit_usr["id"], edit_senha or None, edit_tipo)
+                st.toast("Usuário atualizado com sucesso!", icon="✅")
+                st.rerun()
+
+    # ── Sub-tab: Ativar / Desativar ───────────────────────────────────────────
+    with subtab_toggle:
+        if not users:
+            st.info("Nenhum usuário cadastrado.")
+        else:
+            toggle_labels = [f"{usr['nome']} ({usr['email']})" for usr in users]
+            sel_user_label = st.selectbox("Selecionar usuário", toggle_labels, key="toggle_user")
+            sel_user = users[toggle_labels.index(sel_user_label)]
+            sel_user_id = sel_user["id"]
+            col_at, col_dat = st.columns(2)
+            if col_at.button("Ativar"):
+                try:
+                    toggle_usuario(sel_user_id, True)
+                    st.toast("Usuário ativado!", icon="✅")
+                    st.rerun()
+                except ApiError as e:
+                    st.error(e.detail)
+            if col_dat.button("Desativar"):
+                toggle_usuario(sel_user_id, False)
+                st.toast("Usuário desativado!", icon="⛔")
+                st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
 # Tab: Categorias

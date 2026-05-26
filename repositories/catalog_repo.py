@@ -14,6 +14,30 @@ from repositories.types import (
 )
 
 
+def get_usuario_por_id(usuario_id: int) -> UsuarioDict | None:
+    """Retorna um usuário pelo id, ou None se não encontrado."""
+    with db_session() as s:
+        u = (
+            s.query(Usuario)
+            .options(joinedload(Usuario.gerencia), joinedload(Usuario.coordenacao))
+            .filter(Usuario.id == usuario_id)
+            .first()
+        )
+        if not u:
+            return None
+        return UsuarioDict(
+            id=u.id,
+            nome=u.nome,
+            email=u.email,
+            tipo=u.tipo.value,
+            gerencia_id=u.gerencia_id,
+            gerencia_nome=u.gerencia.nome if u.gerencia else None,
+            coordenacao_id=u.coordenacao_id,
+            coordenacao_nome=u.coordenacao.nome if u.coordenacao else None,
+            ativo=u.ativo,
+        )
+
+
 def get_usuarios() -> list[UsuarioDict]:
     """Todos os usuários com gerência e coordenação."""
     with db_session() as s:

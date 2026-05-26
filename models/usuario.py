@@ -14,7 +14,7 @@ class Usuario(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(200), nullable=False)
-    email: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(200), nullable=False)
     senha_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     tipo: Mapped[TipoUsuario] = mapped_column(Enum(TipoUsuario), nullable=False)
     gerencia_id: Mapped[int | None] = mapped_column(ForeignKey("gerencias.id"), nullable=True)

@@ -14,6 +14,11 @@ class ToggleRequest(BaseModel):
     ativo: bool
 
 
+class EditarUsuarioRequest(BaseModel):
+    nova_senha: str | None = None
+    tipo: str
+
+
 class CriarCategoriaRequest(BaseModel):
     nome: str
     descricao: str | None = None

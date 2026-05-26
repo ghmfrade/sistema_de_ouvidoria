@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from api.deps import requer_gestor
 from api.schemas.catalog import (
@@ -8,16 +8,17 @@ from api.schemas.catalog import (
 )
 from api.schemas.admin import (
     CriarUsuarioRequest, CriarCategoriaRequest, CriarSubcategoriaRequest,
-    CriarGerenciaRequest, CriarCoordenacaoRequest, ToggleRequest,
+    CriarGerenciaRequest, CriarCoordenacaoRequest, ToggleRequest, EditarUsuarioRequest,
 )
 from repositories.catalog_repo import (
-    get_usuarios, get_categorias, get_subcategorias,
+    get_usuarios, get_usuario_por_id, get_categorias, get_subcategorias,
     get_gerencias, get_coordenacoes,
 )
 from repositories.admin_write_repo import (
     email_existe as _email_existe,
     criar_usuario as _criar_usuario,
     toggle_usuario as _toggle_usuario,
+    editar_usuario as _editar_usuario,
     criar_categoria as _criar_categoria,
     toggle_categoria as _toggle_categoria,
     criar_subcategoria as _criar_subcategoria,
@@ -39,8 +40,13 @@ def listar_usuarios(_=Depends(requer_gestor)):
 
 
 @router.get("/usuarios/email-existe")
-def email_existe(email: str, _=Depends(requer_gestor)) -> bool:
-    return _email_existe(email)
+def email_existe(
+    email: str,
+    apenas_ativos: bool = False,
+    exclude_id: int | None = None,
+    _=Depends(requer_gestor),
+) -> bool:
+    return _email_existe(email, apenas_ativos=apenas_ativos, exclude_id=exclude_id)
 
 
 @router.post("/usuarios")
@@ -60,7 +66,22 @@ def criar_usuario(body: CriarUsuarioRequest, _=Depends(requer_gestor)):
 
 @router.patch("/usuarios/{usuario_id}/toggle")
 def toggle_usuario(usuario_id: int, body: ToggleRequest, _=Depends(requer_gestor)):
+    if body.ativo:
+        usr = get_usuario_por_id(usuario_id)
+        if usr and _email_existe(usr["email"], apenas_ativos=True, exclude_id=usuario_id):
+            raise HTTPException(
+                status_code=409,
+                detail=f"O e-mail '{usr['email']}' já está em uso por outro login ativo.",
+            )
     _toggle_usuario(usuario_id, body.ativo)
+    return {"ok": True}
+
+
+@router.patch("/usuarios/{usuario_id}/editar")
+def editar_usuario(usuario_id: int, body: EditarUsuarioRequest, _=Depends(requer_gestor)):
+    import bcrypt
+    hash_ = bcrypt.hashpw(body.nova_senha.encode(), bcrypt.gensalt()).decode() if body.nova_senha else None
+    _editar_usuario(usuario_id, hash_, body.tipo)
     return {"ok": True}
 
 

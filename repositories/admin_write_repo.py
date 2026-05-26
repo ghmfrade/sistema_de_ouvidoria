@@ -11,10 +11,15 @@ from models import (
 )
 
 
-def email_existe(email: str) -> bool:
+def email_existe(email: str, apenas_ativos: bool = False, exclude_id: int | None = None) -> bool:
     """Verifica se já existe usuário com o email informado."""
     with db_session() as s:
-        return s.query(Usuario).filter_by(email=email.strip()).first() is not None
+        q = s.query(Usuario).filter(Usuario.email == email.strip())
+        if apenas_ativos:
+            q = q.filter(Usuario.ativo == True)  # noqa: E712
+        if exclude_id is not None:
+            q = q.filter(Usuario.id != exclude_id)
+        return q.first() is not None
 
 
 def criar_usuario(nome, email, senha_hash, tipo, gerencia_id, coordenacao_id):
@@ -37,6 +42,16 @@ def toggle_usuario(usuario_id: int, ativo: bool):
         usr = s.query(Usuario).filter_by(id=usuario_id).first()
         if usr:
             usr.ativo = ativo
+
+
+def editar_usuario(usuario_id: int, nova_senha_hash: str | None, tipo: str):
+    """Atualiza senha e/ou perfil de um usuário existente."""
+    with db_session() as s:
+        usr = s.query(Usuario).filter_by(id=usuario_id).first()
+        if usr:
+            if nova_senha_hash:
+                usr.senha_hash = nova_senha_hash
+            usr.tipo = TipoUsuario(tipo)
 
 
 def criar_categoria(nome, descricao=None):
