@@ -191,6 +191,67 @@ def get_autos_regioes_metropolitanas() -> list[str]:
         return [row[0] for row in rows if row[0]]
 
 
+def _numero_prefixo_valido(stored: str, query: str) -> bool:
+    """True se stored começa com query E o próximo char (se houver) não é dígito.
+
+    '232' valida '232VP' e '232H', mas NÃO '2329'.
+    """
+    if not stored.startswith(query):
+        return False
+    resto = stored[len(query):]
+    return not resto or not resto[0].isdigit()
+
+
+def buscar_autos_por_numero(
+    numeros: list[str],
+    tipo_servico: str,
+    perm_id: int | None = None,
+) -> list[AutoDict]:
+    """Busca autos pelo número declarado na coluna LINHA.
+
+    Para cada número:
+      - Tenta match exato primeiro. Se encontrar, usa só esses.
+      - Caso contrário, expande por prefixo alfanumérico
+        ('232' → '232VP', '232H', mas NÃO '2329').
+    Retorna lista deduplicada.
+    """
+    with db_session() as s:
+        seen_ids: set[int] = set()
+        result: list[AutoLinha] = []
+
+        for num in numeros:
+            num = num.strip()
+            if not num:
+                continue
+
+            base_q = (
+                s.query(AutoLinha)
+                .options(joinedload(AutoLinha.permissionaria))
+                .filter(
+                    AutoLinha.ativo == True,
+                    AutoLinha.tipo == tipo_servico,
+                )
+                .order_by(AutoLinha.numero)
+            )
+
+            exatos = base_q.filter(AutoLinha.numero == num).all()
+            if exatos:
+                candidatos = exatos
+            else:
+                todos = base_q.filter(AutoLinha.numero.like(f"{num}%")).all()
+                candidatos = [a for a in todos if _numero_prefixo_valido(a.numero, num)]
+
+            for a in candidatos:
+                if a.id not in seen_ids:
+                    seen_ids.add(a.id)
+                    result.append(a)
+
+        if perm_id is not None:
+            result = [a for a in result if a.permissionaria_id == perm_id]
+
+        return [_auto_to_dict(a) for a in result]
+
+
 def buscar_autos_por_trecho(
     tipo_servico: str,
     cidade_a: str,

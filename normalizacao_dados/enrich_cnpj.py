@@ -205,7 +205,7 @@ def format_cnpj(raw: str) -> str:
 
 def main():
     print("Carregando planilha...")
-    df = pd.read_excel("DADOS ANTIGOS.xlsx", header=1)
+    df = pd.read_excel("../pasta_seed/Novo Modelo Base Ouvidoria 2.xlsx", header=1)
 
     print("Carregando permissionarias do banco...")
     perm = load_permissionarias()
@@ -250,7 +250,7 @@ def main():
     print(f"  Não encontrados  : {len(nao_encontrados_idx)}")
 
     # Salva CSV enriquecido (CSV preserva PROTOCOLO como texto, evitando perda de precisão do Excel)
-    output_csv = "DADOS_ANTIGOS_enriquecido.csv"
+    output_csv = "NOVO_MODELO_enriquecido.csv"
     df.to_csv(output_csv, index=False, encoding="utf-8-sig")
     print(f"\nArquivo salvo: {output_csv}")
 

@@ -15,6 +15,7 @@ Saída:
 """
 import sys
 import os
+import re
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import unicodedata
@@ -31,7 +32,7 @@ from models import (
     Permissionaria,
     Usuario,
 )
-from repositories.autos_repo import buscar_autos_por_trecho
+from repositories.autos_repo import buscar_autos_por_trecho, buscar_autos_por_numero
 from repositories.pontuacao import calcular_pontuacao_auto
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -40,7 +41,7 @@ CATEGORIA_MAPPING = os.path.join(BASE_DIR, "normalizacao_dados", "CATEGORIA NOVA
 OUT_LANCADOS = os.path.join(BASE_DIR, "seed_lancados.xlsx")
 OUT_NAO_LANCADOS = os.path.join(BASE_DIR, "seed_nao_lancados.xlsx")
 
-PRAZO_PADRAO_DIAS = 15  # fallback quando LIMITE R. está vazio
+PRAZO_PADRAO_DIAS = 10  # fallback quando LIMITE R. está vazio
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -78,6 +79,22 @@ def _to_date(val) -> date | None:
 def _norm_upper(s: str) -> str:
     s = unicodedata.normalize("NFD", str(s).strip().upper())
     return "".join(c for c in s if unicodedata.category(c) != "Mn")
+
+
+def _parse_linha(val) -> list[str]:
+    """Parseia célula LINHA em lista de números de autos.
+
+    Suporta separadores ' - ' e '/'.
+    '801 - 802 - 803' → ['801', '802', '803']
+    '660/662'         → ['660', '662']
+    """
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return []
+    s = str(val).strip()
+    if not s or s.lower() == "nan":
+        return []
+    parts = re.split(r"\s*[-/]\s*", s)
+    return [p.strip() for p in parts if p.strip()]
 
 
 # ── Carregamento de dados de referência ───────────────────────────────────────
@@ -149,7 +166,19 @@ _TIPO_MAP: dict[tuple[str, str], TipoServico] = {
 
 # ── Seed principal ────────────────────────────────────────────────────────────
 
+def _limpar_ouvidorias():
+    """Remove TODAS as ouvidorias e registros derivados via TRUNCATE CASCADE."""
+    from sqlalchemy import text as _text
+    with db_session() as session:
+        count = session.execute(_text("SELECT COUNT(*) FROM ouvidorias")).scalar()
+        session.execute(_text("TRUNCATE TABLE ouvidorias CASCADE"))
+        print(f"  {count} ouvidorias removidas do banco.\n")
+
+
 def seed_dados_antigos():
+    print("=== Limpando ouvidorias existentes ===")
+    _limpar_ouvidorias()
+
     print(f"Lendo {os.path.basename(DADOS_ANTIGOS)}...")
     df = pd.read_csv(DADOS_ANTIGOS, dtype={"PROTOCOLO": str}, encoding="utf-8-sig")
     df.columns = [c.strip() for c in df.columns]
@@ -320,13 +349,32 @@ def seed_dados_antigos():
                 session.add(reclamacao)
                 session.flush()
 
-                if is_regular and (perm_id is not None or has_trecho):
-                    autos = buscar_autos_por_trecho(
-                        tipo_servico=tipo_servico.value,
-                        cidade_a=origem_ibge or "",
-                        cidade_b=destino_ibge or "",
-                        perm_id=perm_id,
-                    )
+                if is_regular:
+                    numeros_linha = _parse_linha(row.get("LINHA"))
+
+                    if numeros_linha:
+                        autos = buscar_autos_por_numero(
+                            numeros=numeros_linha,
+                            tipo_servico=tipo_servico.value,
+                            perm_id=perm_id,
+                        )
+                        if not autos and (perm_id is not None or has_trecho):
+                            autos = buscar_autos_por_trecho(
+                                tipo_servico=tipo_servico.value,
+                                cidade_a=origem_ibge or "",
+                                cidade_b=destino_ibge or "",
+                                perm_id=perm_id,
+                            )
+                    elif perm_id is not None or has_trecho:
+                        autos = buscar_autos_por_trecho(
+                            tipo_servico=tipo_servico.value,
+                            cidade_a=origem_ibge or "",
+                            cidade_b=destino_ibge or "",
+                            perm_id=perm_id,
+                        )
+                    else:
+                        autos = []
+
                     pontuacao = calcular_pontuacao_auto(len(autos))
                     for auto in autos:
                         session.add(ReclamacaoAuto(
@@ -388,7 +436,6 @@ def seed_dados_antigos():
     print(f"  Puladas:     {stats['puladas']}")
     print(f"  Duplicadas:  {stats['duplicadas']}")
     print(f"  Erros:       {stats['erros']}")
-
 
 if __name__ == "__main__":
     print("=== Inicializando banco ===")
