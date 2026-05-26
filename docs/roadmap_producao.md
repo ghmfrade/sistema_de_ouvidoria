@@ -7,9 +7,11 @@
 
 ## Fase A – Correções e Melhorias (antes do estresse)
 
-### A1. Seed de dados de 2026
+### A1. Seed de dados de 2025 e 2026 ✅ CONCLUÍDO (2026-05-26)
 
-- Gerar/importar os dados reais de ouvidorias de 2026 para o banco de produção (substituindo ou complementando o seed atual).
+- Dados históricos de 2025 e 2026 importados a partir de `Novo Modelo Base Ouvidoria 2.xlsx`.
+- Pipeline executado: `enrich_cnpj.py` → `enrich_cidades.py` → `seed_dados_antigos.py`.
+- Suporte à coluna LINHA adicionado: vinculação direta por número de auto, com fallback por trecho origem/destino.
 
 ### A2. Bug – Nova Ouvidoria: troca para "fretamento" mantém autos vinculados
 
@@ -79,7 +81,7 @@
 
 ### D3. Checklist pré-go-live
 
-- [ ] Seed de 2026 executado e validado
+- [x] Seed de 2025 e 2026 executado e validado
 - [ ] Bug A2 corrigido
 - [ ] UX de resposta técnica (A3) corrigida
 - [ ] Logins de todos os usuários criados
