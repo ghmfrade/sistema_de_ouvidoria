@@ -131,6 +131,8 @@ st.divider()
 if st.button("💾 Salvar Ouvidoria", type="primary", use_container_width=True):
     if not protocolo.strip():
         st.error("Informe o protocolo da ouvidoria.")
+    elif not protocolo.strip().isdigit():
+        st.error("O protocolo deve conter apenas números.")
     elif not conteudo.strip():
         st.error("Informe o conteúdo da ouvidoria.")
     elif not st.session_state["reclamacoes_draft"]:
