@@ -18,6 +18,7 @@ from api.client.catalogo_client import carregar_categorias, carregar_subcategori
 from api.client.autos_client import carregar_cidades_atendidas, carregar_cidades_destino
 from api.client.catalogo_client import carregar_municipios
 from api.client.ouvidoria_client import (
+    atualizar_reclamacoes,
     carregar_ouvidoria_para_resposta_tecnica,
     deletar_resposta_permissionaria,
     registrar_resposta_permissionaria,
@@ -79,6 +80,7 @@ if u.get("tipo") == TIPO_USUARIO_TECNICO and atribuicao is None:
 st.title(f"✍️ Resposta Técnica – Ouvidoria #{ouvidoria['id']}")
 
 # ── Resumo fixo ───────────────────────────────────────────────────────────────
+st.caption("Conteúdo da Ouvidoria")
 conteudo_preview = ouvidoria["conteudo"] or ""
 if len(conteudo_preview) > 300:
     st.info(conteudo_preview[:300] + "…")
@@ -96,6 +98,12 @@ _cats_resumo = sorted({
 })
 if _cats_resumo:
     st.write("**Categorias:** " + " · ".join(f"`{c}`" for c in _cats_resumo))
+
+_subcats_resumo = sorted({
+    r["subcategoria_nome"] for r in ouvidoria["reclamacoes"] if r.get("subcategoria_nome")
+})
+if _subcats_resumo:
+    st.write("**Assunto:** " + " · ".join(f"`{s}`" for s in _subcats_resumo))
 
 _autos_vistos: set[int] = set()
 _autos_resumo: list[str] = []
@@ -229,22 +237,7 @@ with tab_responder:
             st.error("O texto da resposta é obrigatório.")
         else:
             try:
-                recs_edit_payload = [
-                    {
-                        "id": r["id"],
-                        "numero_item": r["numero_item"],
-                        "categoria_id": r["categoria_id"],
-                        "subcategoria_id": r["subcategoria_id"],
-                        "tipo_servico": r["tipo_servico"],
-                        "local_embarque": r["local_embarque"],
-                        "local_desembarque": r["local_desembarque"],
-                        "empresa_fretamento": r["empresa_fretamento"],
-                        "descricao": r["descricao"],
-                        "autos": [{"id": a["id"]} for a in r["autos"]],
-                    }
-                    for r in st.session_state["resp_recs_edit"]
-                ]
-                todos_responderam = registrar_resposta_tecnica(ouvidoria_id, u["usuario_id"], texto, recs_edit_payload)
+                todos_responderam = registrar_resposta_tecnica(ouvidoria_id, u["usuario_id"], texto)
                 for k in ("resp_recs_edit", "resp_autos_checklist", "resp_rec_alvo_anterior"):
                     st.session_state.pop(k, None)
                 msg = "Resposta registrada com sucesso!"
@@ -380,3 +373,39 @@ with tab_editar:
         btn_prefix="resp_",
         extended_auto_info=True,
     )
+
+    # ── Ações da aba Editar ───────────────────────────────────────────────────
+    st.divider()
+    col_salvar, col_limpar = st.columns(2)
+
+    if col_salvar.button("💾 Salvar Edição", type="primary", use_container_width=True):
+        recs_payload = [
+            {
+                "id": r["id"],
+                "numero_item": r["numero_item"],
+                "categoria_id": r["categoria_id"],
+                "subcategoria_id": r["subcategoria_id"],
+                "tipo_servico": r["tipo_servico"],
+                "local_embarque": r["local_embarque"],
+                "local_desembarque": r["local_desembarque"],
+                "empresa_fretamento": r["empresa_fretamento"],
+                "descricao": r["descricao"],
+                "autos": [{"id": a["id"]} for a in r["autos"]],
+            }
+            for r in st.session_state["resp_recs_edit"]
+        ]
+        try:
+            atualizar_reclamacoes(ouvidoria_id, recs_payload)
+            st.toast("Edições salvas com sucesso!", icon="✅")
+            st.session_state.pop("resp_recs_edit", None)
+            st.session_state.pop("resp_autos_checklist", None)
+            st.session_state["resp_rec_alvo_anterior"] = None
+            st.rerun()
+        except Exception as e:
+            st.error(f"Erro ao salvar edições: {e}")
+
+    if col_limpar.button("↩ Limpar Alterações", use_container_width=True):
+        st.session_state.pop("resp_recs_edit", None)
+        st.session_state.pop("resp_autos_checklist", None)
+        st.session_state["resp_rec_alvo_anterior"] = None
+        st.rerun()

@@ -192,10 +192,13 @@ class AtualizarPrazoPermissionariaRequest(BaseModel):
     prazo: date | None = None
 
 
+class AtualizarReclamacoesRequest(BaseModel):
+    recs_edit: list[ReclamacaoDraft] = []
+
+
 class RegistrarRespostaTecnicaRequest(BaseModel):
     tecnico_id: int
     texto: str
-    recs_edit: list[ReclamacaoDraft] = []
 
 
 class RegistrarRespostaPermissionariaRequest(BaseModel):

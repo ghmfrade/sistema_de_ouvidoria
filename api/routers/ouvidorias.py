@@ -10,8 +10,8 @@ from api.schemas.ouvidoria import (
     OuvidoriaPermissionariaSchema, RespostaTecnicaSchema, AtribuicaoScalarSchema,
     CriarOuvidoriaRequest, EditarOuvidoriaRequest, AtribuirTecnicoRequest,
     AtualizarPrazoPermissionariaRequest, RegistrarRespostaTecnicaRequest,
-    RegistrarRespostaPermissionariaRequest, OuvidoriaIdResponse,
-    RespostaTecnicaConcluidaResponse,
+    AtualizarReclamacoesRequest, RegistrarRespostaPermissionariaRequest,
+    OuvidoriaIdResponse, RespostaTecnicaConcluidaResponse,
 )
 from repositories.ouvidoria_repo import (
     get_ouvidorias, get_ouvidoria_completa, get_id_por_protocolo,
@@ -161,6 +161,17 @@ def atualizar_prazo_permissionaria(
     return {"ok": True}
 
 
+@router.patch("/{ouvidoria_id}/reclamacoes")
+def atualizar_reclamacoes(
+    ouvidoria_id: int,
+    body: AtualizarReclamacoesRequest,
+    _=Depends(usuario_corrente),
+):
+    from repositories.ouvidoria_write_repo import atualizar_reclamacoes as _upd
+    _upd(ouvidoria_id, [r.model_dump() for r in body.recs_edit])
+    return {"ok": True}
+
+
 @router.post("/{ouvidoria_id}/respostas-tecnicas", response_model=RespostaTecnicaConcluidaResponse)
 def registrar_resposta_tecnica(
     ouvidoria_id: int,
@@ -168,12 +179,7 @@ def registrar_resposta_tecnica(
     _=Depends(usuario_corrente),
 ):
     from repositories.ouvidoria_write_repo import registrar_resposta_tecnica as _resp
-    todos = _resp(
-        ouvidoria_id,
-        body.tecnico_id,
-        body.texto,
-        [r.model_dump() for r in body.recs_edit],
-    )
+    todos = _resp(ouvidoria_id, body.tecnico_id, body.texto)
     return RespostaTecnicaConcluidaResponse(todos_responderam=bool(todos))
 
 

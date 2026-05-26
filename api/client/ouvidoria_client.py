@@ -158,16 +158,14 @@ def delete_anexo(oid: int, anexo_id: int) -> None:
     delete(f"/ouvidorias/{oid}/anexos/{anexo_id}")
 
 
-def registrar_resposta_tecnica(
-    oid: int,
-    tecnico_id: int,
-    texto: str,
-    recs_edit: list[dict],
-) -> bool:
+def atualizar_reclamacoes(oid: int, recs_edit: list[dict]) -> None:
+    patch(f"/ouvidorias/{oid}/reclamacoes", json={"recs_edit": recs_edit})
+
+
+def registrar_resposta_tecnica(oid: int, tecnico_id: int, texto: str) -> bool:
     result = post(f"/ouvidorias/{oid}/respostas-tecnicas", json={
         "tecnico_id": tecnico_id,
         "texto": texto,
-        "recs_edit": recs_edit,
     })
     return result.get("todos_responderam", False)
 
