@@ -1,6 +1,7 @@
 # Bug: PATCH /ouvidorias/{id}/reclamacoes não aparece no /docs do FastAPI
 
 ## Status
+
 Investigação em andamento — acesso remoto perdido. Continuar presencialmente.
 
 ---
@@ -8,6 +9,7 @@ Investigação em andamento — acesso remoto perdido. Continuar presencialmente
 ## Contexto do bug
 
 Após o commit `10c0bc0` foram adicionados:
+
 - Endpoint `PATCH /ouvidorias/{ouvidoria_id}/reclamacoes` em `api/routers/ouvidorias.py` (linha 164)
 - Schema `AtualizarReclamacoesRequest` em `api/schemas/ouvidoria.py` (linha 195)
 - Função `atualizar_reclamacoes` em `repositories/ouvidoria_write_repo.py` (linha 259)
@@ -15,6 +17,7 @@ Após o commit `10c0bc0` foram adicionados:
 - `registrar_resposta_tecnica` simplificado: não altera mais reclamações
 
 **Sintomas observados no servidor remoto (VM Windows):**
+
 1. `PATCH /ouvidorias/{ouvidoria_id}/reclamacoes` **NÃO aparece** no `/docs`
 2. Clicar "💾 Salvar Edição" na página Responder retorna **API 404**
 3. Clicar "📤 Enviar Resposta" **deleta todas as reclamações** da ouvidoria
@@ -23,15 +26,15 @@ Após o commit `10c0bc0` foram adicionados:
 
 ## O que já foi verificado
 
-| Verificação | Resultado |
-|---|---|
-| `git log --oneline -5` no servidor | ✅ `10c0bc0` está como HEAD |
-| `Select-String "reclamacoes" api\routers\ouvidorias.py` | ✅ Linha 164 tem o endpoint |
-| `Select-String "AtualizarReclamacoesRequest" api\schemas\ouvidoria.py` | ✅ Linha 195 tem a classe |
-| `python -c "from api.routers.ouvidorias import router; print('OK')"` | ✅ Retornou OK |
-| Limpeza de `__pycache__` e `.pyc` | ✅ Feito |
-| Kill de todos processos uvicorn + reinício | ✅ Feito |
-| Endpoint no `/docs` após tudo isso | ❌ Ainda não aparece |
+| Verificação                                                            | Resultado                   |
+| ---------------------------------------------------------------------- | --------------------------- |
+| `git log --oneline -5` no servidor                                     | ✅ `10c0bc0` está como HEAD |
+| `Select-String "reclamacoes" api\routers\ouvidorias.py`                | ✅ Linha 164 tem o endpoint |
+| `Select-String "AtualizarReclamacoesRequest" api\schemas\ouvidoria.py` | ✅ Linha 195 tem a classe   |
+| `python -c "from api.routers.ouvidorias import router; print('OK')"`   | ✅ Retornou OK              |
+| Limpeza de `__pycache__` e `.pyc`                                      | ✅ Feito                    |
+| Kill de todos processos uvicorn + reinício                             | ✅ Feito                    |
+| Endpoint no `/docs` após tudo isso                                     | ❌ Ainda não aparece        |
 
 **Havia dois processos uvicorn rodando simultâneos** (PIDs 10008 e 15312 + o exe 15980). Ambos foram encerrados e um novo foi iniciado — mesmo assim o endpoint não apareceu.
 
@@ -71,12 +74,14 @@ O código local (`git log --oneline -1`) deve mostrar o commit `10c0bc0`.
 
 2. **Problema no `--reload` do uvicorn**: O watcher pode estar com uma versão antiga em memória.
    Tentar rodar **sem `--reload`** e ver se o endpoint aparece:
+
    ```
    uvicorn api.main:app --host 0.0.0.0 --port 8000
    ```
 
 3. **Conflito de rota**: `PATCH /{ouvidoria_id}` pode estar mascarando `PATCH /{ouvidoria_id}/reclamacoes`
    em alguma versão do FastAPI/Starlette. Verificar versões instaladas:
+
    ```
    pip show fastapi starlette uvicorn
    ```
@@ -86,3 +91,16 @@ O código local (`git log --oneline -1`) deve mostrar o commit `10c0bc0`.
    Get-Location
    ```
    antes de iniciar.
+
+checar
+
+pagina Responder
+Colocar um pequeno titulo para identificar o conteudo da ouvidoria.
+
+Inserir tbm as subcategorias, chame de assunto.
+
+O local de editara ouvidoria, nao tem um botao de salvar edicao.
+Coloque um botao para salvar a edicao. Que apos apertado, altera no banco as edicoes feitas pelo usuario.
+Porém, obviamente, não registra a resposta.
+Além disso, faça o botão registrar resposta tecnica registrar a resposta tecnica e a resposta da permissionaria, mas nao enviar nenhuma alteracao de categora, subcategoria, reclamcao etc (que está na aba edicao). Vamos separar as coisas.
+Insira tbm umbotao na aba editar ouvidoria para limpar alteracoes e voltar com os dados que estão no banco.
