@@ -12,7 +12,7 @@ import auth
 from auth import usuario_logado
 from api.client.enums import (
     TIPO_USUARIO_GESTOR, TIPO_USUARIO_TECNICO,
-    STATUS_EM_ANALISE_TECNICA,
+    STATUS_EM_ANALISE_TECNICA, STATUS_CONCLUIDO,
 )
 from api.client.catalogo_client import carregar_categorias, carregar_subcategorias
 from api.client.autos_client import carregar_cidades_atendidas, carregar_cidades_destino
@@ -180,25 +180,26 @@ with tab_responder:
                     st.write(f"📎 {an['nome_arquivo']} — arquivo não encontrado")
 
     # ── Verificar se já respondeu ─────────────────────────────────────────────
+    todas_respostas = ouvidoria.get("respostas_tecnicas", [])
+
+    def _mostrar_respostas_anteriores():
+        if todas_respostas:
+            with st.expander(f"Ver respostas anteriores ({len(todas_respostas)})"):
+                for rt in todas_respostas:
+                    st.write(f"**Técnico:** {rt['tecnico_nome']}")
+                    st.write(f"**Data:** {rt['data_resposta']}")
+                    st.write(f"**Texto:** {rt['texto_resposta']}")
+                    st.divider()
+
     resposta_existente = historico[0] if historico else None
     if resposta_existente and atribuicao and atribuicao.get("respondido"):
         if ouvidoria["status"] != STATUS_EM_ANALISE_TECNICA:
             st.success("Você já registrou sua resposta técnica para esta ouvidoria.")
-            if historico:
-                with st.expander(f"Ver respostas anteriores ({len(historico)})"):
-                    for rt in historico:
-                        st.write(f"**Data:** {rt['data_resposta']}")
-                        st.write(f"**Texto:** {rt['texto_resposta']}")
-                        st.divider()
+            _mostrar_respostas_anteriores()
             st.stop()
         else:
             st.info("O gestor retornou esta ouvidoria para análise técnica. Você pode registrar uma nova resposta.")
-            if historico:
-                with st.expander(f"Ver respostas anteriores ({len(historico)})"):
-                    for rt in historico:
-                        st.write(f"**Data:** {rt['data_resposta']}")
-                        st.write(f"**Texto:** {rt['texto_resposta']}")
-                        st.divider()
+            _mostrar_respostas_anteriores()
 
     # ── Respostas da Permissionária ──────────────────────────────────────────
     st.subheader("Respostas da Permissionária")
@@ -225,6 +226,11 @@ with tab_responder:
 
     # ── Registrar Resposta Técnica ────────────────────────────────────────────
     st.divider()
+
+    if ouvidoria["status"] == STATUS_CONCLUIDO:
+        st.warning("Esta ouvidoria está concluída. Não é possível registrar novas respostas técnicas.")
+        st.stop()
+
     st.subheader("Registrar Resposta")
 
     with st.form("form_resposta"):
