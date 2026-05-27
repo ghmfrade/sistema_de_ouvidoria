@@ -182,24 +182,22 @@ with tab_responder:
     # ── Verificar se já respondeu ─────────────────────────────────────────────
     todas_respostas = ouvidoria.get("respostas_tecnicas", [])
 
-    def _mostrar_respostas_anteriores():
-        if todas_respostas:
-            with st.expander(f"Ver respostas anteriores ({len(todas_respostas)})"):
-                for rt in todas_respostas:
-                    st.write(f"**Técnico:** {rt['tecnico_nome']}")
-                    st.write(f"**Data:** {rt['data_resposta']}")
-                    st.write(f"**Texto:** {rt['texto_resposta']}")
-                    st.divider()
+    # Sempre exibe respostas anteriores (visível para gestor e técnico)
+    if todas_respostas:
+        with st.expander(f"Ver respostas anteriores ({len(todas_respostas)})"):
+            for rt in todas_respostas:
+                st.write(f"**Técnico:** {rt['tecnico_nome']}")
+                st.write(f"**Data:** {rt['data_resposta']}")
+                st.write(f"**Texto:** {rt['texto_resposta']}")
+                st.divider()
 
     resposta_existente = historico[0] if historico else None
     if resposta_existente and atribuicao and atribuicao.get("respondido"):
         if ouvidoria["status"] != STATUS_EM_ANALISE_TECNICA:
             st.success("Você já registrou sua resposta técnica para esta ouvidoria.")
-            _mostrar_respostas_anteriores()
             st.stop()
         else:
             st.info("O gestor retornou esta ouvidoria para análise técnica. Você pode registrar uma nova resposta.")
-            _mostrar_respostas_anteriores()
 
     # ── Respostas da Permissionária ──────────────────────────────────────────
     st.subheader("Respostas da Permissionária")
