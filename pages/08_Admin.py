@@ -79,7 +79,12 @@ with tab_users:
         cols_ocultar = [c for c in ["gerencia_id", "coordenacao_id"] if c in df.columns]
         df_exibir = df.drop(columns=cols_ocultar)
         cols_order = ["ID"] + [c for c in df_exibir.columns if c != "ID"]
-        st.dataframe(df_exibir[cols_order], use_container_width=True, hide_index=True)
+        st.dataframe(
+            df_exibir[cols_order],
+            use_container_width=True,
+            hide_index=True,
+            column_config={"ID": st.column_config.NumberColumn("ID", width="small")},
+        )
 
     st.divider()
 
