@@ -34,6 +34,7 @@ from api.client.catalogo_client import (
     carregar_todas_gerencias,
 )
 from components import reduz_margem_side_bar, reduz_margem_topo_page
+from components.estilo_css import esconde_indice_table, estiliza_tabela_usuarios
 
 st.set_page_config(page_title="Administração", page_icon="⚙️", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -79,12 +80,10 @@ with tab_users:
         cols_ocultar = [c for c in ["gerencia_id", "coordenacao_id"] if c in df.columns]
         df_exibir = df.drop(columns=cols_ocultar)
         cols_order = ["ID"] + [c for c in df_exibir.columns if c != "ID"]
-        st.dataframe(
-            df_exibir[cols_order],
-            use_container_width=True,
-            hide_index=True,
-            column_config={"ID": st.column_config.NumberColumn("ID", width="small")},
-        )
+
+        esconde_indice_table()
+        estiliza_tabela_usuarios()
+        st.table(df_exibir[cols_order].reset_index(drop=True))
 
     st.divider()
 
