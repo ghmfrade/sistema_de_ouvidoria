@@ -76,8 +76,10 @@ with tab_users:
             "tipo": "Perfil", "gerencia_nome": "Gerência",
             "coordenacao_nome": "Coordenação", "ativo": "Ativo",
         })
-        cols_ocultar = [c for c in ["ID", "gerencia_id", "coordenacao_id"] if c in df.columns]
-        st.dataframe(df.drop(columns=cols_ocultar), use_container_width=True, hide_index=True)
+        cols_ocultar = [c for c in ["gerencia_id", "coordenacao_id"] if c in df.columns]
+        df_exibir = df.drop(columns=cols_ocultar)
+        cols_order = ["ID"] + [c for c in df_exibir.columns if c != "ID"]
+        st.dataframe(df_exibir[cols_order], use_container_width=True, hide_index=True)
 
     st.divider()
 
@@ -134,11 +136,13 @@ with tab_users:
             st.info("Nenhum usuário cadastrado.")
         else:
             edit_labels = [
-                f"{usr['nome']} ({usr['email']})" + (" [inativo]" if not usr["ativo"] else "")
+                f"#{usr['id']} — {usr['nome']} ({usr['email']})"
+                + (" [inativo]" if not usr["ativo"] else "")
                 for usr in users
             ]
+            edit_id_map = {lbl: usr for lbl, usr in zip(edit_labels, users)}
             sel_edit_label = st.selectbox("Selecionar usuário para editar", edit_labels, key="edit_user_sel")
-            sel_edit_usr = users[edit_labels.index(sel_edit_label)]
+            sel_edit_usr = edit_id_map[sel_edit_label]
 
             with st.form("form_editar_user"):
                 edit_senha = st.text_input(
@@ -161,10 +165,14 @@ with tab_users:
         if not users:
             st.info("Nenhum usuário cadastrado.")
         else:
-            toggle_labels = [f"{usr['nome']} ({usr['email']})" for usr in users]
+            toggle_labels = [
+                f"#{usr['id']} — {usr['nome']} ({usr['email']})"
+                + (" [inativo]" if not usr["ativo"] else "")
+                for usr in users
+            ]
+            toggle_id_map = {lbl: usr["id"] for lbl, usr in zip(toggle_labels, users)}
             sel_user_label = st.selectbox("Selecionar usuário", toggle_labels, key="toggle_user")
-            sel_user = users[toggle_labels.index(sel_user_label)]
-            sel_user_id = sel_user["id"]
+            sel_user_id = toggle_id_map[sel_user_label]
             col_at, col_dat = st.columns(2)
             if col_at.button("Ativar"):
                 try:
