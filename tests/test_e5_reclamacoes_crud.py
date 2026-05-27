@@ -84,24 +84,16 @@ def test_resolve_tipo_servico_invalido():
     assert _resolve_tipo_servico("Tipo Inexistente") is None
 
 
-# ── Adicionar reclamação via resposta técnica ─────────────────────────────────
+# ── Adicionar reclamação via PATCH /reclamacoes ───────────────────────────────
 
-def test_adicionar_reclamacao_via_resposta_tecnica(client, headers_gestor, cat_id, tecnico_id_fixture):
-    """Enviar payload com rec nova (id=None) deve criar a reclamação no banco."""
+def test_adicionar_reclamacao_via_patch(client, headers_gestor, cat_id):
+    """Enviar payload com rec nova (id=None) via PATCH deve criar a reclamação."""
     oid = _criar_ouvidoria_com_duas_recs(client, headers_gestor, cat_id)
     try:
-        # Atribuir técnico para poder enviar resposta
-        client.post(
-            f"/ouvidorias/{oid}/atribuir-tecnico",
-            json={"tecnico_id": tecnico_id_fixture},
-            headers=headers_gestor,
-        )
-
         dado = get_ouvidoria_completa(oid)
         recs_existentes = dado["reclamacoes"]
         assert len(recs_existentes) == 2
 
-        # Monta payload: 2 existentes + 1 nova (id=None)
         recs_edit = [
             {
                 "id": r["id"],
@@ -126,43 +118,36 @@ def test_adicionar_reclamacao_via_resposta_tecnica(client, headers_gestor, cat_i
                 "local_embarque": None,
                 "local_desembarque": None,
                 "empresa_fretamento": None,
-                "descricao": "Reclamação nova adicionada via resposta",
+                "descricao": "Reclamação nova adicionada via PATCH",
                 "autos": [],
             }
         ]
 
-        r = client.post(
-            f"/ouvidorias/{oid}/respostas-tecnicas",
-            json={"tecnico_id": tecnico_id_fixture, "texto": "Resposta de teste", "recs_edit": recs_edit},
+        r = client.patch(
+            f"/ouvidorias/{oid}/reclamacoes",
+            json={"recs_edit": recs_edit},
             headers=headers_gestor,
         )
         assert r.status_code == 200, r.text
 
         dado_final = get_ouvidoria_completa(oid)
         assert len(dado_final["reclamacoes"]) == 3
-        descricoes = {r["descricao"] for r in dado_final["reclamacoes"]}
-        assert "Reclamação nova adicionada via resposta" in descricoes
+        descricoes = {rec["descricao"] for rec in dado_final["reclamacoes"]}
+        assert "Reclamação nova adicionada via PATCH" in descricoes
     finally:
         client.delete(f"/ouvidorias/{oid}", headers=headers_gestor)
 
 
-# ── Remover reclamação via resposta técnica ───────────────────────────────────
+# ── Remover reclamação via PATCH /reclamacoes ─────────────────────────────────
 
-def test_remover_reclamacao_via_resposta_tecnica(client, headers_gestor, cat_id, tecnico_id_fixture):
-    """Omitir reclamação existente do payload deve excluí-la do banco."""
+def test_remover_reclamacao_via_patch(client, headers_gestor, cat_id):
+    """Omitir reclamação existente do payload PATCH deve excluí-la do banco."""
     oid = _criar_ouvidoria_com_duas_recs(client, headers_gestor, cat_id)
     try:
-        client.post(
-            f"/ouvidorias/{oid}/atribuir-tecnico",
-            json={"tecnico_id": tecnico_id_fixture},
-            headers=headers_gestor,
-        )
-
         dado = get_ouvidoria_completa(oid)
         recs_existentes = dado["reclamacoes"]
         assert len(recs_existentes) == 2
 
-        # Envia apenas a primeira reclamação — a segunda deve ser excluída
         primeira = recs_existentes[0]
         recs_edit = [{
             "id": primeira["id"],
@@ -177,9 +162,9 @@ def test_remover_reclamacao_via_resposta_tecnica(client, headers_gestor, cat_id,
             "autos": [],
         }]
 
-        r = client.post(
-            f"/ouvidorias/{oid}/respostas-tecnicas",
-            json={"tecnico_id": tecnico_id_fixture, "texto": "Resposta de teste", "recs_edit": recs_edit},
+        r = client.patch(
+            f"/ouvidorias/{oid}/reclamacoes",
+            json={"recs_edit": recs_edit},
             headers=headers_gestor,
         )
         assert r.status_code == 200, r.text
@@ -191,13 +176,39 @@ def test_remover_reclamacao_via_resposta_tecnica(client, headers_gestor, cat_id,
         client.delete(f"/ouvidorias/{oid}", headers=headers_gestor)
 
 
-# ── Dados relacionados são preservados ───────────────────────────────────────
+# ── Resposta técnica registrada corretamente ──────────────────────────────────
 
-def test_dados_relacionados_preservados_apos_diff(client, headers_gestor, cat_id, tecnico_id_fixture):
-    """Após diff de reclamações, respostas da permissionária devem ser mantidas."""
+def test_registrar_resposta_tecnica(client, headers_gestor, cat_id, tecnico_id_fixture):
+    """POST /respostas-tecnicas persiste a resposta e marca atribuição como respondida."""
     oid = _criar_ouvidoria_com_duas_recs(client, headers_gestor, cat_id)
     try:
-        # Adicionar resposta da permissionária
+        client.post(
+            f"/ouvidorias/{oid}/atribuir-tecnico",
+            json={"tecnico_id": tecnico_id_fixture},
+            headers=headers_gestor,
+        )
+
+        r = client.post(
+            f"/ouvidorias/{oid}/respostas-tecnicas",
+            json={"tecnico_id": tecnico_id_fixture, "texto": "Resposta de teste"},
+            headers=headers_gestor,
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["todos_responderam"] is True
+
+        dado_final = get_ouvidoria_completa(oid)
+        assert len(dado_final["respostas_tecnicas"]) == 1
+        assert dado_final["respostas_tecnicas"][0]["texto_resposta"] == "Resposta de teste"
+    finally:
+        client.delete(f"/ouvidorias/{oid}", headers=headers_gestor)
+
+
+# ── Dados relacionados preservados após diff de reclamações ───────────────────
+
+def test_dados_relacionados_preservados_apos_patch(client, headers_gestor, cat_id, tecnico_id_fixture):
+    """Após PATCH de reclamações, respostas da permissionária e técnicas são mantidas."""
+    oid = _criar_ouvidoria_com_duas_recs(client, headers_gestor, cat_id)
+    try:
         client.post(
             f"/ouvidorias/{oid}/respostas-permissionaria",
             json={
@@ -214,10 +225,17 @@ def test_dados_relacionados_preservados_apos_diff(client, headers_gestor, cat_id
             headers=headers_gestor,
         )
 
+        client.post(
+            f"/ouvidorias/{oid}/respostas-tecnicas",
+            json={"tecnico_id": tecnico_id_fixture, "texto": "Resposta técnica de teste"},
+            headers=headers_gestor,
+        )
+
         dado = get_ouvidoria_completa(oid)
         assert len(dado["respostas_permissionaria"]) == 1
+        assert len(dado["respostas_tecnicas"]) == 1
 
-        # Enviar resposta técnica modificando reclamações (remove a 2ª)
+        # Editar reclamações via PATCH — remove a 2ª reclamação
         primeira = dado["reclamacoes"][0]
         recs_edit = [{
             "id": primeira["id"],
@@ -232,15 +250,16 @@ def test_dados_relacionados_preservados_apos_diff(client, headers_gestor, cat_id
             "autos": [],
         }]
 
-        client.post(
-            f"/ouvidorias/{oid}/respostas-tecnicas",
-            json={"tecnico_id": tecnico_id_fixture, "texto": "Resposta de teste", "recs_edit": recs_edit},
+        r = client.patch(
+            f"/ouvidorias/{oid}/reclamacoes",
+            json={"recs_edit": recs_edit},
             headers=headers_gestor,
         )
+        assert r.status_code == 200, r.text
 
         dado_final = get_ouvidoria_completa(oid)
-        assert len(dado_final["reclamacoes"]) == 1
+        assert len(dado_final["reclamacoes"]) == 1, "Reclamação não foi removida"
         assert len(dado_final["respostas_permissionaria"]) == 1, "Resposta da permissionária foi perdida"
-        assert len(dado_final["respostas_tecnicas"]) == 1, "Resposta técnica não foi registrada"
+        assert len(dado_final["respostas_tecnicas"]) == 1, "Resposta técnica foi perdida"
     finally:
         client.delete(f"/ouvidorias/{oid}", headers=headers_gestor)
