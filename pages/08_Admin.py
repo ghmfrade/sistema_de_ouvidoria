@@ -118,9 +118,15 @@ with tab_users:
             elif email_existe(novo_email, apenas_ativos=True):
                 st.error("Já existe um usuário ativo com este e-mail.")
             else:
-                criar_usuario(novo_nome, novo_email, nova_senha, novo_tipo, ger_id_final, coord_id_final)
-                st.toast(f"Usuário {novo_email} criado com sucesso!", icon="✅")
-                st.rerun()
+                try:
+                    criar_usuario(novo_nome, novo_email, nova_senha, novo_tipo, ger_id_final, coord_id_final)
+                    st.toast(f"Usuário {novo_email} criado com sucesso!", icon="✅")
+                    st.rerun()
+                except ApiError as e:
+                    if e.status_code == 409:
+                        st.error(f"Conflito: {e.detail}")
+                    else:
+                        st.error(f"Erro ao criar usuário: {e.detail}")
 
     # ── Sub-tab: Editar Usuário ───────────────────────────────────────────────
     with subtab_editar:

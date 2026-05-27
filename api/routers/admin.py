@@ -51,6 +51,12 @@ def email_existe(
 
 @router.post("/usuarios")
 def criar_usuario(body: CriarUsuarioRequest, _=Depends(requer_gestor)):
+    if _email_existe(body.email, apenas_ativos=True):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Já existe um login ativo com o e-mail '{body.email}'. "
+                   "Inative o usuário existente antes de criar um novo com o mesmo e-mail.",
+        )
     import bcrypt
     senha_hash = bcrypt.hashpw(body.senha.encode(), bcrypt.gensalt()).decode()
     _criar_usuario(

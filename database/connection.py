@@ -50,8 +50,4 @@ def init_db():
     """Cria todas as tabelas no banco."""
     from models import Base  # noqa: F401 – importa todos os models via __init__
     Base.metadata.create_all(bind=engine)
-    # Remove a constraint unique de email (caso exista de versão anterior do schema)
-    with engine.connect() as conn:
-        conn.execute(text("ALTER TABLE usuarios DROP CONSTRAINT IF EXISTS usuarios_email_key"))
-        conn.commit()
     print("Banco de dados inicializado com sucesso.")
