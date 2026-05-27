@@ -55,7 +55,7 @@ def test_login_via_endpoint_retorna_token(client):
     """Testa o POST /auth/login com credenciais de um usuário real conhecido."""
     r = client.post("/auth/login", json={
         "email": "admin@artesp.sp.gov.br",
-        "senha": "admin123",
+        "senha": "troquei",
     })
     assert r.status_code == 200
     data = r.json()
