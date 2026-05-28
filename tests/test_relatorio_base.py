@@ -37,7 +37,7 @@ class TestRelatorioBaseRepo:
                 "data_1a_resposta_tecnica", "data_conclusao",
                 "id_reclamacao", "categoria", "assunto",
                 "cidade_origem", "cidade_destino",
-                "n_autos", "origem", "destino", "permissionaria", "pontuacao"
+                "n_autos", "sistema", "origem", "destino", "permissionaria", "pontuacao"
             }
             assert set(result[0].keys()) == expected_keys
 
