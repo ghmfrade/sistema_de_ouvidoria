@@ -105,7 +105,7 @@ class AnexoSchema(BaseModel):
 
 class OuvidoriaResumoSchema(BaseModel):
     id: int
-    protocolo: int | None = None
+    protocolo: str | None = None
     conteudo: str | None = None
     status: str
     prazo: date | None = None
@@ -120,7 +120,7 @@ class OuvidoriaResumoSchema(BaseModel):
 
 class OuvidoriaDetalheSchema(BaseModel):
     id: int
-    protocolo: int | None = None
+    protocolo: str | None = None
     conteudo: str | None = None
     status: str
     prazo: date | None = None
