@@ -384,7 +384,14 @@ def query_heatmap_assunto_empresa(
         )
         total_empresas = len(todas_empresas)
         total_paginas = max(1, -(-total_empresas // por_pagina))
-        zmax_global = float(max((r[1] for r in todas_empresas if r[1]), default=0))
+        cell_subq = (
+            q.with_entities(
+                func.sum(ReclamacaoAuto.pontuacao).label("cell_pts")
+            )
+            .group_by(Permissionaria.nome, Subcategoria.nome)
+            .subquery()
+        )
+        zmax_global = float(s.query(func.max(cell_subq.c.cell_pts)).scalar() or 0)
         offset = (pagina - 1) * por_pagina
         empresas_pagina = [r[0] for r in todas_empresas[offset : offset + por_pagina]]
 
@@ -574,7 +581,14 @@ def query_heatmap_assunto_auto(
         )
         total_autos = len(todos_autos)
         total_paginas = max(1, -(-total_autos // por_pagina))
-        zmax_global = float(max((r[1] for r in todos_autos if r[1]), default=0))
+        cell_subq = (
+            q.with_entities(
+                func.sum(ReclamacaoAuto.pontuacao).label("cell_pts")
+            )
+            .group_by(AutoLinha.numero, Subcategoria.nome)
+            .subquery()
+        )
+        zmax_global = float(s.query(func.max(cell_subq.c.cell_pts)).scalar() or 0)
         offset = (pagina - 1) * por_pagina
         autos_pagina = [r[0] for r in todos_autos[offset : offset + por_pagina]]
 
