@@ -35,7 +35,7 @@ def criar_ouvidoria(protocolo, conteudo, prazo, prazo_permissionaria,
     Retorna o id da ouvidoria criada."""
     with db_session() as session:
         ouvidoria = Ouvidoria(
-            protocolo=int(protocolo.strip()),
+            protocolo=protocolo.strip(),
             conteudo=conteudo.strip(),
             prazo=prazo,
             prazo_permissionaria=prazo_permissionaria,
@@ -98,7 +98,7 @@ def editar_ouvidoria(
             return
 
         if protocolo is not None:
-            o.protocolo = int(protocolo.strip())
+            o.protocolo = protocolo.strip()
 
         if conteudo is not None:
             o.conteudo = conteudo.strip()
