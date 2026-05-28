@@ -35,6 +35,8 @@ def download_relatorio(data_ini: date, data_fim: date):
         "id_reclamacao": "ID - Reclamação",
         "categoria": "Categoria",
         "assunto": "Assunto",
+        "cidade_origem": "Local de Embarque",
+        "cidade_destino": "Local de Desembarque",
         "n_autos": "Nº Auto",
         "origem": "Origem (Denominação A)",
         "destino": "Destino (Denominação B)",

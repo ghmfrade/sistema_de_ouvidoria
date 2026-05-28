@@ -1,6 +1,6 @@
 import enum
 from datetime import date, datetime
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text, func
+from sqlalchemy import BigInteger, Date, DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import Base
 
@@ -17,7 +17,7 @@ class Ouvidoria(Base):
     __tablename__ = "ouvidorias"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    protocolo: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    protocolo: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
     conteudo: Mapped[str] = mapped_column(Text, nullable=False)
     prazo: Mapped[date] = mapped_column(Date, nullable=False)
     prazo_permissionaria: Mapped[date | None] = mapped_column(Date, nullable=True)
