@@ -47,6 +47,17 @@ def sidebar_usuario():
                 auth.fazer_logout()
                 st.rerun()
 
+            with st.container(border=True):
+                st.markdown("<p style='text-align: center; font-size: 16px;'><b>Manual de classificação</b></p>", unsafe_allow_html=True)
+                with open("GUIA OPERACIONAL - Manual para Classificação.pdf", "rb") as pdf_file:
+                    st.download_button(
+                        label="📥",
+                        data=pdf_file,
+                        file_name="GUIA OPERACIONAL - Manual para Classificação.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+
 
 # ── Roteamento ──────────────────────────────────────────────────────────────
 u = usuario_logado()
