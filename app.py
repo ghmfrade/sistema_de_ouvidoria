@@ -28,12 +28,12 @@ def pagina_login():
             if not email or not senha:
                 st.error("Preencha Login e senha.")
             else:
-                usuario = auth.autenticar(email, senha)
+                usuario, erro = auth.autenticar(email, senha)
                 if usuario:
                     st.session_state["api_session"] = usuario
                     st.rerun()
                 else:
-                    st.error("Login ou senha incorretos.")
+                    st.error(erro)
 
 
 def sidebar_usuario():

@@ -19,15 +19,20 @@ _ALGORITHM = "HS256"
 _EXPIRE_MINUTES = 60
 
 
-def autenticar(email: str, senha: str) -> dict | None:
-    """Valida credenciais e retorna dict com dados do usuário, ou None."""
+def autenticar(email: str, senha: str) -> tuple[dict | None, str | None]:
+    """Valida credenciais e retorna (dict com dados do usuário, mensagem de erro) ou (None, mensagem de erro).
+
+    Retorna:
+        (dict, None) se autenticado com sucesso
+        (None, mensagem de erro) se falhar
+    """
     session = get_session()
     try:
         u = session.query(Usuario).filter_by(email=email.strip(), ativo=True).first()
         if u is None:
-            return None
+            return None, "Este e-mail não está cadastrado no sistema."
         if not bcrypt.checkpw(senha.encode(), u.senha_hash.encode()):
-            return None
+            return None, "Senha incorreta. Tente novamente."
         # Carrega relacionamentos enquanto a sessão está aberta
         gerencia_nome = u.gerencia.nome if u.gerencia else None
         coordenacao_nome = u.coordenacao.nome if u.coordenacao else None
@@ -40,7 +45,7 @@ def autenticar(email: str, senha: str) -> dict | None:
             "gerencia_nome": gerencia_nome,
             "coordenacao_id": u.coordenacao_id,
             "coordenacao_nome": coordenacao_nome,
-        }
+        }, None
     finally:
         session.close()
 

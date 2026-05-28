@@ -49,10 +49,24 @@ def _raise_if_error(r: httpx.Response) -> None:
         raise ApiError(r.status_code, detail)
 
 
+def _raise_if_error_public(r: httpx.Response) -> None:
+    """Versão de _raise_if_error para endpoints públicos (sem token).
+
+    Não faz st.rerun() em 401, pois credenciais inválidas devem retornar
+    uma exceção com mensagem para o caller tratar (ex: login inválido).
+    """
+    if not r.is_success:
+        try:
+            detail = r.json().get("detail", r.text)
+        except Exception:
+            detail = r.text
+        raise ApiError(r.status_code, detail)
+
+
 def post_public(path: str, json: dict | None = None) -> Any:
     """POST sem token — usado apenas para endpoints públicos como /auth/login."""
     r = httpx.post(f"{API_BASE}{path}", json=json, timeout=_TIMEOUT)
-    _raise_if_error(r)
+    _raise_if_error_public(r)
     return r.json()
 
 

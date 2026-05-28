@@ -111,16 +111,16 @@ def client():
 @pytest.fixture(scope="session")
 def token_gestor():
     from api.services.auth_service import autenticar, criar_token
-    usuario = autenticar(_EMAIL_GESTOR_TESTE, _SENHA_TESTE)
-    assert usuario is not None, "Falha ao autenticar gestor de teste"
+    usuario, erro = autenticar(_EMAIL_GESTOR_TESTE, _SENHA_TESTE)
+    assert usuario is not None, f"Falha ao autenticar gestor de teste: {erro}"
     return criar_token(usuario)
 
 
 @pytest.fixture(scope="session")
 def token_tecnico():
     from api.services.auth_service import autenticar, criar_token
-    usuario = autenticar(_EMAIL_TECNICO_TESTE, _SENHA_TESTE)
-    assert usuario is not None, "Falha ao autenticar técnico de teste"
+    usuario, erro = autenticar(_EMAIL_TECNICO_TESTE, _SENHA_TESTE)
+    assert usuario is not None, f"Falha ao autenticar técnico de teste: {erro}"
     return criar_token(usuario)
 
 

@@ -9,9 +9,9 @@ router = APIRouter()
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest):
     from api.services.auth_service import autenticar, criar_token
-    usuario = autenticar(body.email, body.senha)
+    usuario, erro = autenticar(body.email, body.senha)
     if not usuario:
-        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+        raise HTTPException(status_code=401, detail=erro)
     return TokenResponse(token=criar_token(usuario), **usuario)
 
 

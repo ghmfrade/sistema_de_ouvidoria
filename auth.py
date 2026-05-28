@@ -4,12 +4,17 @@ from api.client.auth_client import login as _api_login
 from api.client.base import ApiError
 
 
-def autenticar(email: str, senha: str) -> dict | None:
-    """Autentica via API. Retorna dict com dados do usuário ou None."""
+def autenticar(email: str, senha: str) -> tuple[dict | None, str | None]:
+    """Autentica via API. Retorna (dict com dados do usuário, erro) ou (None, mensagem de erro).
+
+    Retorna:
+        (dict, None) se autenticado com sucesso
+        (None, mensagem de erro) se falhar
+    """
     try:
-        return _api_login(email, senha)
-    except ApiError:
-        return None
+        return _api_login(email, senha), None
+    except ApiError as e:
+        return None, e.detail
 
 
 def usuario_logado() -> dict | None:
