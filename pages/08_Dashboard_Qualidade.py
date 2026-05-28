@@ -14,10 +14,6 @@ st.set_page_config(page_title="Dashboard Qualidade", layout="wide")
 reduz_margem_side_bar()
 reduz_margem_topo_page()
 
-if not auth.usuario_logado():
-    st.warning("Faça login para acessar esta página.")
-    st.stop()
-
 DASH_URL = os.getenv("DASH_URL", "http://localhost:8050")
 
 st.title("Dashboard de Qualidade")
