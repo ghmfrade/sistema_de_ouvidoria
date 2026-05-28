@@ -119,3 +119,46 @@ def test_token_invalido_retorna_401(base_url, http, path):
     params = _BASE_PERIODO if "produtividade" in path else {}
     r = http.get(f"{base_url}{path}", headers={"Authorization": "Bearer token_invalido"}, params=params)
     assert r.status_code == 401, f"{path} com token inválido → esperava 401, recebeu {r.status_code}"
+
+
+# ── Relatório Base (público) ──────────────────────────────────────────────────
+
+def test_relatorio_base_acesso_publico(base_url, http):
+    """Relatório base é acessível sem autenticação."""
+    r = http.get(f"{base_url}/relatorio-base/download", params=_BASE_PERIODO)
+    # Pode retornar 204 (sem dados) ou 200 (com dados XLSX)
+    assert r.status_code in [200, 204], \
+        f"/relatorio-base/download → {r.status_code}: {r.text[:200]}"
+
+
+def test_relatorio_base_periodo_vazio_retorna_204(base_url, http):
+    """Período sem dados retorna HTTP 204 No Content."""
+    # Usar período bem futuro
+    params = {
+        "data_ini": (date.today() + timedelta(days=365)).isoformat(),
+        "data_fim": (date.today() + timedelta(days=400)).isoformat(),
+    }
+    r = http.get(f"{base_url}/relatorio-base/download", params=params)
+    assert r.status_code == 204, \
+        f"Período sem dados → esperava 204, recebeu {r.status_code}"
+    assert len(r.content) == 0, "Resposta 204 não deve ter corpo"
+
+
+def test_relatorio_base_com_dados_retorna_xlsx(base_url, http):
+    """Período com dados retorna arquivo XLSX (HTTP 200)."""
+    r = http.get(f"{base_url}/relatorio-base/download", params=_BASE_PERIODO)
+
+    # Se houver dados, retorna 200 com XLSX
+    if r.status_code == 200:
+        assert "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" in r.headers.get(
+            "content-type", ""
+        ), f"Content-Type incorreto: {r.headers.get('content-type')}"
+
+        # Validar que tem attachment header
+        disposition = r.headers.get("content-disposition", "")
+        assert "attachment" in disposition.lower(), "Falta header Content-Disposition"
+        assert "relatorio_base_" in disposition, "Nome do arquivo inválido"
+
+        # Validar que é um XLSX válido (começa com PK — ZIP magic bytes)
+        assert r.content[:2] == b'PK', "Arquivo não é XLSX válido (magic bytes PK faltando)"
+

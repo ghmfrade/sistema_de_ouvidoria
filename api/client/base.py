@@ -103,3 +103,15 @@ def post_file(path: str, file_bytes: bytes, filename: str, content_type: str) ->
     )
     _raise_if_error(r)
     return r.json()
+
+
+def get_bytes_public(path: str, params: dict | None = None) -> bytes | None:
+    """GET público que retorna bytes (ex: arquivo XLSX).
+
+    Retorna None para status 204 (sem dados). Levanta ApiError para erros.
+    """
+    r = httpx.get(f"{API_BASE}{path}", params=params, timeout=60.0)
+    if r.status_code == 204:
+        return None
+    _raise_if_error_public(r)
+    return r.content
