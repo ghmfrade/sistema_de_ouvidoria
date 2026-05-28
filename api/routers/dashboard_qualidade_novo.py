@@ -50,6 +50,12 @@ def meses_disponiveis(
     return query_meses_disponiveis(ano, _parse_list(tipo_servico), categoria)
 
 
+@router.get("/qualidade-v2/regioes-disponiveis")
+def regioes_disponiveis(tipo_servico: str | None = None):
+    from repositories.dashboard.qualidade_novo_repo import query_regioes_disponiveis
+    return query_regioes_disponiveis(_parse_list(tipo_servico))
+
+
 # ── Cards de resumo ───────────────────────────────────────────────────────────
 
 @router.get("/qualidade-v2/resumo")
@@ -129,10 +135,12 @@ def heatmap_assunto_empresa(
     pagina: int = 1,
     por_pagina: int = 10,
     categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_heatmap_assunto_empresa
     return query_heatmap_assunto_empresa(
-        ano, _parse_meses(meses), _parse_list(tipo_servico), pagina, por_pagina, categoria
+        ano, _parse_meses(meses), _parse_list(tipo_servico), pagina, por_pagina, categoria,
+        _parse_list(regioes),
     )
 
 
@@ -181,6 +189,7 @@ def heatmap_assunto_auto(
     pagina: int = 1,
     por_pagina: int = 10,
     categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_heatmap_assunto_auto
     return query_heatmap_assunto_auto(
@@ -191,21 +200,30 @@ def heatmap_assunto_auto(
         pagina,
         por_pagina,
         categoria,
+        _parse_list(regioes),
     )
 
 
-# ── Aba Fretamento: locais de embarque ───────────────────────────────────────
+# ── Locais de embarque/desembarque ──────────────────────────────────────────
 
 @router.get("/qualidade-v2/locais-embarque")
 def locais_embarque(
     ano: int,
     meses: str | None = None,
+    tipo_servico: str | None = None,
     pagina: int = 1,
     por_pagina: int = 15,
     categoria: str = "RECLAMAÇÃO",
+    tipo_local: str = "embarque",
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_locais_embarque_fretamento
-    return query_locais_embarque_fretamento(ano, _parse_meses(meses), pagina, por_pagina, categoria)
+    from repositories.dashboard.qualidade_novo_repo import query_locais_embarque, query_locais_embarque_fretamento
+
+    tipo_servicos = _parse_list(tipo_servico)
+    if tipo_servicos:
+        return query_locais_embarque(ano, _parse_meses(meses), tipo_servicos, pagina, por_pagina, categoria, tipo_local)
+    else:
+        # Se nenhum tipo foi especificado, usa o padrão legado (fretamento)
+        return query_locais_embarque_fretamento(ano, _parse_meses(meses), pagina, por_pagina, categoria)
 
 
 # ── Lista de empresas para filtro do Gráfico 8 ───────────────────────────────

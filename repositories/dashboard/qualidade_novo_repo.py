@@ -7,7 +7,7 @@ Diferenças em relação ao repo anterior:
 - tipo_servico aceita lista de valores (para Fretamento = 2 tipos)
 """
 
-from sqlalchemy import String, cast, distinct, func
+from sqlalchemy import String, cast, distinct, func, or_
 
 from database.connection import db_session
 from models import (
@@ -19,8 +19,11 @@ from models import (
     ReclamacaoAuto,
     Subcategoria,
 )
+from utils.formatters import TC_REGIOES
 
 _IRREGULAR = "TRANSPORTE IRREGULAR / CLANDESTINO"
+_TS_METRO = "Regular – Metropolitano"
+_TS_INTER = "Regular – Intermunicipal"
 
 
 def _fantasia_map(s) -> dict[str, str]:
@@ -30,6 +33,36 @@ def _fantasia_map(s) -> dict[str, str]:
         func.coalesce(Permissionaria.nome_fantasia, Permissionaria.nome),
     ).all()
     return {r[0]: r[1] for r in rows}
+
+
+def _apply_regiao_filter(q, regioes: list[str]):
+    """Filtra query por regiões metropolitanas e TC.
+
+    Formatos esperados:
+    - "RM Campinas", "RM ...", etc. → filtro regiao_metropolitana
+    - "TC1", "TC2", ..., "TC5" → filtro tc
+    """
+    if not regioes:
+        return q
+
+    rm_vals = [r for r in regioes if not r.startswith("TC")]
+    tc_vals = []
+    for r in regioes:
+        if r.startswith("TC"):
+            try:
+                tc_vals.append(int(r[2:]))
+            except (ValueError, IndexError):
+                pass
+
+    conditions = []
+    if rm_vals:
+        conditions.append(AutoLinha.regiao_metropolitana.in_(rm_vals))
+    if tc_vals:
+        conditions.append(AutoLinha.tc.in_(tc_vals))
+
+    if conditions:
+        return q.filter(or_(*conditions))
+    return q
 
 
 def _base_novo(s, ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO"):
@@ -87,6 +120,47 @@ def query_meses_disponiveis(ano: int, tipo_servicos: list[str], categoria: str =
             .all()
         )
         return [int(r[0]) for r in rows]
+
+
+# ── Filtros de região ────────────────────────────────────────────────────────
+
+def query_regioes_disponiveis(tipo_servicos: list[str]) -> list[dict]:
+    """Retorna lista de regiões disponíveis para o tipo de serviço.
+
+    Para Regular Metropolitano: lista de regiao_metropolitana (ex: "RM Campinas")
+    Para Regular Intermunicipal: lista "TC1 - Campinas", "TC2 - Sorocaba", etc.
+    """
+    with db_session() as s:
+        resultado = []
+
+        # Se Regular Metropolitano está na seleção
+        if _TS_METRO in tipo_servicos:
+            rm_rows = (
+                s.query(distinct(AutoLinha.regiao_metropolitana))
+                .filter(cast(AutoLinha.tipo, String) == _TS_METRO)
+                .filter(AutoLinha.regiao_metropolitana.isnot(None))
+                .filter(AutoLinha.regiao_metropolitana != "")
+                .order_by(AutoLinha.regiao_metropolitana)
+                .all()
+            )
+            for r in rm_rows:
+                resultado.append({"id": r[0], "label": r[0]})
+
+        # Se Regular Intermunicipal está na seleção
+        if _TS_INTER in tipo_servicos:
+            tc_rows = (
+                s.query(distinct(AutoLinha.tc))
+                .filter(cast(AutoLinha.tipo, String) == _TS_INTER)
+                .filter(AutoLinha.tc.isnot(None))
+                .order_by(AutoLinha.tc)
+                .all()
+            )
+            for r in tc_rows:
+                tc_num = r[0]
+                tc_label = TC_REGIOES.get(tc_num, str(tc_num))
+                resultado.append({"id": f"TC{tc_num}", "label": f"TC{tc_num} - {tc_label}"})
+
+        return resultado
 
 
 # ── Cards de resumo ───────────────────────────────────────────────────────────
@@ -283,13 +357,19 @@ def query_heatmap_assunto_empresa(
     pagina: int = 1,
     por_pagina: int = 10,
     categoria: str = "RECLAMAÇÃO",
+    regioes: list[str] | None = None,
 ) -> dict:
-    """Retorna dados para heatmap assunto × empresa com paginação por empresa."""
+    """Retorna dados para heatmap assunto × empresa com paginação por empresa.
+
+    Args:
+        regioes: lista de IDs de região ("RM Campinas", "TC1", etc.)
+    """
     with db_session() as s:
         q = _base_novo(s, ano, meses, tipo_servicos, categoria)
         q = q.filter(
             (Subcategoria.nome != _IRREGULAR) | (Subcategoria.nome.is_(None))
         ).filter(Permissionaria.nome.isnot(None))
+        q = _apply_regiao_filter(q, regioes or [])
 
         # Empresas ordenadas por pontuação total (para paginação consistente)
         # Usar .all() + slice Python evita comportamento instável de .count() em queries com GROUP BY
@@ -464,8 +544,13 @@ def query_heatmap_assunto_auto(
     pagina: int = 1,
     por_pagina: int = 10,
     categoria: str = "RECLAMAÇÃO",
+    regioes: list[str] | None = None,
 ) -> dict:
-    """Heatmap assunto × auto com filtro opcional de empresas e paginação."""
+    """Heatmap assunto × auto com filtro opcional de empresas, regiões e paginação.
+
+    Args:
+        regioes: lista de IDs de região ("RM Campinas", "TC1", etc.)
+    """
     with db_session() as s:
         q = _base_novo(s, ano, meses, tipo_servicos, categoria)
         q = q.filter(
@@ -474,6 +559,8 @@ def query_heatmap_assunto_auto(
 
         if perm_ids:
             q = q.filter(Permissionaria.id.in_(perm_ids))
+
+        q = _apply_regiao_filter(q, regioes or [])
 
         # Autos ordenados por pontuação total (para paginação consistente)
         todos_autos = (
@@ -531,30 +618,45 @@ def query_heatmap_assunto_auto(
         }
 
 
-# ── Aba Fretamento: locais de embarque ───────────────────────────────────────
+# ── Locais de embarque/desembarque ──────────────────────────────────────────
 
-def query_locais_embarque_fretamento(
+def query_locais_embarque(
     ano: int,
     meses: list[int],
+    tipo_servicos: list[str],
     pagina: int = 1,
     por_pagina: int = 15,
     categoria: str = "RECLAMAÇÃO",
+    tipo_local: str = "embarque",
 ) -> dict:
-    """Ranking paginado de locais de embarque para Fretamento."""
-    tipo_servicos = ["Fretamento Intermunicipal", "Fretamento Metropolitano"]
+    """Ranking paginado de locais de embarque/desembarque.
+
+    Args:
+        tipo_servicos: lista de tipos de serviço a filtrar
+        tipo_local: "embarque" ou "desembarque"
+    """
     with db_session() as s:
         q = _base_novo(s, ano, meses, tipo_servicos, categoria)
-        q = q.filter(
-            Reclamacao.local_embarque.isnot(None),
-            Reclamacao.local_embarque != "",
-        )
+
+        if tipo_local == "desembarque":
+            q = q.filter(
+                Reclamacao.local_desembarque.isnot(None),
+                Reclamacao.local_desembarque != "",
+            )
+            local_field = Reclamacao.local_desembarque
+        else:
+            q = q.filter(
+                Reclamacao.local_embarque.isnot(None),
+                Reclamacao.local_embarque != "",
+            )
+            local_field = Reclamacao.local_embarque
 
         todos = (
             q.with_entities(
-                Reclamacao.local_embarque.label("local"),
+                local_field.label("local"),
                 func.count(distinct(Reclamacao.id)).label("total"),
             )
-            .group_by(Reclamacao.local_embarque)
+            .group_by(local_field)
             .order_by(func.count(distinct(Reclamacao.id)).desc())
             .all()
         )
@@ -566,7 +668,7 @@ def query_locais_embarque_fretamento(
 
         dados = []
         for r in rows_pag:
-            assunto_top = _assunto_top_local(s, ano, meses, categoria, r[0])
+            assunto_top = _assunto_top_local(s, ano, meses, tipo_servicos, categoria, r[0], tipo_local)
             dados.append({
                 "local": r[0],
                 "total": int(r[1]),
@@ -575,12 +677,14 @@ def query_locais_embarque_fretamento(
         return {"dados": dados, "total_paginas": total_paginas, "pagina": pagina, "xmax_global": xmax_global}
 
 
-def _assunto_top_local(s, ano, meses, categoria, local):
-    tipo_servicos = ["Fretamento Intermunicipal", "Fretamento Metropolitano"]
+def _assunto_top_local(s, ano, meses, tipo_servicos, categoria, local, tipo_local):
     q = _base_novo(s, ano, meses, tipo_servicos, categoria)
+    if tipo_local == "desembarque":
+        q = q.filter(Reclamacao.local_desembarque == local)
+    else:
+        q = q.filter(Reclamacao.local_embarque == local)
     row = (
-        q.filter(Reclamacao.local_embarque == local)
-        .filter(Subcategoria.nome.isnot(None))
+        q.filter(Subcategoria.nome.isnot(None))
         .with_entities(
             Subcategoria.nome,
             func.count(distinct(Reclamacao.id)).label("qty"),
@@ -590,6 +694,19 @@ def _assunto_top_local(s, ano, meses, categoria, local):
         .first()
     )
     return row[0] if row else "–"
+
+
+# Compatibilidade com código legado que chama query_locais_embarque_fretamento
+def query_locais_embarque_fretamento(
+    ano: int,
+    meses: list[int],
+    pagina: int = 1,
+    por_pagina: int = 15,
+    categoria: str = "RECLAMAÇÃO",
+) -> dict:
+    """Alias legado para query_locais_embarque com tipos fretamento."""
+    tipo_servicos = ["Fretamento Intermunicipal", "Fretamento Metropolitano"]
+    return query_locais_embarque(ano, meses, tipo_servicos, pagina, por_pagina, categoria, "embarque")
 
 
 # ── Lista de empresas para filtro do Gráfico 8 ───────────────────────────────
