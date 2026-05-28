@@ -26,7 +26,7 @@ def get_relatorio_base(data_ini: date, data_fim: date) -> list[dict]:
             .subquery()
         )
 
-        # Query principal: JOIN ouvidoria → reclamacao → reclamacao_autos → auto_linha
+        # Query principal: JOIN ouvidoria → reclamacao → reclamacao_autos → auto_linha (autos são opcionais)
         q = (
             s.query(
                 Ouvidoria.id,
@@ -46,10 +46,12 @@ def get_relatorio_base(data_ini: date, data_fim: date) -> list[dict]:
                 AutoLinha.denominacao_b.label("destino"),
                 Permissionaria.nome.label("permissionaria"),
                 ReclamacaoAuto.pontuacao,
+                Reclamacao.empresa_fretamento.label("empresa_fretamento"),
+                Reclamacao.tipo_servico.label("tipo_servico_rec"),
             )
             .join(Reclamacao, Ouvidoria.id == Reclamacao.ouvidoria_id)
-            .join(ReclamacaoAuto, Reclamacao.id == ReclamacaoAuto.reclamacao_id)
-            .join(AutoLinha, ReclamacaoAuto.auto_id == AutoLinha.id)
+            .outerjoin(ReclamacaoAuto, Reclamacao.id == ReclamacaoAuto.reclamacao_id)
+            .outerjoin(AutoLinha, ReclamacaoAuto.auto_id == AutoLinha.id)
             .outerjoin(Categoria, Reclamacao.categoria_id == Categoria.id)
             .outerjoin(Subcategoria, Reclamacao.subcategoria_id == Subcategoria.id)
             .outerjoin(Permissionaria, AutoLinha.permissionaria_id == Permissionaria.id)
@@ -63,6 +65,7 @@ def get_relatorio_base(data_ini: date, data_fim: date) -> list[dict]:
         # Converter para list de dicts
         result = []
         for row in rows:
+            sistema_enum = row.sistema or row.tipo_servico_rec
             result.append({
                 "id": row.id,
                 "protocolo": row.protocolo,
@@ -76,11 +79,12 @@ def get_relatorio_base(data_ini: date, data_fim: date) -> list[dict]:
                 "cidade_origem": row.cidade_origem,
                 "cidade_destino": row.cidade_destino,
                 "n_autos": row.n_autos,
-                "sistema": row.sistema.value if row.sistema else None,
+                "sistema": sistema_enum.value if sistema_enum else None,
                 "origem": row.origem,
                 "destino": row.destino,
                 "permissionaria": row.permissionaria,
                 "pontuacao": row.pontuacao,
+                "empresa_fretamento": row.empresa_fretamento,
             })
 
         return result
