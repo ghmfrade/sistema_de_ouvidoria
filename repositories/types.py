@@ -161,7 +161,7 @@ class AnexoDict(TypedDict):
 class OuvidoriaResumoDict(TypedDict):
     """Ouvidoria na listagem (página 01). Contém atribuições para cálculo de coord/responsáveis."""
     id: int
-    protocolo: str | None
+    protocolo: int | None
     conteudo: str | None
     status: str             # StatusOuvidoria.value
     prazo: date | None
@@ -175,7 +175,7 @@ class OuvidoriaResumoDict(TypedDict):
 class OuvidoriaDetalheDict(TypedDict):
     """Ouvidoria completa para página de detalhe/resposta técnica."""
     id: int
-    protocolo: str | None
+    protocolo: int | None
     conteudo: str | None
     status: str             # StatusOuvidoria.value
     prazo: date | None

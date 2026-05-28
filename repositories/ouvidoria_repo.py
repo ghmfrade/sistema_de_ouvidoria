@@ -230,7 +230,7 @@ def get_respostas_tecnico(ouvidoria_id: int, tecnico_id: int) -> list[RespostaTe
 def get_id_por_protocolo(protocolo: str) -> int | None:
     """Retorna o id da ouvidoria com o protocolo informado, ou None se não existir."""
     with db_session() as s:
-        row = s.query(Ouvidoria.id).filter_by(protocolo=protocolo.strip()).first()
+        row = s.query(Ouvidoria.id).filter_by(protocolo=int(protocolo.strip())).first()
         return row[0] if row else None
 
 
