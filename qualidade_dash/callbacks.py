@@ -12,6 +12,13 @@ from qualidade_dash.layout import (
 
 _COLORSCALE = [[0, "#2ecc71"], [0.5, "#f1c40f"], [1, "#e74c3c"]]
 
+_SERVICO_LABEL = {
+    "Regular – Metropolitano":   "Regular Metropolitano",
+    "Regular – Intermunicipal":  "Regular Intermunicipal",
+    "Fretamento Intermunicipal": "Fretamento Intermunicipal",
+    "Fretamento Metropolitano":  "Fretamento Metropolitano",
+}
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -31,6 +38,53 @@ def _meses_str(meses: list[int] | None) -> str | None:
     if not meses:
         return None
     return ",".join(str(m) for m in meses)
+
+
+def _subtitulo_servico(servicos: list[str] | None) -> str:
+    """Subtítulo para gráficos compartilhados — reflete o filtro completo."""
+    sel = set(servicos or [])
+    if not sel or len(sel) >= 4:
+        return ""
+    tem_mfret = "Fretamento Metropolitano" in sel
+    tem_ifret  = "Fretamento Intermunicipal" in sel
+    tem_mreg   = "Regular – Metropolitano" in sel
+    tem_ireg   = "Regular – Intermunicipal" in sel
+
+    # Casos nomeados
+    if tem_mfret and tem_ifret and not tem_mreg and not tem_ireg:
+        return "Serviço de Fretamento"
+    if tem_ifret and not tem_mfret and not tem_mreg and not tem_ireg:
+        return "Fretamento Intermunicipal"
+    if tem_mfret and not tem_ifret and not tem_mreg and not tem_ireg:
+        return "Fretamento Metropolitano"
+    if tem_mreg and tem_ireg and not tem_mfret and not tem_ifret:
+        return "Serviço Regular"
+    if tem_mreg and not tem_ireg and not tem_mfret and not tem_ifret:
+        return "Serviço Regular Metropolitano"
+    if tem_ireg and not tem_mreg and not tem_mfret and not tem_ifret:
+        return "Serviço Regular Intermunicipal"
+
+    # Combos mistos — enumerar
+    labels = [_SERVICO_LABEL[s] for s in [
+        "Regular – Metropolitano", "Regular – Intermunicipal",
+        "Fretamento Intermunicipal", "Fretamento Metropolitano"
+    ] if s in sel]
+    if len(labels) == 2:
+        return f"{labels[0]} e {labels[1]}"
+    return ", ".join(labels[:-1]) + " e " + labels[-1]
+
+
+def _subtitulo_regular(servicos: list[str] | None) -> str:
+    """Subtítulo para gráficos exclusivos do Regular — sempre mostra Serviço Regular."""
+    metro = "Regular – Metropolitano" in (servicos or [])
+    inter = "Regular – Intermunicipal" in (servicos or [])
+    if metro and inter:
+        return "Serviço Regular"
+    if metro:
+        return "Serviço Regular Metropolitano"
+    if inter:
+        return "Serviço Regular Intermunicipal"
+    return ""
 
 
 def _fig_vazia(msg: str = "Sem dados para o período") -> go.Figure:
@@ -230,6 +284,35 @@ def _aviso_sem_dados():
 # ── Registro de callbacks ─────────────────────────────────────────────────────
 
 def register_callbacks(app):
+    # Atualização de títulos e subtítulos dinâmicos
+    @app.callback(
+        Output("subtitulo-g-evolucao", "children"),
+        Output("subtitulo-g-pizza", "children"),
+        Output("subtitulo-g-locais", "children"),
+        Output("subtitulo-g3", "children"),
+        Output("subtitulo-g4", "children"),
+        Output("subtitulo-g5", "children"),
+        Output("subtitulo-g6", "children"),
+        Output("subtitulo-g7", "children"),
+        Output("subtitulo-g8", "children"),
+        Input("filtro-servico", "value"),
+        prevent_initial_call=False,
+    )
+    def update_subtitulos(servicos):
+        s = _subtitulo_servico(servicos)
+        r = _subtitulo_regular(servicos)
+        return (
+            s,
+            s,
+            s,
+            r,
+            r,
+            r,
+            r,
+            r,
+            r,
+        )
+
     # Inicialização de anos
     @app.callback(
         Output("filtro-ano", "options"),

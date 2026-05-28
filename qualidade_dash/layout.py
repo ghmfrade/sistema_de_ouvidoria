@@ -139,8 +139,17 @@ def _paginacao(prefix: str):
 
 # ── Gráficos em card ──────────────────────────────────────────────────────────
 
-def _graph_card(graph_id: str, titulo: str, extra: list | None = None):
-    children = [html.H6(titulo, className="fw-semibold text-secondary mb-3")]
+def _graph_card(graph_id: str, titulo: str, extra: list | None = None, titulo_id: str | None = None, subtitulo_id: str | None = None):
+    h6_kwargs = {"className": "fw-semibold text-secondary mb-1"}
+    if titulo_id:
+        h6_kwargs["id"] = titulo_id
+    children = [html.H6(titulo, **h6_kwargs)]
+
+    if subtitulo_id:
+        children.append(html.Small("", id=subtitulo_id, className="text-muted d-block mb-3", style={"fontSize": "12px"}))
+    else:
+        children.append(html.Div(style={"height": "0"}))  # Espaçador para manter layout consistente
+
     if extra:
         children += extra
     children.append(dcc.Graph(id=graph_id, config=GRAPH_CONFIG))
@@ -185,15 +194,17 @@ def build_layout():
                     # ─────────────────────────────────────────────────────────────────
 
                     # G1: Evolução mensal
-                    _graph_card("g-evolucao", "Evolução Mensal das Reclamações"),
+                    _graph_card("g-evolucao", "Evolução Mensal das Reclamações", titulo_id="titulo-g-evolucao", subtitulo_id="subtitulo-g-evolucao"),
 
                     # G2: Pizza assuntos
-                    _graph_card("g-pizza", "Reclamações por Assunto"),
+                    _graph_card("g-pizza", "Reclamações por Assunto", titulo_id="titulo-g-pizza", subtitulo_id="subtitulo-g-pizza"),
 
                     # Locais de embarque/desembarque
                     dbc.Card(dbc.CardBody([
                         html.H6("Locais de Embarque/Desembarque Mais Reclamados",
-                                className="fw-semibold text-secondary mb-3"),
+                                id="titulo-g-locais",
+                                className="fw-semibold text-secondary mb-1"),
+                        html.Small("", id="subtitulo-g-locais", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
                         dbc.Row([
                             dbc.Col([
                                 html.Label("Tipo de Local", className="fw-semibold mb-1"),
@@ -220,16 +231,36 @@ def build_layout():
                     html.Div(
                         id="secao-regular",
                         children=[
+                            # Título da seção
+                            dbc.Card(
+                                dbc.CardBody([
+                                    html.H5(
+                                        "🚌 Gráficos Exclusivos do Transporte Regular",
+                                        className="fw-bold mb-1",
+                                        style={"color": "#1565c0"},
+                                    ),
+                                    html.P(
+                                        "Os gráficos abaixo apresentam dados apenas do Sistema Regular Metropolitano e/ou Intermunicipal. "
+                                        "Eles não aparecem quando apenas Fretamento é selecionado.",
+                                        className="text-muted mb-0",
+                                        style={"fontSize": "13px"},
+                                    ),
+                                ]),
+                                style={**CARD_STYLE, "backgroundColor": "#e3f2fd", "borderLeft": "4px solid #1565c0", "marginTop": "16px"},
+                            ),
+
                             # G3: Empresas por pontuação
-                            _graph_card("g3-empresas", "Incidência de Reclamação do Serviço"),
+                            _graph_card("g3-empresas", "Incidência de Reclamação do Serviço", titulo_id="titulo-g3", subtitulo_id="subtitulo-g3"),
 
                             # G4: Empresas por incidência irregular
-                            _graph_card("g4-irregular", "Indicador de Vulnerabilidade a Transporte Irregular por Empresa"),
+                            _graph_card("g4-irregular", "Indicador de Vulnerabilidade a Transporte Irregular por Empresa", titulo_id="titulo-g4", subtitulo_id="subtitulo-g4"),
 
                             # G5: Heatmap assunto × empresa
                             dbc.Card(dbc.CardBody([
                                 html.H6("Mapa de Calor — Pontuação por Assunto × Empresa",
-                                        className="fw-semibold text-secondary mb-3"),
+                                        id="titulo-g5",
+                                        className="fw-semibold text-secondary mb-1"),
+                                html.Small("", id="subtitulo-g5", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
                                 dbc.Row([
                                     dbc.Col([
                                         html.Label("Filtrar por Região", className="fw-semibold mb-1"),
@@ -256,7 +287,9 @@ def build_layout():
                             # G6: Autos por pontuação
                             dbc.Card(dbc.CardBody([
                                 html.H6("Incidência de Reclamação do Serviço por Autos de Linha",
-                                        className="fw-semibold text-secondary mb-3"),
+                                        id="titulo-g6",
+                                        className="fw-semibold text-secondary mb-1"),
+                                html.Small("", id="subtitulo-g6", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
                                 dcc.Store(id="g6-pagina", data=1),
                                 dcc.Graph(id="g6-autos", config=GRAPH_CONFIG),
                                 _paginacao("g6"),
@@ -265,7 +298,9 @@ def build_layout():
                             # G7: Autos por incidência irregular
                             dbc.Card(dbc.CardBody([
                                 html.H6("Autos por Vulnerabilidade a Transporte Irregular",
-                                        className="fw-semibold text-secondary mb-3"),
+                                        id="titulo-g7",
+                                        className="fw-semibold text-secondary mb-1"),
+                                html.Small("", id="subtitulo-g7", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
                                 dcc.Store(id="g7-pagina", data=1),
                                 dcc.Graph(id="g7-irregular", config=GRAPH_CONFIG),
                                 _paginacao("g7"),
@@ -274,7 +309,9 @@ def build_layout():
                             # G8: Heatmap assunto × autos
                             dbc.Card(dbc.CardBody([
                                 html.H6("Mapa de Calor — Pontuação por Assunto × Autos",
-                                        className="fw-semibold text-secondary mb-3"),
+                                        id="titulo-g8",
+                                        className="fw-semibold text-secondary mb-1"),
+                                html.Small("", id="subtitulo-g8", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
                                 dbc.Row([
                                     dbc.Col([
                                         html.Label("Filtrar por Empresa", className="fw-semibold mb-1"),
