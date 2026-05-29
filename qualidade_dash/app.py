@@ -10,7 +10,7 @@ from qualidade_dash.callbacks import register_callbacks
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
-    title="Painel de Reclamações — ARTESP",
+    title="Painel SIGO — Reclamações",
     suppress_callback_exceptions=True,
     meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
 )

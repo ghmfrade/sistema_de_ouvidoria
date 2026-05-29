@@ -502,6 +502,8 @@ def query_autos_pontuacao_v2(
         todos_autos = (
             q.with_entities(
                 AutoLinha.numero.label("auto"),
+                func.max(Permissionaria.nome).label("empresa"),
+                func.max(AutoLinha.regiao_metropolitana).label("regiao"),
                 func.round(func.coalesce(func.sum(ReclamacaoAuto.pontuacao), 0), 2).label("pontuacao"),
             )
             .group_by(AutoLinha.numero)
@@ -509,17 +511,20 @@ def query_autos_pontuacao_v2(
             .all()
         )
         total = len(todos_autos)
-        xmax_global = float(todos_autos[0][1]) if todos_autos else 0.0
+        xmax_global = float(todos_autos[0][3]) if todos_autos else 0.0
         total_paginas = max(1, -(-total // por_pagina))
         offset = (pagina - 1) * por_pagina
         rows_pag = todos_autos[offset : offset + por_pagina]
 
+        fm = _fantasia_map(s)
         dados = []
         for r in rows_pag:
             assunto_top = _assunto_top_auto(s, ano, meses, tipo_servicos, categoria, r[0])
             dados.append({
                 "auto": r[0],
-                "pontuacao": float(r[1]),
+                "empresa": fm.get(r[1], r[1]) if r[1] else "–",
+                "regiao": r[2] or "–",
+                "pontuacao": float(r[3]),
                 "assunto_top": assunto_top,
             })
         return {"dados": dados, "total_paginas": total_paginas, "pagina": pagina, "xmax_global": xmax_global}
@@ -564,6 +569,8 @@ def query_autos_incidencia_irregular(
         todos = (
             q.with_entities(
                 AutoLinha.numero.label("auto"),
+                func.max(Permissionaria.nome).label("empresa"),
+                func.max(AutoLinha.regiao_metropolitana).label("regiao"),
                 func.round(func.coalesce(func.sum(ReclamacaoAuto.pontuacao), 0), 2).label("pontuacao"),
             )
             .group_by(AutoLinha.numero)
@@ -571,13 +578,22 @@ def query_autos_incidencia_irregular(
             .all()
         )
         total = len(todos)
-        xmax_global = float(todos[0][1]) if todos else 0.0
+        xmax_global = float(todos[0][3]) if todos else 0.0
         total_paginas = max(1, -(-total // por_pagina))
         offset = (pagina - 1) * por_pagina
         rows_pag = todos[offset : offset + por_pagina]
 
+        fm = _fantasia_map(s)
         return {
-            "dados": [{"auto": r[0], "pontuacao": float(r[1])} for r in rows_pag],
+            "dados": [
+                {
+                    "auto": r[0],
+                    "empresa": fm.get(r[1], r[1]) if r[1] else "–",
+                    "regiao": r[2] or "–",
+                    "pontuacao": float(r[3]),
+                }
+                for r in rows_pag
+            ],
             "total_paginas": total_paginas,
             "pagina": pagina,
             "xmax_global": xmax_global,

@@ -1,7 +1,9 @@
-"""Layout do Dash: header, filtros globais e gráficos unificados."""
+"""Layout do Painel SIGO — single-screen com cards-botão e gráfico dinâmico."""
 
 import dash_bootstrap_components as dbc
 from dash import dcc, html
+
+from qualidade_dash.components import kpi_card_button
 
 # ── Constantes de tipo de serviço ─────────────────────────────────────────────
 
@@ -20,16 +22,6 @@ NOMES_MESES = {
     9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro",
 }
 
-# ── Estilos base ──────────────────────────────────────────────────────────────
-
-CARD_STYLE = {
-    "backgroundColor": "white",
-    "borderRadius": "10px",
-    "boxShadow": "0 2px 8px rgba(0,0,0,0.08)",
-    "padding": "20px",
-    "marginBottom": "16px",
-}
-
 GRAPH_CONFIG = {"responsive": True, "displayModeBar": False}
 
 LAYOUT_PLOTLY = dict(
@@ -46,308 +38,264 @@ HEATMAP_COLORSCALE = [
     [1.0, "#f5a6a6"],
 ]
 
+# ── Cores de destaque dos 9 cards ─────────────────────────────────────────────
+CARD_COLORS = {
+    1: "#1a73e8",  # Total
+    2: "#e8720c",  # Assunto top
+    3: "#16a085",  # Local crítico
+    4: "#8e44ad",  # Empresa mais reclamada
+    5: "#c0392b",  # Empresa mais vulnerável
+    6: "#2980b9",  # Auto mais reclamado
+    7: "#d35400",  # Auto mais vulnerável
+    8: "#27ae60",  # Mapa empresas
+    9: "#7f8c8d",  # Mapa autos
+}
 
-# ── Componentes de filtro global ──────────────────────────────────────────────
+
+# ── Faixa de filtros globais (compacta) ───────────────────────────────────────
 
 def _filtros_globais():
-    return dbc.Card(
-        dbc.CardBody([
-            dbc.Row([
-                dbc.Col([
-                    html.Label("Tipo de Serviço", className="fw-semibold mb-1"),
-                    dcc.Dropdown(
-                        id="filtro-servico",
-                        options=SERVICOS_OPCOES,
-                        value=SERVICOS_DEFAULT,
-                        multi=True,
-                        placeholder="Selecione tipos de serviço",
-                        style={"minWidth": "300px"},
-                    ),
-                ], xs=12, md=4),
-                dbc.Col([
-                    html.Label("Ano", className="fw-semibold mb-1"),
-                    dcc.Dropdown(
-                        id="filtro-ano",
-                        clearable=False,
-                        style={"minWidth": "120px"},
-                    ),
-                ], xs=12, sm=6, md=2),
-                dbc.Col([
-                    html.Label("Meses", className="fw-semibold mb-1"),
-                    dcc.Dropdown(
-                        id="filtro-meses",
-                        multi=True,
-                        placeholder="Todos os meses",
-                        style={"minWidth": "220px"},
-                    ),
-                ], xs=12, sm=6, md=4),
-            ], className="g-3 align-items-end"),
-            dbc.Row([
-                dbc.Col([
-                    html.Label("Região", className="fw-semibold mb-1"),
-                    dcc.Dropdown(
-                        id="filtro-regiao",
-                        multi=True,
-                        placeholder="Todas as regiões",
-                    ),
-                ], xs=12, md=4, id="col-filtro-regiao"),
-                dbc.Col([
-                    html.Label("Permissionária", className="fw-semibold mb-1"),
-                    dcc.Dropdown(
-                        id="filtro-empresa",
-                        multi=True,
-                        placeholder="Todas as empresas",
-                    ),
-                ], xs=12, md=4, id="col-filtro-empresa"),
-                dbc.Col([
-                    html.Label("Assunto", className="fw-semibold mb-1"),
-                    dcc.Dropdown(
-                        id="filtro-assunto",
-                        multi=True,
-                        placeholder="Todos os assuntos",
-                    ),
-                ], xs=12, md=4),
-            ], className="g-3 align-items-end mt-2"),
-        ]),
-        style=CARD_STYLE,
+    return html.Div(
+        className="sigo-filtros",
+        children=dbc.Row([
+            dbc.Col([
+                html.Label("Tipo de Serviço"),
+                dcc.Dropdown(
+                    id="filtro-servico",
+                    options=SERVICOS_OPCOES,
+                    value=SERVICOS_DEFAULT,
+                    multi=True,
+                    placeholder="Selecione tipos de serviço",
+                ),
+            ], xs=12, md=3),
+            dbc.Col([
+                html.Label("Ano"),
+                dcc.Dropdown(id="filtro-ano", clearable=False),
+            ], xs=6, md=1),
+            dbc.Col([
+                html.Label("Meses"),
+                dcc.Dropdown(
+                    id="filtro-meses",
+                    multi=True,
+                    placeholder="Todos os meses",
+                ),
+            ], xs=6, md=2),
+            dbc.Col([
+                html.Label("Região"),
+                dcc.Dropdown(
+                    id="filtro-regiao",
+                    multi=True,
+                    placeholder="Todas as regiões",
+                ),
+            ], xs=12, md=2, id="col-filtro-regiao"),
+            dbc.Col([
+                html.Label("Permissionária"),
+                dcc.Dropdown(
+                    id="filtro-empresa",
+                    multi=True,
+                    placeholder="Todas as empresas",
+                ),
+            ], xs=12, md=2, id="col-filtro-empresa"),
+            dbc.Col([
+                html.Label("Assunto"),
+                dcc.Dropdown(
+                    id="filtro-assunto",
+                    multi=True,
+                    placeholder="Todos os assuntos",
+                ),
+            ], xs=12, md=2),
+        ], className="g-2 align-items-end"),
     )
 
 
-# ── Cards de resumo ───────────────────────────────────────────────────────────
+# ── Linha dos 9 cards-botão ───────────────────────────────────────────────────
 
-def _cards_resumo():
-    return dbc.Row([
-        dbc.Col(
-            dbc.Card(
-                dbc.CardBody([
-                    html.P("Total de Reclamações", className="text-muted mb-1", style={"fontSize": "13px"}),
-                    html.H2(id="card-total", className="fw-bold mb-0",
-                            style={"color": "#1a73e8", "fontSize": "2.5rem"}),
-                ]),
-                style={**CARD_STYLE, "backgroundColor": "#e8f0fe", "marginBottom": "0"},
+def _kpi_grid():
+    return html.Div(
+        className="kpi-grid",
+        children=[
+            kpi_card_button(
+                1, "Total de Reclamações",
+                value_id="kpi-val-1", icon="📊",
+                accent_color=CARD_COLORS[1],
             ),
-            xs=12, md=6,
-        ),
-        dbc.Col(
-            dbc.Card(
-                dbc.CardBody([
-                    html.P("Assunto Mais Reclamado", className="text-muted mb-1", style={"fontSize": "13px"}),
-                    html.H4(id="card-assunto", className="fw-bold mb-1",
-                            style={"color": "#e8720c"}),
-                    html.P(id="card-assunto-qty", className="text-muted mb-0",
-                           style={"fontSize": "13px"}),
-                ]),
-                style={**CARD_STYLE, "backgroundColor": "#fff3e0", "marginBottom": "0"},
+            kpi_card_button(
+                2, "Assunto Mais Reclamado",
+                value_id="kpi-val-2", sub_id="kpi-sub-2", icon="🏷️",
+                accent_color=CARD_COLORS[2],
             ),
-            xs=12, md=6,
-        ),
-    ], className="mb-3")
+            kpi_card_button(
+                3, "Embarque Mais Crítico",
+                value_id="kpi-val-3", sub_id="kpi-sub-3",
+                label_id="kpi-label-3", icon="📍",
+                accent_color=CARD_COLORS[3],
+            ),
+            kpi_card_button(
+                4, "Empresa Mais Reclamada",
+                value_id="kpi-val-4", sub_id="kpi-sub-4", icon="🏢",
+                accent_color=CARD_COLORS[4],
+            ),
+            kpi_card_button(
+                5, "Empresa Mais Vulnerável",
+                value_id="kpi-val-5", sub_id="kpi-sub-5", icon="⚠️",
+                accent_color=CARD_COLORS[5],
+            ),
+            kpi_card_button(
+                6, "Auto Mais Reclamado",
+                value_id="kpi-val-6", sub_id="kpi-sub-6", icon="🚌",
+                accent_color=CARD_COLORS[6],
+            ),
+            kpi_card_button(
+                7, "Auto Mais Vulnerável",
+                value_id="kpi-val-7", sub_id="kpi-sub-7", icon="🛡️",
+                accent_color=CARD_COLORS[7],
+            ),
+            kpi_card_button(
+                8, "Mapa de Calor por Empresa",
+                only_button=True, icon="🗺️",
+                accent_color=CARD_COLORS[8],
+            ),
+            kpi_card_button(
+                9, "Mapa de Calor por Autos",
+                only_button=True, icon="🗺️",
+                accent_color=CARD_COLORS[9],
+            ),
+        ],
+    )
 
 
 # ── Paginação ─────────────────────────────────────────────────────────────────
 
 def _paginacao(prefix: str):
-    return dbc.Row([
-        dbc.Col(
+    return html.Div(
+        className="graph-pagination",
+        children=[
             dbc.Button("← Anterior", id=f"{prefix}-prev", color="light", size="sm", n_clicks=0),
-            width="auto",
-        ),
-        dbc.Col(
-            html.Span(id=f"{prefix}-info", className="text-muted", style={"fontSize": "13px"}),
-            className="d-flex align-items-center",
-        ),
-        dbc.Col(
+            html.Span(id=f"{prefix}-info"),
             dbc.Button("Próxima →", id=f"{prefix}-next", color="light", size="sm", n_clicks=0),
-            width="auto",
-        ),
-    ], className="justify-content-center align-items-center g-2 mt-1")
+        ],
+    )
 
 
-# ── Gráficos em card ──────────────────────────────────────────────────────────
+def _graph_wrapper(wrap_id: str, children: list) -> html.Div:
+    """Wrapper de cada gráfico dinâmico (oculto por padrão; o callback liga `.active`)."""
+    return html.Div(
+        id=wrap_id,
+        className="graph-wrap",
+        children=[html.Div(className="graph-card", children=children)],
+    )
 
-def _graph_card(graph_id: str, titulo: str, extra: list | None = None, titulo_id: str | None = None, subtitulo_id: str | None = None):
-    h6_kwargs = {"className": "fw-semibold text-secondary mb-1"}
-    if titulo_id:
-        h6_kwargs["id"] = titulo_id
-    children = [html.H6(titulo, **h6_kwargs)]
 
-    if subtitulo_id:
-        children.append(html.Small("", id=subtitulo_id, className="text-muted d-block mb-3", style={"fontSize": "12px"}))
-    else:
-        children.append(html.Div(style={"height": "0"}))  # Espaçador para manter layout consistente
+# ── Área de gráficos dinâmicos ────────────────────────────────────────────────
 
-    if extra:
-        children += extra
-    children.append(dcc.Graph(id=graph_id, config=GRAPH_CONFIG))
-    return dbc.Card(dbc.CardBody(children), style=CARD_STYLE)
+def _graph_area():
+    return html.Div(
+        className="graph-area",
+        children=[
+            # Wrap 1 — Evolução mensal (card 1)
+            _graph_wrapper("wrap-g1", [
+                dcc.Graph(id="g-evolucao", config=GRAPH_CONFIG, style={"height": "100%"}),
+            ]),
+
+            # Wrap 2 — Pizza de assuntos (card 2)
+            _graph_wrapper("wrap-g2", [
+                dcc.Graph(id="g-pizza", config=GRAPH_CONFIG, style={"height": "100%"}),
+            ]),
+
+            # Wrap 3 — Locais embarque/desembarque (card 3)
+            _graph_wrapper("wrap-g3", [
+                html.Div(className="graph-controls", children=[
+                    html.Label("Tipo de Local"),
+                    dbc.RadioItems(
+                        id="filtro-tipo-local",
+                        options=[
+                            {"label": " Embarque", "value": "embarque"},
+                            {"label": " Desembarque", "value": "desembarque"},
+                        ],
+                        value="embarque",
+                        inline=True,
+                    ),
+                ]),
+                dcc.Store(id="g-pagina-locais", data=1),
+                dcc.Graph(id="g-locais", config=GRAPH_CONFIG, style={"height": "100%"}),
+                _paginacao("g-locais"),
+            ]),
+
+            # Wrap 4 — Empresas pontuação (card 4)
+            _graph_wrapper("wrap-g4", [
+                dcc.Graph(id="g3-empresas", config=GRAPH_CONFIG, style={"height": "100%"}),
+            ]),
+
+            # Wrap 5 — Empresas irregular (card 5)
+            _graph_wrapper("wrap-g5", [
+                dcc.Graph(id="g4-irregular", config=GRAPH_CONFIG, style={"height": "100%"}),
+            ]),
+
+            # Wrap 6 — Autos pontuação (card 6)
+            _graph_wrapper("wrap-g6", [
+                dcc.Store(id="g6-pagina", data=1),
+                dcc.Graph(id="g6-autos", config=GRAPH_CONFIG, style={"height": "100%"}),
+                _paginacao("g6"),
+            ]),
+
+            # Wrap 7 — Autos irregular (card 7)
+            _graph_wrapper("wrap-g7", [
+                dcc.Store(id="g7-pagina", data=1),
+                dcc.Graph(id="g7-irregular", config=GRAPH_CONFIG, style={"height": "100%"}),
+                _paginacao("g7"),
+            ]),
+
+            # Wrap 8 — Heatmap empresa (card 8)
+            _graph_wrapper("wrap-g8", [
+                html.Div(className="graph-controls", children=[
+                    html.Label("Ordenar por Assunto"),
+                    dcc.Dropdown(
+                        id="filtro-sort-assunto-g5",
+                        multi=True,
+                        placeholder="Todos os assuntos",
+                        style={"minWidth": "260px"},
+                    ),
+                ]),
+                dcc.Store(id="g5-pagina", data=1),
+                dcc.Graph(id="g5-heatmap-empresa", config=GRAPH_CONFIG, style={"height": "100%"}),
+                _paginacao("g5"),
+            ]),
+
+            # Wrap 9 — Heatmap auto (card 9)
+            _graph_wrapper("wrap-g9", [
+                html.Div(className="graph-controls", children=[
+                    html.Label("Ordenar por Assunto"),
+                    dcc.Dropdown(
+                        id="filtro-sort-assunto-g8",
+                        multi=True,
+                        placeholder="Todos os assuntos",
+                        style={"minWidth": "260px"},
+                    ),
+                ]),
+                dcc.Store(id="g8-pagina", data=1),
+                dcc.Graph(id="g8-heatmap-auto", config=GRAPH_CONFIG, style={"height": "100%"}),
+                _paginacao("g8"),
+            ]),
+        ],
+    )
 
 
 # ── Layout principal ──────────────────────────────────────────────────────────
 
 def build_layout():
     return html.Div(
-        style={"backgroundColor": "#f0f2f5", "minHeight": "100vh"},
+        className="sigo-shell",
         children=[
-            # Header
             html.Div(
-                html.H4(
-                    "Painel de Reclamações — Sistema de Transporte",
-                    className="mb-0 text-white fw-bold",
-                    style={"fontSize": "1.2rem"},
+                className="sigo-header",
+                children=html.H1(
+                    "Painel de Reclamações — Sistema de Gestão de Ouvidorias (SIGO)"
                 ),
-                style={
-                    "backgroundColor": "#1a73e8",
-                    "padding": "16px 24px",
-                    "position": "sticky",
-                    "top": "0",
-                    "zIndex": "1000",
-                    "boxShadow": "0 2px 6px rgba(0,0,0,0.15)",
-                },
             ),
-
-            # Conteúdo principal
-            html.Div(
-                [
-                    # Filtros globais
-                    _filtros_globais(),
-
-                    # Cards de resumo
-                    _cards_resumo(),
-                    html.Div(id="aviso-sem-dados"),
-
-                    # ─────────────────────────────────────────────────────────────────
-                    # SEÇÃO COMPARTILHADA (todos os tipos)
-                    # ─────────────────────────────────────────────────────────────────
-
-                    # G1: Evolução mensal
-                    _graph_card("g-evolucao", "Evolução Mensal das Reclamações", titulo_id="titulo-g-evolucao", subtitulo_id="subtitulo-g-evolucao"),
-
-                    # G2: Pizza assuntos
-                    _graph_card("g-pizza", "Reclamações por Assunto", titulo_id="titulo-g-pizza", subtitulo_id="subtitulo-g-pizza"),
-
-                    # Locais de embarque/desembarque
-                    dbc.Card(dbc.CardBody([
-                        html.H6("Locais de Embarque/Desembarque Mais Reclamados",
-                                id="titulo-g-locais",
-                                className="fw-semibold text-secondary mb-1"),
-                        html.Small("", id="subtitulo-g-locais", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
-                        dbc.Row([
-                            dbc.Col([
-                                html.Label("Tipo de Local", className="fw-semibold mb-1"),
-                                dbc.RadioItems(
-                                    id="filtro-tipo-local",
-                                    options=[
-                                        {"label": " Embarque", "value": "embarque"},
-                                        {"label": " Desembarque", "value": "desembarque"},
-                                    ],
-                                    value="embarque",
-                                    inline=True,
-                                    className="mb-3",
-                                ),
-                            ], xs=12),
-                        ]),
-                        dcc.Store(id="g-pagina-locais", data=1),
-                        dcc.Graph(id="g-locais", config=GRAPH_CONFIG),
-                        _paginacao("g-locais"),
-                    ]), style=CARD_STYLE),
-
-                    # ─────────────────────────────────────────────────────────────────
-                    # SEÇÃO REGULAR (visibilidade controlada)
-                    # ─────────────────────────────────────────────────────────────────
-                    html.Div(
-                        id="secao-regular",
-                        children=[
-                            # Título da seção
-                            dbc.Card(
-                                dbc.CardBody([
-                                    html.H5(
-                                        "🚌 Gráficos Exclusivos do Transporte Regular",
-                                        className="fw-bold mb-1",
-                                        style={"color": "#1565c0"},
-                                    ),
-                                    html.P(
-                                        "Os gráficos abaixo apresentam dados apenas do Sistema Regular Metropolitano e/ou Intermunicipal. "
-                                        "Eles não aparecem quando apenas Fretamento é selecionado.",
-                                        className="text-muted mb-0",
-                                        style={"fontSize": "13px"},
-                                    ),
-                                ]),
-                                style={**CARD_STYLE, "backgroundColor": "#e3f2fd", "borderLeft": "4px solid #1565c0", "marginTop": "16px"},
-                            ),
-
-                            # G3: Empresas por pontuação
-                            _graph_card("g3-empresas", "Incidência de Reclamação do Serviço", titulo_id="titulo-g3", subtitulo_id="subtitulo-g3"),
-
-                            # G4: Empresas por incidência irregular
-                            _graph_card("g4-irregular", "Indicador de Vulnerabilidade a Transporte Irregular por Empresa", titulo_id="titulo-g4", subtitulo_id="subtitulo-g4"),
-
-                            # G5: Heatmap assunto × empresa
-                            dbc.Card(dbc.CardBody([
-                                html.H6("Mapa de Calor — Pontuação por Assunto × Empresa",
-                                        id="titulo-g5",
-                                        className="fw-semibold text-secondary mb-1"),
-                                html.Small("", id="subtitulo-g5", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
-                                dbc.Row([
-                                    dbc.Col([
-                                        html.Label("Ordenar por Assunto", className="fw-semibold mb-1"),
-                                        dcc.Dropdown(
-                                            id="filtro-sort-assunto-g5",
-                                            multi=True,
-                                            placeholder="Todos os assuntos",
-                                        ),
-                                    ], xs=12, md=6),
-                                ], className="g-3 mb-3"),
-                                dcc.Store(id="g5-pagina", data=1),
-                                dcc.Graph(id="g5-heatmap-empresa", config=GRAPH_CONFIG),
-                                _paginacao("g5"),
-                            ]), style=CARD_STYLE),
-
-                            # G6: Autos por pontuação
-                            dbc.Card(dbc.CardBody([
-                                html.H6("Incidência de Reclamação do Serviço por Autos de Linha",
-                                        id="titulo-g6",
-                                        className="fw-semibold text-secondary mb-1"),
-                                html.Small("", id="subtitulo-g6", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
-                                dcc.Store(id="g6-pagina", data=1),
-                                dcc.Graph(id="g6-autos", config=GRAPH_CONFIG),
-                                _paginacao("g6"),
-                            ]), style=CARD_STYLE),
-
-                            # G7: Autos por incidência irregular
-                            dbc.Card(dbc.CardBody([
-                                html.H6("Autos por Vulnerabilidade a Transporte Irregular",
-                                        id="titulo-g7",
-                                        className="fw-semibold text-secondary mb-1"),
-                                html.Small("", id="subtitulo-g7", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
-                                dcc.Store(id="g7-pagina", data=1),
-                                dcc.Graph(id="g7-irregular", config=GRAPH_CONFIG),
-                                _paginacao("g7"),
-                            ]), style=CARD_STYLE),
-
-                            # G8: Heatmap assunto × autos
-                            dbc.Card(dbc.CardBody([
-                                html.H6("Mapa de Calor — Pontuação por Assunto × Autos",
-                                        id="titulo-g8",
-                                        className="fw-semibold text-secondary mb-1"),
-                                html.Small("", id="subtitulo-g8", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
-                                dbc.Row([
-                                    dbc.Col([
-                                        html.Label("Ordenar por Assunto", className="fw-semibold mb-1"),
-                                        dcc.Dropdown(
-                                            id="filtro-sort-assunto-g8",
-                                            multi=True,
-                                            placeholder="Todos os assuntos",
-                                        ),
-                                    ], xs=12, md=6),
-                                ], className="g-3 mb-3"),
-                                dcc.Store(id="g8-pagina", data=1),
-                                dcc.Graph(id="g8-heatmap-auto", config=GRAPH_CONFIG),
-                                _paginacao("g8"),
-                            ]), style=CARD_STYLE),
-                        ],
-                    ),
-                ],
-                style={"maxWidth": "1600px", "margin": "0 auto", "padding": "20px"},
-            ),
+            _filtros_globais(),
+            dcc.Store(id="card-ativo", data=1),
+            _kpi_grid(),
+            html.Div(id="aviso-sem-dados", className="sigo-aviso"),
+            _graph_area(),
         ],
     )

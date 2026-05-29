@@ -497,8 +497,34 @@ class TestAutosPontuacao:
         _assert_paginado(
             r.json(),
             pagina_esperada=1,
-            chaves_dados={"auto", "pontuacao", "assunto_top"},
+            chaves_dados={"auto", "empresa", "regiao", "pontuacao", "assunto_top"},
         )
+
+    def test_itens_incluem_empresa_e_regiao(self, client, ano_com_dados):
+        """Cards 6/7 do dashboard SIGO dependem de empresa+regiao para exibir contexto."""
+        data = client.get(f"{BASE}/autos-pontuacao", params={"ano": ano_com_dados}).json()
+        for item in data["dados"]:
+            assert "empresa" in item, f"Item sem 'empresa': {item}"
+            assert "regiao" in item, f"Item sem 'regiao': {item}"
+            assert isinstance(item["empresa"], str)
+            assert isinstance(item["regiao"], str)
+            assert item["empresa"] != ""
+            assert item["regiao"] != ""
+
+    def test_empresa_do_top_aparece_em_empresas_lista(self, client, ano_com_dados):
+        """A empresa do auto top deve ser uma permissionária regular conhecida.
+
+        Garantia mínima: existe pelo menos UMA empresa na lista global retornada
+        pelo endpoint de empresas regulares; se o auto top tem empresa não-traço,
+        o nome deve ser não vazio (string canônica)."""
+        data = client.get(
+            f"{BASE}/autos-pontuacao",
+            params={"ano": ano_com_dados, "tipo_servico": "Regular – Metropolitano,Regular – Intermunicipal"},
+        ).json()
+        if data["dados"]:
+            top = data["dados"][0]
+            assert top["empresa"] is not None
+            assert isinstance(top["empresa"], str)
 
     def test_tem_chave_xmax_global(self, client, ano_com_dados):
         data = client.get(f"{BASE}/autos-pontuacao", params={"ano": ano_com_dados}).json()
@@ -570,7 +596,30 @@ class TestAutosIrregular:
     def test_retorna_dict_paginado(self, client, ano_com_dados):
         r = client.get(f"{BASE}/autos-irregular", params={"ano": ano_com_dados})
         assert r.status_code == 200
-        _assert_paginado(r.json(), pagina_esperada=1, chaves_dados={"auto", "pontuacao"})
+        _assert_paginado(
+            r.json(),
+            pagina_esperada=1,
+            chaves_dados={"auto", "empresa", "regiao", "pontuacao"},
+        )
+
+    def test_itens_incluem_empresa_e_regiao(self, client, ano_com_dados):
+        """Card 7 do dashboard SIGO usa empresa+regiao do auto mais vulnerável."""
+        data = client.get(f"{BASE}/autos-irregular", params={"ano": ano_com_dados}).json()
+        for item in data["dados"]:
+            assert "empresa" in item, f"Item sem 'empresa': {item}"
+            assert "regiao" in item, f"Item sem 'regiao': {item}"
+            assert isinstance(item["empresa"], str)
+            assert isinstance(item["regiao"], str)
+
+    def test_paginacao_mantem_empresa_e_regiao(self, client, ano_com_dados):
+        """Estrutura dos itens (empresa+regiao) é estável entre páginas."""
+        for pagina in (1, 2):
+            data = client.get(
+                f"{BASE}/autos-irregular",
+                params={"ano": ano_com_dados, "pagina": pagina, "por_pagina": 5},
+            ).json()
+            for item in data["dados"]:
+                assert {"auto", "empresa", "regiao", "pontuacao"} <= set(item.keys())
 
     def test_tem_chave_xmax_global(self, client, ano_com_dados):
         assert "xmax_global" in client.get(

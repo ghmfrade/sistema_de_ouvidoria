@@ -1,4 +1,268 @@
-/* Remove linha vermelha/accent padrão do Dash nas abas */
+/* ───────────────────────────────────────────────────────────────────────────
+   Painel SIGO — Dashboard de Qualidade (single-screen, sem scroll global)
+   ─────────────────────────────────────────────────────────────────────────── */
+
+html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background-color: #eef2f7;
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+
+/* Container raiz do app Dash */
+#_dash-app-content,
+#_dash-app-content > div {
+    height: 100%;
+}
+
+/* Estrutura da página */
+.sigo-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.sigo-header {
+    background-color: #1a73e8;
+    color: white;
+    padding: 10px 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    flex: 0 0 auto;
+    z-index: 1000;
+}
+
+.sigo-header h1 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.sigo-filtros {
+    background-color: #ffffff;
+    border-bottom: 1px solid #e2e6ee;
+    padding: 8px 12px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    flex: 0 0 auto;
+}
+
+.sigo-filtros label {
+    font-size: 11px;
+    color: #4a5568;
+    margin-bottom: 2px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.sigo-filtros .Select-control,
+.sigo-filtros .dash-dropdown {
+    font-size: 13px;
+}
+
+/* Linha dos 9 cards-botão */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px 12px 8px 12px;
+    flex: 0 0 auto;
+}
+
+@media (max-width: 1400px) {
+    .kpi-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .kpi-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+/* Card-botão */
+.kpi-card {
+    cursor: pointer;
+    border: 1px solid #e2e6ee !important;
+    border-radius: 10px !important;
+    background-color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    transition: transform 120ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    overflow: hidden;
+    position: relative;
+    min-height: 96px;
+}
+
+.kpi-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background-color: var(--accent, #1a73e8);
+    opacity: 0.85;
+}
+
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+    border-color: var(--accent, #1a73e8) !important;
+}
+
+.kpi-card.active {
+    border-color: var(--accent, #1a73e8) !important;
+    border-width: 2px !important;
+    box-shadow: 0 6px 22px color-mix(in srgb, var(--accent, #1a73e8) 32%, transparent),
+                0 0 0 3px color-mix(in srgb, var(--accent, #1a73e8) 18%, transparent);
+    transform: translateY(-1px);
+}
+
+.kpi-card.disabled {
+    opacity: 0.42;
+    pointer-events: none;
+    cursor: not-allowed;
+    filter: grayscale(35%);
+}
+
+.kpi-body {
+    padding: 10px 12px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    height: 100%;
+    justify-content: flex-start;
+}
+
+.kpi-icon {
+    font-size: 16px;
+    color: var(--accent, #1a73e8);
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+.kpi-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #5a6478;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+    /* Permite quebra em duas linhas dentro do card estreito */
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    min-height: 28px;
+}
+
+.kpi-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--accent, #1a73e8);
+    line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.kpi-sub {
+    font-size: 10.5px;
+    color: #6b7587;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    min-height: 12px;
+}
+
+/* Cards 8 e 9 (apenas botões) — centralizar visualmente */
+.kpi-card.only-button .kpi-body {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.kpi-card.only-button .kpi-label {
+    -webkit-line-clamp: 3;
+    min-height: 0;
+}
+
+/* Área de gráficos dinâmicos */
+.graph-area {
+    flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+    padding: 4px 12px 8px 12px;
+    overflow: hidden;
+}
+
+.graph-card {
+    background-color: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    padding: 10px 14px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.graph-wrap {
+    display: none;
+    height: 100%;
+}
+
+.graph-wrap.active {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.graph-wrap .dash-graph,
+.graph-wrap .js-plotly-plot {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.graph-controls {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+
+.graph-controls .form-label,
+.graph-controls label {
+    font-size: 11px;
+    color: #4a5568;
+    font-weight: 600;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.graph-pagination {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    padding-top: 4px;
+    font-size: 12px;
+    color: #6b7587;
+}
+
+/* Aviso */
+.sigo-aviso {
+    padding: 0 12px;
+}
+
+/* Mantém o style antigo de tabs caso utilizado em outra parte */
 .tab--selected {
     border-bottom: none !important;
     border-left: none !important;

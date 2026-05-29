@@ -2,12 +2,12 @@
 
 import pandas as pd
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State, ctx, html
+from dash import ALL, Input, Output, State, ctx, html, no_update
 import plotly.graph_objects as go
 
 from qualidade_dash import api_client as api
 from qualidade_dash.layout import (
-    LAYOUT_PLOTLY, NOMES_MESES, SERVICOS_REGULAR, SERVICOS_DEFAULT,
+    CARD_COLORS, LAYOUT_PLOTLY, NOMES_MESES, SERVICOS_REGULAR, SERVICOS_DEFAULT,
 )
 
 _COLORSCALE = [[0, "#2ecc71"], [0.5, "#f1c40f"], [1, "#e74c3c"]]
@@ -429,31 +429,6 @@ def _aviso_sem_dados():
 
 def register_callbacks(app):
 
-    # ── Subtítulos dinâmicos ──────────────────────────────────────────────────
-    @app.callback(
-        Output("subtitulo-g-evolucao", "children"),
-        Output("subtitulo-g-pizza", "children"),
-        Output("subtitulo-g-locais", "children"),
-        Output("subtitulo-g3", "children"),
-        Output("subtitulo-g4", "children"),
-        Output("subtitulo-g5", "children"),
-        Output("subtitulo-g6", "children"),
-        Output("subtitulo-g7", "children"),
-        Output("subtitulo-g8", "children"),
-        Input("filtro-servico", "value"),
-        Input("filtro-regiao", "value"),
-        Input("filtro-empresa", "value"),
-        Input("filtro-empresa", "options"),
-        Input("filtro-assunto", "value"),
-        prevent_initial_call=False,
-    )
-    def update_subtitulos(servicos, regioes, empresa_ids, empresa_opts, assunto):
-        empresa_nome = _empresa_nome_from_opts(empresa_ids, empresa_opts)
-        s_comp = _build_subtitulo_compartilhado(servicos, regioes, empresa_nome, assunto)
-        s_r_com = _build_subtitulo_regular(servicos, regioes, empresa_nome, assunto, incluir_assunto=True)
-        s_r_sem = _build_subtitulo_regular(servicos, regioes, empresa_nome, assunto, incluir_assunto=False)
-        return s_comp, s_comp, s_comp, s_r_com, s_r_sem, s_r_sem, s_r_com, s_r_sem, s_r_sem
-
     # ── Inicialização de anos ─────────────────────────────────────────────────
     @app.callback(
         Output("filtro-ano", "options"),
@@ -499,17 +474,6 @@ def register_callbacks(app):
         if sel == total:
             return "Todos os meses"
         return f"{sel} meses selecionados"
-
-    # ── Visibilidade da seção regular ─────────────────────────────────────────
-    @app.callback(
-        Output("secao-regular", "style"),
-        Input("filtro-servico", "value"),
-        prevent_initial_call=False,
-    )
-    def visibilidade_secao_regular(servicos):
-        if _tem_regular(servicos):
-            return {"display": "block"}
-        return {"display": "none"}
 
     # ── Visibilidade dos filtros de região/empresa ────────────────────────────
     @app.callback(
@@ -566,40 +530,6 @@ def register_callbacks(app):
         rows = api.get_empresas_lista(ts, regioes=regioes_str)
         opts = [{"label": r["nome"], "value": r["id"]} for r in rows]
         return opts, []
-
-    # ── Cards de resumo ───────────────────────────────────────────────────────
-    @app.callback(
-        Output("card-total", "children"),
-        Output("card-assunto", "children"),
-        Output("card-assunto-qty", "children"),
-        Output("aviso-sem-dados", "children"),
-        Input("filtro-ano", "value"),
-        Input("filtro-meses", "value"),
-        Input("filtro-servico", "value"),
-        Input("filtro-regiao", "value"),
-        Input("filtro-empresa", "value"),
-        Input("filtro-empresa", "options"),
-        Input("filtro-assunto", "value"),
-        prevent_initial_call=False,
-    )
-    def update_cards(ano, meses, servicos, regioes, empresa_ids, empresa_opts, assuntos):
-        if ano is None:
-            return "–", "–", "", ""
-        ts = _tipo_servico_str(servicos)
-        regioes_str = _tipo_servico_str(regioes)
-        perm_ids = _perm_ids_str(empresa_ids)
-        data = api.get_resumo(
-            ano, _meses_str(meses or []), ts,
-            regioes=regioes_str, perm_ids=perm_ids, assuntos=_assuntos_str(assuntos),
-        )
-        if data["total_reclamacoes"] == 0:
-            return "0", "–", "", _aviso_sem_dados()
-        return (
-            f"{data['total_reclamacoes']:,}",
-            data["assunto_top"],
-            f"{data['assunto_top_qty']:,} ocorrências",
-            "",
-        )
 
     # ── Evolução mensal ───────────────────────────────────────────────────────
     @app.callback(
@@ -1111,3 +1041,227 @@ def register_callbacks(app):
         return (_barra_horizontal(nomes, vals, "#1a73e8", n_items=len(nomes),
                                   xmax=xmax, customdata=cd, hovertemplate=hover),
                 f"Página {pag_atual} de {total_pags}")
+
+    # ── KPI Cards: valores dos 7 primeiros + aviso ────────────────────────────
+    @app.callback(
+        Output("kpi-val-1", "children"),
+        Output("kpi-val-2", "children"),
+        Output("kpi-sub-2", "children"),
+        Output("kpi-val-3", "children"),
+        Output("kpi-sub-3", "children"),
+        Output("kpi-label-3", "children"),
+        Output("kpi-val-4", "children"),
+        Output("kpi-sub-4", "children"),
+        Output("kpi-val-5", "children"),
+        Output("kpi-sub-5", "children"),
+        Output("kpi-val-6", "children"),
+        Output("kpi-sub-6", "children"),
+        Output("kpi-val-7", "children"),
+        Output("kpi-sub-7", "children"),
+        Output("aviso-sem-dados", "children"),
+        Input("filtro-ano", "value"),
+        Input("filtro-meses", "value"),
+        Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-empresa", "options"),
+        Input("filtro-assunto", "value"),
+        Input("filtro-tipo-local", "value"),
+        prevent_initial_call=False,
+    )
+    def update_kpi_cards(ano, meses, servicos, regioes, empresa_ids, empresa_opts, assuntos, tipo_local):
+        vazio = "—"
+        label_card3 = "Embarque Mais Crítico" if (tipo_local or "embarque") == "embarque" else "Desembarque Mais Crítico"
+
+        if ano is None:
+            return (vazio, vazio, "", vazio, "", label_card3,
+                    vazio, "", vazio, "", vazio, "", vazio, "", "")
+
+        ts = _tipo_servico_str(servicos)
+        regioes_str = _tipo_servico_str(regioes)
+        perm_ids = _perm_ids_str(empresa_ids)
+        meses_str = _meses_str(meses or [])
+        assuntos_str = _assuntos_str(assuntos)
+        tem_reg = _tem_regular(servicos)
+        empresa_nomes = _empresa_nomes_from_opts(empresa_ids, empresa_opts)
+        empresa_nomes_set = set(empresa_nomes)
+
+        # Card 1 e 2: resumo geral
+        resumo = api.get_resumo(
+            ano, meses_str, ts,
+            regioes=regioes_str, perm_ids=perm_ids, assuntos=assuntos_str,
+        )
+        total = resumo.get("total_reclamacoes", 0) or 0
+        aviso = _aviso_sem_dados() if total == 0 else ""
+        card1_val = f"{total:,}".replace(",", ".") if total else "0"
+        if total > 0 and resumo.get("assunto_top"):
+            card2_val = resumo["assunto_top"]
+            card2_sub = f"{resumo.get('assunto_top_qty', 0):,} ocorrências".replace(",", ".")
+        else:
+            card2_val, card2_sub = vazio, ""
+
+        # Card 3: local crítico (embarque/desembarque)
+        try:
+            resp_loc = api.get_locais_embarque(
+                ano, meses_str, ts, tipo_local or "embarque", pagina=1,
+                regioes=regioes_str, perm_ids=perm_ids, assuntos=assuntos_str,
+            )
+            loc_dados = resp_loc.get("dados", [])
+            if loc_dados:
+                top_loc = loc_dados[0]
+                card3_val = top_loc.get("local", vazio)
+                card3_sub = f"{top_loc.get('total', 0):,} reclamações".replace(",", ".")
+            else:
+                card3_val, card3_sub = vazio, ""
+        except Exception:
+            card3_val, card3_sub = vazio, ""
+
+        # Cards 4-7: dependem de Regular
+        card4_val = card5_val = vazio
+        card4_sub = card5_sub = ""
+        card6_val = card7_val = vazio
+        card6_sub = card7_sub = ""
+
+        if tem_reg:
+            ts_reg = _tipo_servico_str([s for s in (servicos or []) if s in SERVICOS_REGULAR])
+
+            # Card 4: empresa mais reclamada (respeita filtro de empresa)
+            try:
+                emp_rows = api.get_empresas_pontuacao(
+                    ano, meses_str, ts_reg,
+                    regioes=regioes_str, assuntos=assuntos_str,
+                )
+                if empresa_nomes_set:
+                    emp_rows = [r for r in emp_rows if r.get("empresa") in empresa_nomes_set]
+                if emp_rows:
+                    top4 = max(emp_rows, key=lambda r: r.get("pontuacao", 0))
+                    card4_val = top4.get("empresa", vazio)
+                    card4_sub = f"Pontuação: {top4.get('pontuacao', 0):.2f}"
+            except Exception:
+                pass
+
+            # Card 5: empresa mais vulnerável (irregular)
+            try:
+                vul_rows = api.get_empresas_irregular(
+                    ano, meses_str, ts_reg, regioes=regioes_str,
+                )
+                if empresa_nomes_set:
+                    vul_rows = [r for r in vul_rows if r.get("empresa") in empresa_nomes_set]
+                if vul_rows:
+                    top5 = max(vul_rows, key=lambda r: r.get("pontuacao", 0))
+                    card5_val = top5.get("empresa", vazio)
+                    card5_sub = f"Vulnerabilidade: {top5.get('pontuacao', 0):.2f}"
+            except Exception:
+                pass
+
+            # Card 6: auto mais reclamado (já filtrado por perm_ids se houver)
+            try:
+                resp_a = api.get_autos_pontuacao(
+                    ano, meses_str, ts_reg, pagina=1,
+                    regioes=regioes_str, perm_ids=perm_ids, assuntos=assuntos_str,
+                )
+                a_dados = resp_a.get("dados", [])
+                if a_dados:
+                    top6 = a_dados[0]
+                    card6_val = f"Auto {top6.get('auto', vazio)}"
+                    partes = [str(top6.get("empresa") or "")]
+                    if top6.get("regiao") and top6["regiao"] != "–":
+                        partes.append(str(top6["regiao"]))
+                    partes.append(f"Pts: {top6.get('pontuacao', 0):.2f}")
+                    card6_sub = " — ".join(p for p in partes if p)
+            except Exception:
+                pass
+
+            # Card 7: auto mais vulnerável
+            try:
+                resp_i = api.get_autos_irregular(
+                    ano, meses_str, ts_reg, pagina=1,
+                    regioes=regioes_str, perm_ids=perm_ids,
+                )
+                i_dados = resp_i.get("dados", [])
+                if i_dados:
+                    top7 = i_dados[0]
+                    card7_val = f"Auto {top7.get('auto', vazio)}"
+                    partes = [str(top7.get("empresa") or "")]
+                    if top7.get("regiao") and top7["regiao"] != "–":
+                        partes.append(str(top7["regiao"]))
+                    partes.append(f"Vuln: {top7.get('pontuacao', 0):.2f}")
+                    card7_sub = " — ".join(p for p in partes if p)
+            except Exception:
+                pass
+
+        return (
+            card1_val,
+            card2_val, card2_sub,
+            card3_val, card3_sub, label_card3,
+            card4_val, card4_sub,
+            card5_val, card5_sub,
+            card6_val, card6_sub,
+            card7_val, card7_sub,
+            aviso,
+        )
+
+    # ── Clique em card → atualiza card-ativo ──────────────────────────────────
+    @app.callback(
+        Output("card-ativo", "data"),
+        Input({"type": "kpi-card", "index": ALL}, "n_clicks"),
+        State("filtro-servico", "value"),
+        State("card-ativo", "data"),
+        prevent_initial_call=True,
+    )
+    def set_card_ativo(nclicks_list, servicos, atual):
+        if not nclicks_list or not any(nclicks_list):
+            return no_update
+        triggered = ctx.triggered_id
+        if not isinstance(triggered, dict):
+            return no_update
+        idx = triggered.get("index")
+        if idx is None:
+            return no_update
+        # Bloqueia clique em cards Regular-only quando filtro = só Fretamento
+        if idx in (4, 5, 6, 7, 8, 9) and not _tem_regular(servicos):
+            return no_update
+        return idx
+
+    # ── Toggle: gráfico ativo + classes dos cards ─────────────────────────────
+    @app.callback(
+        Output("wrap-g1", "style"),
+        Output("wrap-g2", "style"),
+        Output("wrap-g3", "style"),
+        Output("wrap-g4", "style"),
+        Output("wrap-g5", "style"),
+        Output("wrap-g6", "style"),
+        Output("wrap-g7", "style"),
+        Output("wrap-g8", "style"),
+        Output("wrap-g9", "style"),
+        Output({"type": "kpi-card", "index": ALL}, "className"),
+        Input("card-ativo", "data"),
+        Input("filtro-servico", "value"),
+        State({"type": "kpi-card", "index": ALL}, "id"),
+        prevent_initial_call=False,
+    )
+    def toggle_grafico_e_cards(ativo, servicos, all_ids):
+        tem_reg = _tem_regular(servicos)
+        # Se ativo está desabilitado, mostra wrap-g1 visualmente (sem alterar Store)
+        ativo_efetivo = 1 if (ativo in (4, 5, 6, 7, 8, 9) and not tem_reg) else (ativo or 1)
+
+        wrap_styles = []
+        for i in range(1, 10):
+            if i == ativo_efetivo:
+                wrap_styles.append({"display": "flex", "flexDirection": "column", "height": "100%"})
+            else:
+                wrap_styles.append({"display": "none"})
+
+        classnames = []
+        indices = [d.get("index") for d in (all_ids or [])]
+        for idx in indices:
+            classes = ["kpi-card"]
+            if idx == ativo_efetivo:
+                classes.append("active")
+            if not tem_reg and idx in (4, 5, 6, 7, 8, 9):
+                classes.append("disabled")
+            if idx in (8, 9):
+                classes.append("only-button")
+            classnames.append(" ".join(classes))
+
+        return (*wrap_styles, classnames)
