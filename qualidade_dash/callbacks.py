@@ -20,17 +20,15 @@ _SERVICO_LABEL = {
 }
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers básicos ───────────────────────────────────────────────────────────
 
 def _tipo_servico_str(servicos: list[str] | None) -> str | None:
-    """Converte lista de serviços para string comma-separated."""
     if not servicos:
         return None
     return ",".join(servicos)
 
 
 def _tem_regular(servicos: list[str] | None) -> bool:
-    """Verifica se algum tipo Regular está selecionado."""
     return any(s in SERVICOS_REGULAR for s in (servicos or []))
 
 
@@ -40,8 +38,47 @@ def _meses_str(meses: list[int] | None) -> str | None:
     return ",".join(str(m) for m in meses)
 
 
+def _perm_ids_str(empresa_ids: list | None) -> str | None:
+    if not empresa_ids:
+        return None
+    return ",".join(str(e) for e in empresa_ids)
+
+
+def _assuntos_str(assuntos: list[str] | None) -> str | None:
+    if not assuntos:
+        return None
+    return ",".join(assuntos)
+
+
+def _empresa_nomes_from_opts(empresa_ids: list | None, opts: list[dict] | None) -> list[str]:
+    """Resolve a lista de nomes display das empresas a partir das opções do dropdown."""
+    if not empresa_ids or not opts:
+        return []
+    ids_set = set(empresa_ids)
+    return [opt.get("label") for opt in (opts or []) if opt.get("value") in ids_set]
+
+
+# ── Helpers de subtítulo ──────────────────────────────────────────────────────
+
+def _regiao_label_curto(regiao_id: str) -> str:
+    """Converte ID de região para texto curto: 'TC1' ou 'Campinas' (sem 'RM ')."""
+    if regiao_id.startswith("TC"):
+        return regiao_id
+    return regiao_id.replace("RM ", "").strip()
+
+
+def _regioes_texto(regioes_ids: list[str] | None) -> str | None:
+    """Monta texto como 'da Baixada Santista' ou 'de TC1 e TC3'."""
+    if not regioes_ids:
+        return None
+    labels = [_regiao_label_curto(r) for r in regioes_ids]
+    if len(labels) == 1:
+        return f"da {labels[0]}"
+    return "de " + ", ".join(labels[:-1]) + " e " + labels[-1]
+
+
 def _subtitulo_servico(servicos: list[str] | None) -> str:
-    """Subtítulo para gráficos compartilhados — reflete o filtro completo."""
+    """Subtítulo base para gráficos compartilhados — reflete apenas o serviço."""
     sel = set(servicos or [])
     if not sel or len(sel) >= 4:
         return ""
@@ -50,7 +87,6 @@ def _subtitulo_servico(servicos: list[str] | None) -> str:
     tem_mreg   = "Regular – Metropolitano" in sel
     tem_ireg   = "Regular – Intermunicipal" in sel
 
-    # Casos nomeados
     if tem_mfret and tem_ifret and not tem_mreg and not tem_ireg:
         return "Serviço de Fretamento"
     if tem_ifret and not tem_mfret and not tem_mreg and not tem_ireg:
@@ -64,7 +100,6 @@ def _subtitulo_servico(servicos: list[str] | None) -> str:
     if tem_ireg and not tem_mreg and not tem_mfret and not tem_ifret:
         return "Serviço Regular Intermunicipal"
 
-    # Combos mistos — enumerar
     labels = [_SERVICO_LABEL[s] for s in [
         "Regular – Metropolitano", "Regular – Intermunicipal",
         "Fretamento Intermunicipal", "Fretamento Metropolitano"
@@ -74,8 +109,8 @@ def _subtitulo_servico(servicos: list[str] | None) -> str:
     return ", ".join(labels[:-1]) + " e " + labels[-1]
 
 
-def _subtitulo_regular(servicos: list[str] | None) -> str:
-    """Subtítulo para gráficos exclusivos do Regular — sempre mostra Serviço Regular."""
+def _reg_label_base(servicos: list[str] | None) -> str:
+    """Rótulo base somente para dados Regular."""
     metro = "Regular – Metropolitano" in (servicos or [])
     inter = "Regular – Intermunicipal" in (servicos or [])
     if metro and inter:
@@ -84,8 +119,82 @@ def _subtitulo_regular(servicos: list[str] | None) -> str:
         return "Serviço Regular Metropolitano"
     if inter:
         return "Serviço Regular Intermunicipal"
-    return ""
+    return "Serviço Regular"
 
+
+def _assunto_label(assuntos: list[str] | None) -> str | None:
+    """Converte lista de assuntos em texto curto para subtítulos."""
+    if not assuntos:
+        return None
+    if len(assuntos) == 1:
+        return assuntos[0]
+    return f"{len(assuntos)} assuntos"
+
+
+def _build_subtitulo_compartilhado(
+    servicos: list[str] | None,
+    regioes_ids: list[str] | None,
+    empresa_nome: str | None,
+    assuntos: list[str] | str | None,
+) -> str:
+    """Subtítulo para G1 (evolução), G2 (pizza), G-locais."""
+    assunto_txt = _assunto_label(assuntos if isinstance(assuntos, list) else ([assuntos] if assuntos else None))
+    sel = set(servicos or [])
+    tem_fret = any("Fretamento" in s for s in sel)
+    tem_reg  = any(s in SERVICOS_REGULAR for s in sel)
+
+    if empresa_nome and tem_fret and tem_reg:
+        base = f"Dados do Serviço de Fretamento e Serviço Regular da Empresa {empresa_nome}"
+    elif empresa_nome and tem_reg:
+        base = f"{_reg_label_base(servicos)} da Empresa {empresa_nome}"
+    else:
+        base_serv = _subtitulo_servico(servicos)
+        reg_txt = _regioes_texto(regioes_ids)
+        if base_serv and reg_txt and tem_reg:
+            base = f"{base_serv} {reg_txt}"
+        else:
+            base = base_serv
+
+    if assunto_txt and base:
+        return f"{base} — {assunto_txt}"
+    if assunto_txt:
+        return f"Assunto: {assunto_txt}"
+    return base
+
+
+def _build_subtitulo_regular(
+    servicos: list[str] | None,
+    regioes_ids: list[str] | None,
+    empresa_nome: str | None,
+    assuntos: list[str] | str | None,
+    incluir_assunto: bool = True,
+) -> str:
+    """Subtítulo para gráficos Regular-only (G3–G8)."""
+    assunto_txt = _assunto_label(assuntos if isinstance(assuntos, list) else ([assuntos] if assuntos else None))
+    base_reg = _reg_label_base(servicos)
+
+    if empresa_nome:
+        base = f"{base_reg} da Empresa {empresa_nome}"
+    else:
+        reg_txt = _regioes_texto(regioes_ids)
+        base = f"{base_reg} {reg_txt}" if reg_txt else base_reg
+
+    if incluir_assunto and assunto_txt and base:
+        return f"{base} — {assunto_txt}"
+    return base
+
+
+def _empresa_nome_from_opts(empresa_ids: list | None, opts: list[dict] | None) -> str | None:
+    """Resolve o nome display (único) da empresa para uso em subtítulos."""
+    nomes = _empresa_nomes_from_opts(empresa_ids, opts)
+    if not nomes:
+        return None
+    if len(nomes) == 1:
+        return nomes[0]
+    return f"{len(nomes)} empresas"
+
+
+# ── Helpers de figura ─────────────────────────────────────────────────────────
 
 def _fig_vazia(msg: str = "Sem dados para o período") -> go.Figure:
     fig = go.Figure()
@@ -97,10 +206,10 @@ def _fig_vazia(msg: str = "Sem dados para o período") -> go.Figure:
     return fig
 
 
-def _barra_horizontal(nomes, valores, cor: str, n_items: int = 0,
+def _barra_horizontal(nomes, valores, cor, n_items: int = 0,
                       xmax: float | None = None,
                       customdata=None, hovertemplate: str | None = None):
-    """Barras horizontais com maior valor no topo."""
+    """Barras horizontais com maior valor no topo. cor pode ser str ou list."""
     height = max(400, n_items * 32 + 120)
     xaxis_cfg = dict(showgrid=True, gridcolor="#f0f0f0", gridwidth=1)
     if xmax:
@@ -122,14 +231,21 @@ def _barra_horizontal(nomes, valores, cor: str, n_items: int = 0,
     return fig
 
 
-def _heatmap_empresa(dados: list[dict], zmax: float | None = None, sort_assuntos: list[str] | None = None) -> go.Figure:
-    """Heatmap assunto × empresa com ordenação opcional por assunto."""
+_CORES_DESTAQUE = [
+    "#1a73e8", "#e67e22", "#27ae60", "#8e44ad", "#e74c3c",
+    "#16a085", "#f39c12", "#2980b9", "#d35400", "#1abc9c",
+]
+
+
+def _heatmap_empresa(dados: list[dict], zmax: float | None = None,
+                     sort_assuntos: list[str] | None = None,
+                     empresas_destaque: list[str] | None = None) -> go.Figure:
+    """Heatmap assunto × empresa. Empresas destaque vão para o início com borda colorida."""
     if not dados:
         return _fig_vazia()
 
     df = pd.DataFrame(dados)
 
-    # Se há assuntos de ordenação, priorizar esses e depois o resto
     if sort_assuntos:
         df_sort = df[df["assunto"].isin(sort_assuntos)]
         col_order = (df_sort.groupby("empresa")["pontuacao"].sum()
@@ -139,6 +255,17 @@ def _heatmap_empresa(dados: list[dict], zmax: float | None = None, sort_assuntos
         col_order = col_order + rest
     else:
         col_order = df.groupby("empresa")["pontuacao"].sum().sort_values(ascending=False).index.tolist()
+
+    # Empresas destaque vão para as primeiras posições (ordenadas por pontuação entre si)
+    if empresas_destaque:
+        dest_set = set(empresas_destaque)
+        dest_order = sorted(
+            [c for c in col_order if c in dest_set],
+            key=lambda c: df[df["empresa"] == c]["pontuacao"].sum(),
+            reverse=True,
+        )
+        rest_order = [c for c in col_order if c not in dest_set]
+        col_order = dest_order + rest_order
 
     pivot = df.pivot_table(index="assunto", columns="empresa", values="pontuacao",
                            aggfunc="sum", fill_value=0)
@@ -177,6 +304,22 @@ def _heatmap_empresa(dados: list[dict], zmax: float | None = None, sort_assuntos
         height=max(400, n_assuntos * 46 + 200),
         margin=dict(t=40, b=160, l=260, r=40),
     )
+
+    # Borda colorida ao redor de cada empresa destaque
+    if empresas_destaque:
+        cols_list = pivot.columns.tolist()
+        for empresa, cor in zip(empresas_destaque, _CORES_DESTAQUE):
+            if empresa in cols_list:
+                idx = cols_list.index(empresa)
+                fig.add_shape(
+                    type="rect",
+                    x0=idx - 0.5, x1=idx + 0.5,
+                    y0=-0.5, y1=n_assuntos - 0.5,
+                    line=dict(color=cor, width=3),
+                    fillcolor="rgba(0,0,0,0)",
+                    xref="x", yref="y",
+                )
+
     return fig
 
 
@@ -187,7 +330,6 @@ def _heatmap_auto(dados: list[dict], zmax: float | None = None, sort_assuntos: l
 
     df = pd.DataFrame(dados)
 
-    # Se há assuntos de ordenação, priorizar esses e depois o resto
     if sort_assuntos:
         df_sort = df[df["assunto"].isin(sort_assuntos)]
         col_order = (df_sort.groupby("auto")["pontuacao"].sum()
@@ -259,13 +401,15 @@ def _scatter_evolucao(rows: list[dict], cor: str = "#1a73e8") -> go.Figure:
     return fig
 
 
-def _pizza(labels: list[str], values: list[int]) -> go.Figure:
+def _pizza(labels: list[str], values: list[int], assunto_destaque: str | None = None) -> go.Figure:
+    pull = [0.12 if assunto_destaque and lbl == assunto_destaque else 0 for lbl in labels]
     fig = go.Figure(go.Pie(
         labels=labels, values=values,
         textinfo="percent",
         textfont=dict(size=13),
         hovertemplate="<b>%{label}</b><br>Qtd: %{value}<br>%{percent}<extra></extra>",
         hole=0.3,
+        pull=pull,
     ))
     fig.update_layout(
         **LAYOUT_PLOTLY,
@@ -284,7 +428,8 @@ def _aviso_sem_dados():
 # ── Registro de callbacks ─────────────────────────────────────────────────────
 
 def register_callbacks(app):
-    # Atualização de títulos e subtítulos dinâmicos
+
+    # ── Subtítulos dinâmicos ──────────────────────────────────────────────────
     @app.callback(
         Output("subtitulo-g-evolucao", "children"),
         Output("subtitulo-g-pizza", "children"),
@@ -296,24 +441,20 @@ def register_callbacks(app):
         Output("subtitulo-g7", "children"),
         Output("subtitulo-g8", "children"),
         Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-empresa", "options"),
+        Input("filtro-assunto", "value"),
         prevent_initial_call=False,
     )
-    def update_subtitulos(servicos):
-        s = _subtitulo_servico(servicos)
-        r = _subtitulo_regular(servicos)
-        return (
-            s,
-            s,
-            s,
-            r,
-            r,
-            r,
-            r,
-            r,
-            r,
-        )
+    def update_subtitulos(servicos, regioes, empresa_ids, empresa_opts, assunto):
+        empresa_nome = _empresa_nome_from_opts(empresa_ids, empresa_opts)
+        s_comp = _build_subtitulo_compartilhado(servicos, regioes, empresa_nome, assunto)
+        s_r_com = _build_subtitulo_regular(servicos, regioes, empresa_nome, assunto, incluir_assunto=True)
+        s_r_sem = _build_subtitulo_regular(servicos, regioes, empresa_nome, assunto, incluir_assunto=False)
+        return s_comp, s_comp, s_comp, s_r_com, s_r_sem, s_r_sem, s_r_com, s_r_sem, s_r_sem
 
-    # Inicialização de anos
+    # ── Inicialização de anos ─────────────────────────────────────────────────
     @app.callback(
         Output("filtro-ano", "options"),
         Output("filtro-ano", "value"),
@@ -327,7 +468,7 @@ def register_callbacks(app):
         opts = [{"label": str(a), "value": a} for a in sorted(anos, reverse=True)]
         return opts, opts[0]["value"]
 
-    # Inicialização de meses
+    # ── Inicialização de meses ────────────────────────────────────────────────
     @app.callback(
         Output("filtro-meses", "options"),
         Output("filtro-meses", "value"),
@@ -343,7 +484,7 @@ def register_callbacks(app):
         opts = [{"label": NOMES_MESES[m], "value": m} for m in sorted(meses)]
         return opts, list(meses)
 
-    # Placeholder de meses
+    # ── Placeholder de meses ──────────────────────────────────────────────────
     @app.callback(
         Output("filtro-meses", "placeholder"),
         Input("filtro-meses", "value"),
@@ -359,7 +500,7 @@ def register_callbacks(app):
             return "Todos os meses"
         return f"{sel} meses selecionados"
 
-    # Visibilidade da seção regular
+    # ── Visibilidade da seção regular ─────────────────────────────────────────
     @app.callback(
         Output("secao-regular", "style"),
         Input("filtro-servico", "value"),
@@ -370,7 +511,63 @@ def register_callbacks(app):
             return {"display": "block"}
         return {"display": "none"}
 
-    # Cards de resumo
+    # ── Visibilidade dos filtros de região/empresa ────────────────────────────
+    @app.callback(
+        Output("col-filtro-regiao", "style"),
+        Output("col-filtro-empresa", "style"),
+        Input("filtro-servico", "value"),
+        prevent_initial_call=False,
+    )
+    def visibilidade_filtros_regular(servicos):
+        if _tem_regular(servicos):
+            return {}, {}
+        return {"display": "none"}, {"display": "none"}
+
+    # ── Limite de seleção de empresas (máx. 10) ───────────────────────────────
+    @app.callback(
+        Output("filtro-empresa", "value"),
+        Input("filtro-empresa", "value"),
+        prevent_initial_call=True,
+    )
+    def limit_empresa_selection(ids):
+        if ids and len(ids) > 10:
+            return ids[:10]
+        return ids
+
+    # ── Opções de região (filtro global) ──────────────────────────────────────
+    @app.callback(
+        Output("filtro-regiao", "options"),
+        Output("filtro-regiao", "value"),
+        Input("filtro-servico", "value"),
+        prevent_initial_call=False,
+    )
+    def update_regioes_opcoes(servicos):
+        regular_servicos = [s for s in (servicos or []) if s in SERVICOS_REGULAR]
+        if not regular_servicos:
+            return [], []
+        ts = _tipo_servico_str(regular_servicos)
+        regioes_data = api.get_regioes_disponiveis(ts)
+        opts = [{"label": r["label"], "value": r["id"]} for r in regioes_data]
+        return opts, []
+
+    # ── Opções de empresa em cascata (filtro global) ──────────────────────────
+    @app.callback(
+        Output("filtro-empresa", "options"),
+        Output("filtro-empresa", "value"),
+        Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        prevent_initial_call=False,
+    )
+    def update_empresas_opcoes(servicos, regioes):
+        ts = _tipo_servico_str([s for s in (servicos or []) if s in SERVICOS_REGULAR])
+        if not ts:
+            return [], []
+        regioes_str = _tipo_servico_str(regioes)
+        rows = api.get_empresas_lista(ts, regioes=regioes_str)
+        opts = [{"label": r["nome"], "value": r["id"]} for r in rows]
+        return opts, []
+
+    # ── Cards de resumo ───────────────────────────────────────────────────────
     @app.callback(
         Output("card-total", "children"),
         Output("card-assunto", "children"),
@@ -379,13 +576,22 @@ def register_callbacks(app):
         Input("filtro-ano", "value"),
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-empresa", "options"),
+        Input("filtro-assunto", "value"),
         prevent_initial_call=False,
     )
-    def update_cards(ano, meses, servicos):
+    def update_cards(ano, meses, servicos, regioes, empresa_ids, empresa_opts, assuntos):
         if ano is None:
             return "–", "–", "", ""
         ts = _tipo_servico_str(servicos)
-        data = api.get_resumo(ano, _meses_str(meses or []), ts)
+        regioes_str = _tipo_servico_str(regioes)
+        perm_ids = _perm_ids_str(empresa_ids)
+        data = api.get_resumo(
+            ano, _meses_str(meses or []), ts,
+            regioes=regioes_str, perm_ids=perm_ids, assuntos=_assuntos_str(assuntos),
+        )
         if data["total_reclamacoes"] == 0:
             return "0", "–", "", _aviso_sem_dados()
         return (
@@ -395,113 +601,193 @@ def register_callbacks(app):
             "",
         )
 
-    # Evolução mensal
+    # ── Evolução mensal ───────────────────────────────────────────────────────
     @app.callback(
         Output("g-evolucao", "figure"),
         Input("filtro-ano", "value"),
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-assunto", "value"),
         prevent_initial_call=False,
     )
-    def update_evolucao(ano, meses, servicos):
+    def update_evolucao(ano, meses, servicos, regioes, empresa_ids, assuntos):
         if ano is None:
             return _fig_vazia()
         ts = _tipo_servico_str(servicos)
-        rows = api.get_evolucao_mensal(ano, _meses_str(meses or []), ts)
+        regioes_str = _tipo_servico_str(regioes)
+        perm_ids = _perm_ids_str(empresa_ids)
+        rows = api.get_evolucao_mensal(
+            ano, _meses_str(meses or []), ts,
+            regioes=regioes_str, perm_ids=perm_ids, assuntos=_assuntos_str(assuntos),
+        )
         return _scatter_evolucao(rows) if rows else _fig_vazia()
 
-    # Pizza de assuntos (e atualiza opções de sort)
+    # ── Pizza de assuntos ─────────────────────────────────────────────────────
     @app.callback(
         Output("g-pizza", "figure"),
         Output("filtro-sort-assunto-g5", "options"),
         Output("filtro-sort-assunto-g8", "options"),
+        Output("filtro-assunto", "options"),
         Input("filtro-ano", "value"),
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-assunto", "value"),
         prevent_initial_call=False,
     )
-    def update_pizza(ano, meses, servicos):
+    def update_pizza(ano, meses, servicos, regioes, empresa_ids, assuntos):
         if ano is None:
-            return _fig_vazia(), [], []
+            return _fig_vazia(), [], [], []
         ts = _tipo_servico_str(servicos)
-        rows = api.get_assuntos_pizza(ano, _meses_str(meses or []), ts)
+        regioes_str = _tipo_servico_str(regioes)
+        perm_ids = _perm_ids_str(empresa_ids)
+        rows = api.get_assuntos_pizza(ano, _meses_str(meses or []), ts, regioes=regioes_str, perm_ids=perm_ids)
         if not rows:
-            return _fig_vazia(), [], []
-        assuntos = [r["assunto"] for r in rows]
-        opts = [{"label": a, "value": a} for a in assuntos]
-        return _pizza(assuntos, [r["total"] for r in rows]), opts, opts
+            return _fig_vazia(), [], [], []
+        opts = [{"label": r["assunto"], "value": r["assunto"]} for r in rows]
+        labels_full = [r["assunto"] for r in rows]
+        values_full = [r["total"] for r in rows]
+        if not assuntos:
+            return _pizza(labels_full, values_full), opts, opts, opts
+        if len(assuntos) == 1:
+            return _pizza(labels_full, values_full, assunto_destaque=assuntos[0]), opts, opts, opts
+        assuntos_set = set(assuntos)
+        rows_sel = [r for r in rows if r["assunto"] in assuntos_set]
+        if not rows_sel:
+            return _fig_vazia(), opts, opts, opts
+        return _pizza([r["assunto"] for r in rows_sel], [r["total"] for r in rows_sel]), opts, opts, opts
 
-    # Opções de regiões para heatmaps
-    @app.callback(
-        Output("filtro-regioes-g5", "options"),
-        Output("filtro-regioes-g5", "value"),
-        Output("filtro-regioes-g8", "options"),
-        Output("filtro-regioes-g8", "value"),
-        Input("filtro-servico", "value"),
-        prevent_initial_call=False,
-    )
-    def update_regioes_opcoes(servicos):
-        regular_servicos = [s for s in (servicos or []) if s in SERVICOS_REGULAR]
-        if not regular_servicos:
-            return [], [], [], []
-        ts = _tipo_servico_str(regular_servicos)
-        regioes_data = api.get_regioes_disponiveis(ts)
-        opts = [{"label": r["label"], "value": r["id"]} for r in regioes_data]
-        return opts, [], opts, []
-
-    # Empresas por pontuação (G3)
+    # ── G3: Empresas por pontuação ────────────────────────────────────────────
     @app.callback(
         Output("g3-empresas", "figure"),
         Input("filtro-ano", "value"),
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-empresa", "options"),
+        Input("filtro-assunto", "value"),
         prevent_initial_call=False,
     )
-    def update_empresas(ano, meses, servicos):
+    def update_empresas(ano, meses, servicos, regioes, empresa_ids, empresa_opts, assuntos):
         if ano is None or not _tem_regular(servicos):
             return _fig_vazia()
         ts = _tipo_servico_str([s for s in servicos if s in SERVICOS_REGULAR])
-        rows = api.get_empresas_pontuacao(ano, _meses_str(meses or []), ts)
-        if not rows:
+        regioes_str = _tipo_servico_str(regioes)
+        empresa_nomes = _empresa_nomes_from_opts(empresa_ids, empresa_opts)
+
+        rows = api.get_empresas_pontuacao(
+            ano, _meses_str(meses or []), ts,
+            regioes=regioes_str,
+            assuntos=_assuntos_str(assuntos),
+        )
+        if not rows and not empresa_nomes:
             return _fig_vazia()
+
         rows_s = sorted(rows, key=lambda r: r["pontuacao"], reverse=True)
-        nomes = [r["empresa"] for r in rows_s]
-        vals = [r["pontuacao"] for r in rows_s]
-        cd = [[r["linha_top"], r["assunto_top"]] for r in rows_s]
+
+        if empresa_nomes:
+            empresa_nomes_set = set(empresa_nomes)
+            selecionadas = sorted(
+                [r for r in rows_s if r["empresa"] in empresa_nomes_set],
+                key=lambda r: r["pontuacao"], reverse=True,
+            )
+            outras = [r for r in rows_s if r["empresa"] not in empresa_nomes_set]
+            encontradas = {r["empresa"] for r in selecionadas}
+            for nome in empresa_nomes:
+                if nome not in encontradas:
+                    selecionadas.append({"empresa": nome, "pontuacao": 0.0,
+                                         "num_reclamacoes": 0, "linha_top": "–", "assunto_top": "–"})
+            rows_final = selecionadas + outras
+            cores = ["#1a73e8" if r["empresa"] in empresa_nomes_set else "#e53935" for r in rows_final]
+        else:
+            rows_final = rows_s
+            cores = "#e53935"
+
+        if not rows_final:
+            return _fig_vazia()
+
+        nomes = [r["empresa"] for r in rows_final]
+        vals  = [r["pontuacao"] for r in rows_final]
+        cd    = [[r["linha_top"], r["assunto_top"]] for r in rows_final]
         hover = (
             "<b>%{y}</b><br>Pontuação: %{x:.2f}<br>"
             "Linha top: %{customdata[0]}<br>Assunto top: %{customdata[1]}<extra></extra>"
         )
-        return _barra_horizontal(nomes, vals, "#e53935", n_items=len(nomes),
+        return _barra_horizontal(nomes, vals, cores, n_items=len(nomes),
                                  customdata=cd, hovertemplate=hover)
 
-    # Empresas por incidência irregular (G4)
+    # ── G4: Empresas por incidência irregular ─────────────────────────────────
     @app.callback(
         Output("g4-irregular", "figure"),
         Input("filtro-ano", "value"),
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-empresa", "options"),
         prevent_initial_call=False,
     )
-    def update_irregular_empresa(ano, meses, servicos):
+    def update_irregular_empresa(ano, meses, servicos, regioes, empresa_ids, empresa_opts):
         if ano is None or not _tem_regular(servicos):
             return _fig_vazia()
         ts = _tipo_servico_str([s for s in servicos if s in SERVICOS_REGULAR])
-        rows = api.get_empresas_irregular(ano, _meses_str(meses or []), ts)
-        if not rows:
+        regioes_str = _tipo_servico_str(regioes)
+        empresa_nomes = _empresa_nomes_from_opts(empresa_ids, empresa_opts)
+
+        rows = api.get_empresas_irregular(ano, _meses_str(meses or []), ts, regioes=regioes_str)
+        if not rows and not empresa_nomes:
             return _fig_vazia()
+
         rows_s = sorted(rows, key=lambda r: r["pontuacao"], reverse=True)
-        nomes = [r["empresa"] for r in rows_s]
-        vals = [r["pontuacao"] for r in rows_s]
-        cd = [[r["linha_top"]] for r in rows_s]
+
+        if empresa_nomes:
+            empresa_nomes_set = set(empresa_nomes)
+            selecionadas_raw = sorted(
+                [r for r in rows_s if r["empresa"] in empresa_nomes_set],
+                key=lambda r: r["pontuacao"], reverse=True,
+            )
+            outras = [r for r in rows_s if r["empresa"] not in empresa_nomes_set]
+            encontradas = {r["empresa"] for r in selecionadas_raw}
+            selecionadas = []
+            for r in selecionadas_raw:
+                if r["pontuacao"] == 0:
+                    selecionadas.append({
+                        "empresa": f"{r['empresa']} — Sem registro de denúncia por transporte irregular",
+                        "pontuacao": 0.0, "linha_top": "–",
+                    })
+                else:
+                    selecionadas.append(r)
+            for nome in empresa_nomes:
+                if nome not in encontradas:
+                    selecionadas.append({
+                        "empresa": f"{nome} — Sem registro de denúncia por transporte irregular",
+                        "pontuacao": 0.0, "linha_top": "–",
+                    })
+            rows_final = selecionadas + outras
+            n_sel = len(selecionadas)
+            cores = ["#1a73e8" if i < n_sel else "#e53935" for i in range(len(rows_final))]
+        else:
+            rows_final = rows_s
+            cores = "#e53935"
+
+        if not rows_final:
+            return _fig_vazia()
+
+        nomes = [r["empresa"] for r in rows_final]
+        vals  = [r["pontuacao"] for r in rows_final]
+        cd    = [[r["linha_top"]] for r in rows_final]
         hover = (
             "<b>%{y}</b><br>Pontuação Irregular: %{x:.2f}<br>"
             "Linha mais prejudicada: %{customdata[0]}<extra></extra>"
         )
-        return _barra_horizontal(nomes, vals, "#e53935", n_items=len(nomes),
+        return _barra_horizontal(nomes, vals, cores, n_items=len(nomes),
                                  customdata=cd, hovertemplate=hover)
 
-    # G5: Paginação
+    # ── G5: Paginação ─────────────────────────────────────────────────────────
     @app.callback(
         Output("g5-pagina", "data"),
         Input("g5-prev", "n_clicks"),
@@ -510,7 +796,7 @@ def register_callbacks(app):
         State("filtro-ano", "value"),
         State("filtro-meses", "value"),
         State("filtro-servico", "value"),
-        State("filtro-regioes-g5", "value"),
+        State("filtro-regiao", "value"),
         prevent_initial_call=True,
     )
     def pagina_g5(prev_c, next_c, pagina, ano, meses, servicos, regioes):
@@ -524,31 +810,42 @@ def register_callbacks(app):
             return min(total, pagina + 1)
         return pagina
 
-    # G5: Heatmap empresa
+    # ── G5: Heatmap empresa ───────────────────────────────────────────────────
     @app.callback(
         Output("g5-heatmap-empresa", "figure"),
         Output("g5-info", "children"),
         Input("filtro-ano", "value"),
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
-        Input("filtro-regioes-g5", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-empresa", "options"),
         Input("filtro-sort-assunto-g5", "value"),
         Input("g5-pagina", "data"),
         prevent_initial_call=False,
     )
-    def update_heatmap_empresa(ano, meses, servicos, regioes, sort_assuntos, pagina):
+    def update_heatmap_empresa(ano, meses, servicos, regioes, empresa_ids, empresa_opts, sort_assuntos, pagina):
         if ano is None or not _tem_regular(servicos):
             return _fig_vazia(), ""
         ts = _tipo_servico_str([s for s in servicos if s in SERVICOS_REGULAR])
         regioes_str = _tipo_servico_str(regioes)
-        resp = api.get_heatmap_assunto_empresa(ano, _meses_str(meses or []), ts, pagina=pagina or 1, regioes=regioes_str)
+        empresa_nomes = _empresa_nomes_from_opts(empresa_ids, empresa_opts)
+
+        resp = api.get_heatmap_assunto_empresa(
+            ano, _meses_str(meses or []), ts, pagina=pagina or 1, regioes=regioes_str
+        )
         dados = resp.get("dados", [])
         total_pags = resp.get("total_paginas", 1)
-        pag_atual = resp.get("pagina", 1)
-        zmax = resp.get("zmax_global")
-        return _heatmap_empresa(dados, zmax=zmax, sort_assuntos=sort_assuntos), f"Página {pag_atual} de {total_pags}"
+        pag_atual  = resp.get("pagina", 1)
+        zmax       = resp.get("zmax_global")
 
-    # G6: Paginação
+        return (
+            _heatmap_empresa(dados, zmax=zmax, sort_assuntos=sort_assuntos,
+                             empresas_destaque=empresa_nomes or None),
+            f"Página {pag_atual} de {total_pags}",
+        )
+
+    # ── G6: Paginação ─────────────────────────────────────────────────────────
     @app.callback(
         Output("g6-pagina", "data"),
         Input("g6-prev", "n_clicks"),
@@ -557,11 +854,19 @@ def register_callbacks(app):
         State("filtro-ano", "value"),
         State("filtro-meses", "value"),
         State("filtro-servico", "value"),
+        State("filtro-regiao", "value"),
+        State("filtro-empresa", "value"),
+        State("filtro-assunto", "value"),
         prevent_initial_call=True,
     )
-    def pagina_g6(prev_c, next_c, pagina, ano, meses, servicos):
+    def pagina_g6(prev_c, next_c, pagina, ano, meses, servicos, regioes, empresa_ids, assuntos):
         ts = _tipo_servico_str([s for s in servicos if s in SERVICOS_REGULAR])
-        resp = api.get_autos_pontuacao(ano, _meses_str(meses or []), ts, pagina=pagina)
+        regioes_str = _tipo_servico_str(regioes)
+        perm_ids = _perm_ids_str(empresa_ids)
+        resp = api.get_autos_pontuacao(
+            ano, _meses_str(meses or []), ts, pagina=pagina,
+            regioes=regioes_str, perm_ids=perm_ids, assuntos=_assuntos_str(assuntos),
+        )
         total = resp.get("total_paginas", 1)
         if ctx.triggered_id and "prev" in ctx.triggered_id:
             return max(1, pagina - 1)
@@ -569,40 +874,48 @@ def register_callbacks(app):
             return min(total, pagina + 1)
         return pagina
 
-    # G6: Autos por pontuação
+    # ── G6: Autos por pontuação ───────────────────────────────────────────────
     @app.callback(
         Output("g6-autos", "figure"),
         Output("g6-info", "children"),
         Input("filtro-ano", "value"),
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-assunto", "value"),
         Input("g6-pagina", "data"),
         prevent_initial_call=False,
     )
-    def update_autos_pontuacao(ano, meses, servicos, pagina):
+    def update_autos_pontuacao(ano, meses, servicos, regioes, empresa_ids, assuntos, pagina):
         if ano is None or not _tem_regular(servicos):
             return _fig_vazia(), ""
         ts = _tipo_servico_str([s for s in servicos if s in SERVICOS_REGULAR])
-        resp = api.get_autos_pontuacao(ano, _meses_str(meses or []), ts, pagina=pagina or 1)
-        dados = resp.get("dados", [])
+        regioes_str = _tipo_servico_str(regioes)
+        perm_ids = _perm_ids_str(empresa_ids)
+        resp = api.get_autos_pontuacao(
+            ano, _meses_str(meses or []), ts, pagina=pagina or 1,
+            regioes=regioes_str, perm_ids=perm_ids, assuntos=_assuntos_str(assuntos),
+        )
+        dados      = resp.get("dados", [])
         total_pags = resp.get("total_paginas", 1)
-        pag_atual = resp.get("pagina", 1)
-        xmax = resp.get("xmax_global")
+        pag_atual  = resp.get("pagina", 1)
+        xmax       = resp.get("xmax_global")
         if not dados:
             return _fig_vazia(), f"Página {pag_atual} de {total_pags}"
         dados_s = sorted(dados, key=lambda r: r["pontuacao"], reverse=True)
         nomes = [r["auto"] for r in dados_s]
-        vals = [r["pontuacao"] for r in dados_s]
-        cd = [[r["assunto_top"]] for r in dados_s]
+        vals  = [r["pontuacao"] for r in dados_s]
+        cd    = [[r["assunto_top"]] for r in dados_s]
         hover = (
             "<b>Auto:</b> %{y}<br>Pontuação: %{x:.2f}<br>"
             "Principal assunto: %{customdata[0]}<extra></extra>"
         )
-        return _barra_horizontal(nomes, vals, "#1a73e8", n_items=len(nomes),
-                                 xmax=xmax, customdata=cd, hovertemplate=hover), \
-               f"Página {pag_atual} de {total_pags}"
+        return (_barra_horizontal(nomes, vals, "#1a73e8", n_items=len(nomes),
+                                  xmax=xmax, customdata=cd, hovertemplate=hover),
+                f"Página {pag_atual} de {total_pags}")
 
-    # G7: Paginação
+    # ── G7: Paginação ─────────────────────────────────────────────────────────
     @app.callback(
         Output("g7-pagina", "data"),
         Input("g7-prev", "n_clicks"),
@@ -611,11 +924,18 @@ def register_callbacks(app):
         State("filtro-ano", "value"),
         State("filtro-meses", "value"),
         State("filtro-servico", "value"),
+        State("filtro-regiao", "value"),
+        State("filtro-empresa", "value"),
         prevent_initial_call=True,
     )
-    def pagina_g7(prev_c, next_c, pagina, ano, meses, servicos):
+    def pagina_g7(prev_c, next_c, pagina, ano, meses, servicos, regioes, empresa_ids):
         ts = _tipo_servico_str([s for s in servicos if s in SERVICOS_REGULAR])
-        resp = api.get_autos_irregular(ano, _meses_str(meses or []), ts, pagina=pagina)
+        regioes_str = _tipo_servico_str(regioes)
+        perm_ids = _perm_ids_str(empresa_ids)
+        resp = api.get_autos_irregular(
+            ano, _meses_str(meses or []), ts, pagina=pagina,
+            regioes=regioes_str, perm_ids=perm_ids,
+        )
         total = resp.get("total_paginas", 1)
         if ctx.triggered_id and "prev" in ctx.triggered_id:
             return max(1, pagina - 1)
@@ -623,49 +943,48 @@ def register_callbacks(app):
             return min(total, pagina + 1)
         return pagina
 
-    # G7: Autos por incidência irregular
+    # ── G7: Autos por incidência irregular ────────────────────────────────────
     @app.callback(
         Output("g7-irregular", "figure"),
         Output("g7-info", "children"),
         Input("filtro-ano", "value"),
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
         Input("g7-pagina", "data"),
         prevent_initial_call=False,
     )
-    def update_autos_irregular(ano, meses, servicos, pagina):
+    def update_autos_irregular(ano, meses, servicos, regioes, empresa_ids, pagina):
         if ano is None or not _tem_regular(servicos):
             return _fig_vazia(), ""
         ts = _tipo_servico_str([s for s in servicos if s in SERVICOS_REGULAR])
-        resp = api.get_autos_irregular(ano, _meses_str(meses or []), ts, pagina=pagina or 1)
-        dados = resp.get("dados", [])
+        regioes_str = _tipo_servico_str(regioes)
+        perm_ids = _perm_ids_str(empresa_ids)
+        resp = api.get_autos_irregular(
+            ano, _meses_str(meses or []), ts, pagina=pagina or 1,
+            regioes=regioes_str, perm_ids=perm_ids,
+        )
+        dados      = resp.get("dados", [])
         total_pags = resp.get("total_paginas", 1)
-        pag_atual = resp.get("pagina", 1)
-        xmax = resp.get("xmax_global")
+        pag_atual  = resp.get("pagina", 1)
+        xmax       = resp.get("xmax_global")
         if not dados:
-            return _fig_vazia(), f"Página {pag_atual} de {total_pags}"
+            msg = (
+                "Não há registros de autos de linha com vulnerabilidade ao transporte "
+                "irregular para as empresas filtradas."
+                if perm_ids else "Sem dados para o período"
+            )
+            return _fig_vazia(msg), f"Página {pag_atual} de {total_pags}"
         dados_s = sorted(dados, key=lambda r: r["pontuacao"], reverse=True)
         nomes = [r["auto"] for r in dados_s]
-        vals = [r["pontuacao"] for r in dados_s]
+        vals  = [r["pontuacao"] for r in dados_s]
         hover = "<b>Auto:</b> %{y}<br>Pontuação Irregular: %{x:.2f}<extra></extra>"
-        return _barra_horizontal(nomes, vals, "#1a73e8", n_items=len(nomes),
-                                 xmax=xmax, hovertemplate=hover), \
-               f"Página {pag_atual} de {total_pags}"
+        return (_barra_horizontal(nomes, vals, "#1a73e8", n_items=len(nomes),
+                                  xmax=xmax, hovertemplate=hover),
+                f"Página {pag_atual} de {total_pags}")
 
-    # G8: Opções de empresas
-    @app.callback(
-        Output("filtro-empresas-g8", "options"),
-        Input("filtro-servico", "value"),
-        prevent_initial_call=False,
-    )
-    def init_empresas_g8(servicos):
-        ts = _tipo_servico_str([s for s in servicos if s in SERVICOS_REGULAR])
-        if not ts:
-            return []
-        rows = api.get_empresas_lista(ts)
-        return [{"label": r["nome"], "value": r["id"]} for r in rows]
-
-    # G8: Paginação
+    # ── G8: Paginação ─────────────────────────────────────────────────────────
     @app.callback(
         Output("g8-pagina", "data"),
         Input("g8-prev", "n_clicks"),
@@ -674,13 +993,13 @@ def register_callbacks(app):
         State("filtro-ano", "value"),
         State("filtro-meses", "value"),
         State("filtro-servico", "value"),
-        State("filtro-empresas-g8", "value"),
-        State("filtro-regioes-g8", "value"),
+        State("filtro-empresa", "value"),
+        State("filtro-regiao", "value"),
         prevent_initial_call=True,
     )
-    def pagina_g8(prev_c, next_c, pagina, ano, meses, servicos, empresas, regioes):
+    def pagina_g8(prev_c, next_c, pagina, ano, meses, servicos, empresa_ids, regioes):
         ts = _tipo_servico_str([s for s in servicos if s in SERVICOS_REGULAR])
-        perm_ids = ",".join(str(e) for e in (empresas or []))
+        perm_ids = _perm_ids_str(empresa_ids)
         regioes_str = _tipo_servico_str(regioes)
         resp = api.get_heatmap_assunto_auto(
             ano, _meses_str(meses or []), ts, perm_ids or None, pagina=pagina, regioes=regioes_str
@@ -692,35 +1011,36 @@ def register_callbacks(app):
             return min(total, pagina + 1)
         return pagina
 
-    # G8: Heatmap auto
+    # ── G8: Heatmap auto ──────────────────────────────────────────────────────
     @app.callback(
         Output("g8-heatmap-auto", "figure"),
         Output("g8-info", "children"),
         Input("filtro-ano", "value"),
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
-        Input("filtro-empresas-g8", "value"),
-        Input("filtro-regioes-g8", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-regiao", "value"),
         Input("filtro-sort-assunto-g8", "value"),
         Input("g8-pagina", "data"),
         prevent_initial_call=False,
     )
-    def update_heatmap_auto(ano, meses, servicos, empresas, regioes, sort_assuntos, pagina):
+    def update_heatmap_auto(ano, meses, servicos, empresa_ids, regioes, sort_assuntos, pagina):
         if ano is None or not _tem_regular(servicos):
             return _fig_vazia(), ""
         ts = _tipo_servico_str([s for s in servicos if s in SERVICOS_REGULAR])
-        perm_ids = ",".join(str(e) for e in (empresas or []))
+        perm_ids = _perm_ids_str(empresa_ids)
         regioes_str = _tipo_servico_str(regioes)
         resp = api.get_heatmap_assunto_auto(
             ano, _meses_str(meses or []), ts, perm_ids or None, pagina=pagina or 1, regioes=regioes_str
         )
-        dados = resp.get("dados", [])
+        dados      = resp.get("dados", [])
         total_pags = resp.get("total_paginas", 1)
-        pag_atual = resp.get("pagina", 1)
-        zmax = resp.get("zmax_global")
-        return _heatmap_auto(dados, zmax=zmax, sort_assuntos=sort_assuntos), f"Página {pag_atual} de {total_pags}"
+        pag_atual  = resp.get("pagina", 1)
+        zmax       = resp.get("zmax_global")
+        return (_heatmap_auto(dados, zmax=zmax, sort_assuntos=sort_assuntos),
+                f"Página {pag_atual} de {total_pags}")
 
-    # Locais de embarque/desembarque: Paginação
+    # ── Locais de embarque/desembarque: Paginação ─────────────────────────────
     @app.callback(
         Output("g-pagina-locais", "data"),
         Input("g-locais-prev", "n_clicks"),
@@ -730,11 +1050,19 @@ def register_callbacks(app):
         State("filtro-meses", "value"),
         State("filtro-servico", "value"),
         State("filtro-tipo-local", "value"),
+        State("filtro-regiao", "value"),
+        State("filtro-empresa", "value"),
+        State("filtro-assunto", "value"),
         prevent_initial_call=True,
     )
-    def pagina_locais(prev_c, next_c, pagina, ano, meses, servicos, tipo_local):
+    def pagina_locais(prev_c, next_c, pagina, ano, meses, servicos, tipo_local, regioes, empresa_ids, assuntos):
         ts = _tipo_servico_str(servicos)
-        resp = api.get_locais_embarque(ano, _meses_str(meses or []), ts, tipo_local, pagina=pagina)
+        regioes_str = _tipo_servico_str(regioes)
+        perm_ids = _perm_ids_str(empresa_ids)
+        resp = api.get_locais_embarque(
+            ano, _meses_str(meses or []), ts, tipo_local, pagina=pagina,
+            regioes=regioes_str, perm_ids=perm_ids, assuntos=_assuntos_str(assuntos),
+        )
         total = resp.get("total_paginas", 1)
         if ctx.triggered_id and "prev" in ctx.triggered_id:
             return max(1, pagina - 1)
@@ -742,7 +1070,7 @@ def register_callbacks(app):
             return min(total, pagina + 1)
         return pagina
 
-    # Locais de embarque/desembarque: Gráfico
+    # ── Locais de embarque/desembarque: Gráfico ───────────────────────────────
     @app.callback(
         Output("g-locais", "figure"),
         Output("g-locais-info", "children"),
@@ -750,28 +1078,36 @@ def register_callbacks(app):
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
         Input("filtro-tipo-local", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-assunto", "value"),
         Input("g-pagina-locais", "data"),
         prevent_initial_call=False,
     )
-    def update_locais(ano, meses, servicos, tipo_local, pagina):
+    def update_locais(ano, meses, servicos, tipo_local, regioes, empresa_ids, assuntos, pagina):
         if ano is None:
             return _fig_vazia(), ""
         ts = _tipo_servico_str(servicos)
-        resp = api.get_locais_embarque(ano, _meses_str(meses or []), ts, tipo_local, pagina=pagina or 1)
-        dados = resp.get("dados", [])
+        regioes_str = _tipo_servico_str(regioes)
+        perm_ids = _perm_ids_str(empresa_ids)
+        resp = api.get_locais_embarque(
+            ano, _meses_str(meses or []), ts, tipo_local, pagina=pagina or 1,
+            regioes=regioes_str, perm_ids=perm_ids, assuntos=_assuntos_str(assuntos),
+        )
+        dados      = resp.get("dados", [])
         total_pags = resp.get("total_paginas", 1)
-        pag_atual = resp.get("pagina", 1)
-        xmax = resp.get("xmax_global")
+        pag_atual  = resp.get("pagina", 1)
+        xmax       = resp.get("xmax_global")
         if not dados:
             return _fig_vazia(), f"Página {pag_atual} de {total_pags}"
         dados_s = sorted(dados, key=lambda r: r["total"], reverse=True)
         nomes = [r["local"] for r in dados_s]
-        vals = [r["total"] for r in dados_s]
-        cd = [[r["assunto_top"]] for r in dados_s]
+        vals  = [r["total"] for r in dados_s]
+        cd    = [[r["assunto_top"]] for r in dados_s]
         hover = (
             "<b>%{y}</b><br>Reclamações: %{x}<br>"
             "Principal assunto: %{customdata[0]}<extra></extra>"
         )
-        return _barra_horizontal(nomes, vals, "#1a73e8", n_items=len(nomes),
-                                 xmax=xmax, customdata=cd, hovertemplate=hover), \
-               f"Página {pag_atual} de {total_pags}"
+        return (_barra_horizontal(nomes, vals, "#1a73e8", n_items=len(nomes),
+                                  xmax=xmax, customdata=cd, hovertemplate=hover),
+                f"Página {pag_atual} de {total_pags}")

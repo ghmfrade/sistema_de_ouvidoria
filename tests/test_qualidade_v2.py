@@ -363,6 +363,38 @@ class TestEmpresasPontuacao:
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
+    def test_filtro_regioes_aceito(self, client, ano_com_dados):
+        r = client.get(
+            f"{BASE}/empresas-pontuacao",
+            params={"ano": ano_com_dados, "regioes": "TC1"},
+        )
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_filtro_assunto_aceito(self, client, ano_com_dados):
+        r = client.get(
+            f"{BASE}/empresas-pontuacao",
+            params={"ano": ano_com_dados, "assunto": "ATRASO"},
+        )
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_filtro_assunto_nao_supera_total(self, client, ano_com_dados):
+        total = sum(
+            i["pontuacao"]
+            for i in client.get(
+                f"{BASE}/empresas-pontuacao", params={"ano": ano_com_dados}
+            ).json()
+        )
+        filtrado = sum(
+            i["pontuacao"]
+            for i in client.get(
+                f"{BASE}/empresas-pontuacao",
+                params={"ano": ano_com_dados, "assunto": "ATRASO"},
+            ).json()
+        )
+        assert filtrado <= total
+
 
 # ── /empresas-irregular ───────────────────────────────────────────────────────
 
@@ -391,6 +423,14 @@ class TestEmpresasIrregular:
         r_irreg = client.get(f"{BASE}/empresas-irregular", params={"ano": ano_com_dados})
         assert r_geral.status_code == 200
         assert r_irreg.status_code == 200
+
+    def test_filtro_regioes_aceito(self, client, ano_com_dados):
+        r = client.get(
+            f"{BASE}/empresas-irregular",
+            params={"ano": ano_com_dados, "regioes": "TC1"},
+        )
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
 
 
 # ── /heatmap-assunto-empresa ──────────────────────────────────────────────────
@@ -493,6 +533,36 @@ class TestAutosPontuacao:
         assert r.status_code == 200
         assert isinstance(r.json()["dados"], list)
 
+    def test_filtro_regioes_aceito(self, client, ano_com_dados):
+        r = client.get(
+            f"{BASE}/autos-pontuacao",
+            params={"ano": ano_com_dados, "regioes": "TC1"},
+        )
+        assert r.status_code == 200
+
+    def test_filtro_perm_ids_inexistente_retorna_dados_vazios(self, client, ano_com_dados):
+        data = client.get(
+            f"{BASE}/autos-pontuacao",
+            params={"ano": ano_com_dados, "perm_ids": "0"},
+        ).json()
+        assert data["dados"] == []
+
+    def test_filtro_assunto_restringe_pontuacao(self, client, ano_com_dados):
+        total = sum(
+            i["pontuacao"]
+            for i in client.get(
+                f"{BASE}/autos-pontuacao", params={"ano": ano_com_dados, "pagina": 1}
+            ).json()["dados"]
+        )
+        filtrado = sum(
+            i["pontuacao"]
+            for i in client.get(
+                f"{BASE}/autos-pontuacao",
+                params={"ano": ano_com_dados, "assunto": "ATRASO", "pagina": 1},
+            ).json()["dados"]
+        )
+        assert filtrado <= total
+
 
 # ── /autos-irregular ─────────────────────────────────────────────────────────
 
@@ -526,6 +596,20 @@ class TestAutosIrregular:
         data = client.get(f"{BASE}/autos-irregular", params={"ano": 1900}).json()
         assert data["dados"] == []
         assert data["xmax_global"] == 0.0
+
+    def test_filtro_regioes_aceito(self, client, ano_com_dados):
+        r = client.get(
+            f"{BASE}/autos-irregular",
+            params={"ano": ano_com_dados, "regioes": "TC1"},
+        )
+        assert r.status_code == 200
+
+    def test_filtro_perm_ids_inexistente_retorna_dados_vazios(self, client, ano_com_dados):
+        data = client.get(
+            f"{BASE}/autos-irregular",
+            params={"ano": ano_com_dados, "perm_ids": "0"},
+        ).json()
+        assert data["dados"] == []
 
 
 # ── /heatmap-assunto-auto ─────────────────────────────────────────────────────
@@ -677,3 +761,19 @@ class TestEmpresasLista:
         )
         assert r.status_code == 200
         assert isinstance(r.json(), list)
+
+    def test_filtro_regioes_aceito(self, client):
+        r = client.get(
+            f"{BASE}/empresas-lista",
+            params={"tipo_servico": "Regular – Metropolitano", "regioes": "RM Campinas"},
+        )
+        assert r.status_code == 200
+        assert isinstance(r.json(), list)
+
+    def test_nome_usa_nome_fantasia_quando_disponivel(self, client):
+        r = client.get(
+            f"{BASE}/empresas-lista",
+            params={"tipo_servico": "Regular – Metropolitano"},
+        )
+        for item in r.json():
+            assert item["nome"] != ""

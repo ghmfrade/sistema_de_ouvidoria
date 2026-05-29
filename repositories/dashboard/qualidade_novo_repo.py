@@ -165,10 +165,19 @@ def query_regioes_disponiveis(tipo_servicos: list[str]) -> list[dict]:
 
 # ── Cards de resumo ───────────────────────────────────────────────────────────
 
-def query_resumo(ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO") -> dict:
+def query_resumo(
+    ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO",
+    regioes: list[str] | None = None, perm_ids: list[int] | None = None,
+    assuntos: list[str] | None = None,
+) -> dict:
     """Retorna total de reclamações e assunto mais reclamado."""
     with db_session() as s:
         q = _base_novo(s, ano, meses, tipo_servicos, categoria)
+        q = _apply_regiao_filter(q, regioes or [])
+        if perm_ids:
+            q = q.filter(Permissionaria.id.in_(perm_ids))
+        if assuntos:
+            q = q.filter(Subcategoria.nome.in_(assuntos))
 
         total = q.with_entities(func.count(distinct(Reclamacao.id))).scalar() or 0
 
@@ -192,11 +201,18 @@ def query_resumo(ano: int, meses: list[int], tipo_servicos: list[str], categoria
 # ── Gráfico 1: Evolução mensal ────────────────────────────────────────────────
 
 def query_evolucao_mensal_v2(
-    ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO"
+    ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO",
+    regioes: list[str] | None = None, perm_ids: list[int] | None = None,
+    assuntos: list[str] | None = None,
 ) -> list[tuple]:
     """Retorna [(mes_int, total)] ordenado por mês."""
     with db_session() as s:
         q = _base_novo(s, ano, meses, tipo_servicos, categoria)
+        q = _apply_regiao_filter(q, regioes or [])
+        if perm_ids:
+            q = q.filter(Permissionaria.id.in_(perm_ids))
+        if assuntos:
+            q = q.filter(Subcategoria.nome.in_(assuntos))
         mes_col = func.extract("month", Ouvidoria.criado_em).label("mes")
         rows = (
             q.with_entities(mes_col, func.count(distinct(Reclamacao.id)).label("total"))
@@ -210,11 +226,15 @@ def query_evolucao_mensal_v2(
 # ── Gráfico 2: Pizza de assuntos ─────────────────────────────────────────────
 
 def query_assuntos_pizza(
-    ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO"
+    ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO",
+    regioes: list[str] | None = None, perm_ids: list[int] | None = None,
 ) -> list[tuple]:
     """Retorna [(assunto, total)] para pizza."""
     with db_session() as s:
         q = _base_novo(s, ano, meses, tipo_servicos, categoria)
+        q = _apply_regiao_filter(q, regioes or [])
+        if perm_ids:
+            q = q.filter(Permissionaria.id.in_(perm_ids))
         rows = (
             q.with_entities(
                 func.coalesce(Subcategoria.nome, "(sem assunto)").label("assunto"),
@@ -230,14 +250,20 @@ def query_assuntos_pizza(
 # ── Gráfico 3: Empresas por pontuação (excl. irregular) ──────────────────────
 
 def query_empresas_pontuacao_v2(
-    ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO"
+    ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO",
+    regioes: list[str] | None = None, assuntos: list[str] | None = None,
 ) -> list[dict]:
     """Ranking de empresas por pontuação. Exclui subcategoria TRANSPORTE IRREGULAR."""
     with db_session() as s:
         q = _base_novo(s, ano, meses, tipo_servicos, categoria)
-        q = q.filter(
-            (Subcategoria.nome != _IRREGULAR) | (Subcategoria.nome.is_(None))
-        ).filter(Permissionaria.nome.isnot(None))
+        if assuntos:
+            q = q.filter(Subcategoria.nome.in_(assuntos))
+        else:
+            q = q.filter(
+                (Subcategoria.nome != _IRREGULAR) | (Subcategoria.nome.is_(None))
+            )
+        q = q.filter(Permissionaria.nome.isnot(None))
+        q = _apply_regiao_filter(q, regioes or [])
 
         rows = (
             q.with_entities(
@@ -301,12 +327,14 @@ def _assunto_top_empresa(s, ano, meses, tipo_servicos, categoria, empresa):
 # ── Gráfico 4: Incidência de transporte irregular por empresa ─────────────────
 
 def query_empresas_incidencia_irregular(
-    ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO"
+    ano: int, meses: list[int], tipo_servicos: list[str], categoria: str = "RECLAMAÇÃO",
+    regioes: list[str] | None = None,
 ) -> list[dict]:
     """Ranking de empresas pela pontuação exclusiva de TRANSPORTE IRREGULAR."""
     with db_session() as s:
         q = _base_novo(s, ano, meses, tipo_servicos, categoria)
         q = q.filter(Subcategoria.nome == _IRREGULAR).filter(Permissionaria.nome.isnot(None))
+        q = _apply_regiao_filter(q, regioes or [])
 
         rows = (
             q.with_entities(
@@ -453,13 +481,23 @@ def query_autos_pontuacao_v2(
     pagina: int = 1,
     por_pagina: int = 15,
     categoria: str = "RECLAMAÇÃO",
+    regioes: list[str] | None = None,
+    perm_ids: list[int] | None = None,
+    assuntos: list[str] | None = None,
 ) -> dict:
     """Ranking paginado de autos por pontuação (excl. TRANSPORTE IRREGULAR)."""
     with db_session() as s:
         q = _base_novo(s, ano, meses, tipo_servicos, categoria)
-        q = q.filter(
-            (Subcategoria.nome != _IRREGULAR) | (Subcategoria.nome.is_(None))
-        ).filter(AutoLinha.numero.isnot(None))
+        if assuntos:
+            q = q.filter(Subcategoria.nome.in_(assuntos))
+        else:
+            q = q.filter(
+                (Subcategoria.nome != _IRREGULAR) | (Subcategoria.nome.is_(None))
+            )
+        q = q.filter(AutoLinha.numero.isnot(None))
+        if perm_ids:
+            q = q.filter(Permissionaria.id.in_(perm_ids))
+        q = _apply_regiao_filter(q, regioes or [])
 
         todos_autos = (
             q.with_entities(
@@ -512,11 +550,16 @@ def query_autos_incidencia_irregular(
     pagina: int = 1,
     por_pagina: int = 15,
     categoria: str = "RECLAMAÇÃO",
+    regioes: list[str] | None = None,
+    perm_ids: list[int] | None = None,
 ) -> dict:
     """Ranking paginado de autos por pontuação de TRANSPORTE IRREGULAR."""
     with db_session() as s:
         q = _base_novo(s, ano, meses, tipo_servicos, categoria)
         q = q.filter(Subcategoria.nome == _IRREGULAR).filter(AutoLinha.numero.isnot(None))
+        if perm_ids:
+            q = q.filter(Permissionaria.id.in_(perm_ids))
+        q = _apply_regiao_filter(q, regioes or [])
 
         todos = (
             q.with_entities(
@@ -634,6 +677,9 @@ def query_heatmap_assunto_auto(
 
 # ── Locais de embarque/desembarque ──────────────────────────────────────────
 
+_FRET_TIPOS = {"Fretamento Intermunicipal", "Fretamento Metropolitano"}
+
+
 def query_locais_embarque(
     ano: int,
     meses: list[int],
@@ -642,61 +688,95 @@ def query_locais_embarque(
     por_pagina: int = 15,
     categoria: str = "RECLAMAÇÃO",
     tipo_local: str = "embarque",
+    regioes: list[str] | None = None,
+    perm_ids: list[int] | None = None,
+    assuntos: list[str] | None = None,
 ) -> dict:
     """Ranking paginado de locais de embarque/desembarque.
 
-    Args:
-        tipo_servicos: lista de tipos de serviço a filtrar
-        tipo_local: "embarque" ou "desembarque"
+    Lógica de filtro por região/permissionária:
+    - Fretamento: sem filtro por região/permissionária (não há vínculo de auto)
+    - Regular: aplica região e permissionária
+    - Ambos selecionados com filtro: une fret (sem filtro) + regular (filtrado)
+    Assunto filtra ambos os serviços.
     """
+    ts_set = set(tipo_servicos or [])
+    fret_tipos = list(ts_set & _FRET_TIPOS)
+    reg_tipos = list(ts_set - _FRET_TIPOS)
+    split_needed = bool(fret_tipos) and bool(reg_tipos) and bool(regioes or perm_ids)
+
     with db_session() as s:
-        q = _base_novo(s, ano, meses, tipo_servicos, categoria)
-
         if tipo_local == "desembarque":
-            q = q.filter(
-                Reclamacao.local_desembarque.isnot(None),
-                Reclamacao.local_desembarque != "",
-            )
             local_field = Reclamacao.local_desembarque
+            def _apply_local_filter(q):
+                return q.filter(
+                    Reclamacao.local_desembarque.isnot(None),
+                    Reclamacao.local_desembarque != "",
+                )
         else:
-            q = q.filter(
-                Reclamacao.local_embarque.isnot(None),
-                Reclamacao.local_embarque != "",
-            )
             local_field = Reclamacao.local_embarque
+            def _apply_local_filter(q):
+                return q.filter(
+                    Reclamacao.local_embarque.isnot(None),
+                    Reclamacao.local_embarque != "",
+                )
 
-        todos = (
-            q.with_entities(
-                local_field.label("local"),
-                func.count(distinct(Reclamacao.id)).label("total"),
+        def _contar_locais(tipos, with_regioes=False, with_perm=False):
+            q = _apply_local_filter(_base_novo(s, ano, meses, tipos, categoria))
+            if with_regioes:
+                q = _apply_regiao_filter(q, regioes or [])
+            if with_perm and perm_ids:
+                q = q.filter(Permissionaria.id.in_(perm_ids))
+            if assuntos:
+                q = q.filter(Subcategoria.nome.in_(assuntos))
+            rows = (
+                q.with_entities(local_field, func.count(distinct(Reclamacao.id)))
+                .group_by(local_field)
+                .all()
             )
-            .group_by(local_field)
-            .order_by(func.count(distinct(Reclamacao.id)).desc())
-            .all()
-        )
+            return {r[0]: int(r[1]) for r in rows if r[0]}
+
+        if split_needed:
+            fret_counts = _contar_locais(fret_tipos, with_regioes=False, with_perm=False)
+            reg_counts = _contar_locais(reg_tipos, with_regioes=True, with_perm=True)
+            combined: dict[str, int] = {}
+            for loc, cnt in fret_counts.items():
+                combined[loc] = combined.get(loc, 0) + cnt
+            for loc, cnt in reg_counts.items():
+                combined[loc] = combined.get(loc, 0) + cnt
+            todos = sorted(combined.items(), key=lambda x: x[1], reverse=True)
+        elif reg_tipos and not fret_tipos:
+            counts = _contar_locais(reg_tipos, with_regioes=True, with_perm=True)
+            todos = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+        else:
+            counts = _contar_locais(tipo_servicos or fret_tipos, with_regioes=False, with_perm=False)
+            todos = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+
         total = len(todos)
-        xmax_global = int(todos[0][1]) if todos else 0
+        xmax_global = todos[0][1] if todos else 0
         total_paginas = max(1, -(-total // por_pagina))
         offset = (pagina - 1) * por_pagina
         rows_pag = todos[offset : offset + por_pagina]
 
         dados = []
-        for r in rows_pag:
-            assunto_top = _assunto_top_local(s, ano, meses, tipo_servicos, categoria, r[0], tipo_local)
+        for loc, cnt in rows_pag:
+            assunto_top = _assunto_top_local(s, ano, meses, tipo_servicos, categoria, loc, tipo_local, assuntos)
             dados.append({
-                "local": r[0],
-                "total": int(r[1]),
+                "local": loc,
+                "total": cnt,
                 "assunto_top": assunto_top,
             })
         return {"dados": dados, "total_paginas": total_paginas, "pagina": pagina, "xmax_global": xmax_global}
 
 
-def _assunto_top_local(s, ano, meses, tipo_servicos, categoria, local, tipo_local):
+def _assunto_top_local(s, ano, meses, tipo_servicos, categoria, local, tipo_local, assuntos=None):
     q = _base_novo(s, ano, meses, tipo_servicos, categoria)
     if tipo_local == "desembarque":
         q = q.filter(Reclamacao.local_desembarque == local)
     else:
         q = q.filter(Reclamacao.local_embarque == local)
+    if assuntos:
+        q = q.filter(Subcategoria.nome.in_(assuntos))
     row = (
         q.filter(Subcategoria.nome.isnot(None))
         .with_entities(
@@ -725,16 +805,20 @@ def query_locais_embarque_fretamento(
 
 # ── Lista de empresas para filtro do Gráfico 8 ───────────────────────────────
 
-def query_empresas_lista(tipo_servicos: list[str]) -> list[dict]:
-    """Lista de empresas (id + nome) do tipo de serviço para o filtro do Gráfico 8."""
+def query_empresas_lista(tipo_servicos: list[str], regioes: list[str] | None = None) -> list[dict]:
+    """Lista de empresas (id + nome_fantasia) para filtro global, com cascata de região opcional."""
     with db_session() as s:
-        rows = (
-            s.query(Permissionaria.id, Permissionaria.nome)
+        display_nome = func.coalesce(Permissionaria.nome_fantasia, Permissionaria.nome)
+        q = (
+            s.query(Permissionaria.id, display_nome)
             .join(AutoLinha, AutoLinha.permissionaria_id == Permissionaria.id)
             .filter(cast(AutoLinha.tipo, String).in_(tipo_servicos))
             .filter(AutoLinha.ativo.is_(True))
-            .group_by(Permissionaria.id, Permissionaria.nome)
-            .order_by(Permissionaria.nome)
+        )
+        q = _apply_regiao_filter(q, regioes or [])
+        rows = (
+            q.group_by(Permissionaria.id, Permissionaria.nome_fantasia, Permissionaria.nome)
+            .order_by(display_nome)
             .all()
         )
         return [{"id": r[0], "nome": r[1]} for r in rows]

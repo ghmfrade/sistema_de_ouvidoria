@@ -51,7 +51,7 @@ HEATMAP_COLORSCALE = [
 
 def _filtros_globais():
     return dbc.Card(
-        dbc.CardBody(
+        dbc.CardBody([
             dbc.Row([
                 dbc.Col([
                     html.Label("Tipo de Serviço", className="fw-semibold mb-1"),
@@ -82,7 +82,33 @@ def _filtros_globais():
                     ),
                 ], xs=12, sm=6, md=4),
             ], className="g-3 align-items-end"),
-        ),
+            dbc.Row([
+                dbc.Col([
+                    html.Label("Região", className="fw-semibold mb-1"),
+                    dcc.Dropdown(
+                        id="filtro-regiao",
+                        multi=True,
+                        placeholder="Todas as regiões",
+                    ),
+                ], xs=12, md=4, id="col-filtro-regiao"),
+                dbc.Col([
+                    html.Label("Permissionária", className="fw-semibold mb-1"),
+                    dcc.Dropdown(
+                        id="filtro-empresa",
+                        multi=True,
+                        placeholder="Todas as empresas",
+                    ),
+                ], xs=12, md=4, id="col-filtro-empresa"),
+                dbc.Col([
+                    html.Label("Assunto", className="fw-semibold mb-1"),
+                    dcc.Dropdown(
+                        id="filtro-assunto",
+                        multi=True,
+                        placeholder="Todos os assuntos",
+                    ),
+                ], xs=12, md=4),
+            ], className="g-3 align-items-end mt-2"),
+        ]),
         style=CARD_STYLE,
     )
 
@@ -263,14 +289,6 @@ def build_layout():
                                 html.Small("", id="subtitulo-g5", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
                                 dbc.Row([
                                     dbc.Col([
-                                        html.Label("Filtrar por Região", className="fw-semibold mb-1"),
-                                        dcc.Dropdown(
-                                            id="filtro-regioes-g5",
-                                            multi=True,
-                                            placeholder="Todas as regiões",
-                                        ),
-                                    ], xs=12, md=6),
-                                    dbc.Col([
                                         html.Label("Ordenar por Assunto", className="fw-semibold mb-1"),
                                         dcc.Dropdown(
                                             id="filtro-sort-assunto-g5",
@@ -314,29 +332,13 @@ def build_layout():
                                 html.Small("", id="subtitulo-g8", className="text-muted d-block mb-3", style={"fontSize": "12px"}),
                                 dbc.Row([
                                     dbc.Col([
-                                        html.Label("Filtrar por Empresa", className="fw-semibold mb-1"),
-                                        dcc.Dropdown(
-                                            id="filtro-empresas-g8",
-                                            multi=True,
-                                            placeholder="Todas as empresas",
-                                        ),
-                                    ], xs=12, md=4),
-                                    dbc.Col([
-                                        html.Label("Filtrar por Região", className="fw-semibold mb-1"),
-                                        dcc.Dropdown(
-                                            id="filtro-regioes-g8",
-                                            multi=True,
-                                            placeholder="Todas as regiões",
-                                        ),
-                                    ], xs=12, md=4),
-                                    dbc.Col([
                                         html.Label("Ordenar por Assunto", className="fw-semibold mb-1"),
                                         dcc.Dropdown(
                                             id="filtro-sort-assunto-g8",
                                             multi=True,
                                             placeholder="Todos os assuntos",
                                         ),
-                                    ], xs=12, md=4),
+                                    ], xs=12, md=6),
                                 ], className="g-3 mb-3"),
                                 dcc.Store(id="g8-pagina", data=1),
                                 dcc.Graph(id="g8-heatmap-auto", config=GRAPH_CONFIG),

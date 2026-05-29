@@ -27,24 +27,54 @@ def get_regioes_disponiveis(tipo_servico: str | None = None) -> list[dict]:
     return _get("regioes-disponiveis", {"tipo_servico": tipo_servico})
 
 
-def get_resumo(ano: int, meses: str | None, tipo_servico: str | None, categoria: str = "RECLAMAÇÃO") -> dict:
-    return _get("resumo", {"ano": ano, "meses": meses, "tipo_servico": tipo_servico, "categoria": categoria})
+def get_resumo(
+    ano: int, meses: str | None, tipo_servico: str | None, categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None, perm_ids: str | None = None, assuntos: str | None = None,
+) -> dict:
+    return _get("resumo", {
+        "ano": ano, "meses": meses, "tipo_servico": tipo_servico, "categoria": categoria,
+        "regioes": regioes, "perm_ids": perm_ids, "assuntos": assuntos,
+    })
 
 
-def get_evolucao_mensal(ano: int, meses: str | None, tipo_servico: str | None, categoria: str = "RECLAMAÇÃO") -> list:
-    return _get("evolucao-mensal", {"ano": ano, "meses": meses, "tipo_servico": tipo_servico, "categoria": categoria})
+def get_evolucao_mensal(
+    ano: int, meses: str | None, tipo_servico: str | None, categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None, perm_ids: str | None = None, assuntos: str | None = None,
+) -> list:
+    return _get("evolucao-mensal", {
+        "ano": ano, "meses": meses, "tipo_servico": tipo_servico, "categoria": categoria,
+        "regioes": regioes, "perm_ids": perm_ids, "assuntos": assuntos,
+    })
 
 
-def get_assuntos_pizza(ano: int, meses: str | None, tipo_servico: str | None, categoria: str = "RECLAMAÇÃO") -> list:
-    return _get("assuntos-pizza", {"ano": ano, "meses": meses, "tipo_servico": tipo_servico, "categoria": categoria})
+def get_assuntos_pizza(
+    ano: int, meses: str | None, tipo_servico: str | None, categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None, perm_ids: str | None = None,
+) -> list:
+    return _get("assuntos-pizza", {
+        "ano": ano, "meses": meses, "tipo_servico": tipo_servico, "categoria": categoria,
+        "regioes": regioes, "perm_ids": perm_ids,
+    })
 
 
-def get_empresas_pontuacao(ano: int, meses: str | None, tipo_servico: str | None, categoria: str = "RECLAMAÇÃO") -> list:
-    return _get("empresas-pontuacao", {"ano": ano, "meses": meses, "tipo_servico": tipo_servico, "categoria": categoria})
+def get_empresas_pontuacao(
+    ano: int, meses: str | None, tipo_servico: str | None,
+    categoria: str = "RECLAMAÇÃO", regioes: str | None = None, assuntos: str | None = None,
+) -> list:
+    return _get("empresas-pontuacao", {
+        "ano": ano, "meses": meses, "tipo_servico": tipo_servico,
+        "categoria": categoria, "regioes": regioes, "assuntos": assuntos,
+    })
 
 
-def get_empresas_irregular(ano: int, meses: str | None, tipo_servico: str | None, categoria: str = "RECLAMAÇÃO") -> list:
-    return _get("empresas-irregular", {"ano": ano, "meses": meses, "tipo_servico": tipo_servico, "categoria": categoria})
+def get_empresas_irregular(
+    ano: int, meses: str | None, tipo_servico: str | None,
+    categoria: str = "RECLAMAÇÃO", regioes: str | None = None,
+) -> list:
+    return _get("empresas-irregular", {
+        "ano": ano, "meses": meses, "tipo_servico": tipo_servico,
+        "categoria": categoria, "regioes": regioes,
+    })
 
 
 def get_heatmap_assunto_empresa(
@@ -57,21 +87,26 @@ def get_heatmap_assunto_empresa(
 
 
 def get_autos_pontuacao(
-    ano: int, meses: str | None, tipo_servico: str | None, pagina: int = 1, categoria: str = "RECLAMAÇÃO"
+    ano: int, meses: str | None, tipo_servico: str | None, pagina: int = 1,
+    categoria: str = "RECLAMAÇÃO", regioes: str | None = None,
+    perm_ids: str | None = None, assuntos: str | None = None,
 ) -> dict:
-    return _get(
-        "autos-pontuacao",
-        {"ano": ano, "meses": meses, "tipo_servico": tipo_servico, "pagina": pagina, "categoria": categoria},
-    )
+    return _get("autos-pontuacao", {
+        "ano": ano, "meses": meses, "tipo_servico": tipo_servico,
+        "pagina": pagina, "categoria": categoria,
+        "regioes": regioes, "perm_ids": perm_ids, "assuntos": assuntos,
+    })
 
 
 def get_autos_irregular(
-    ano: int, meses: str | None, tipo_servico: str | None, pagina: int = 1, categoria: str = "RECLAMAÇÃO"
+    ano: int, meses: str | None, tipo_servico: str | None, pagina: int = 1,
+    categoria: str = "RECLAMAÇÃO", regioes: str | None = None, perm_ids: str | None = None,
 ) -> dict:
-    return _get(
-        "autos-irregular",
-        {"ano": ano, "meses": meses, "tipo_servico": tipo_servico, "pagina": pagina, "categoria": categoria},
-    )
+    return _get("autos-irregular", {
+        "ano": ano, "meses": meses, "tipo_servico": tipo_servico,
+        "pagina": pagina, "categoria": categoria,
+        "regioes": regioes, "perm_ids": perm_ids,
+    })
 
 
 def get_heatmap_assunto_auto(
@@ -93,9 +128,17 @@ def get_heatmap_assunto_auto(
     )
 
 
-def get_locais_embarque(ano: int, meses: str | None, tipo_servico: str | None = None, tipo_local: str = "embarque", pagina: int = 1, categoria: str = "RECLAMAÇÃO") -> dict:
-    return _get("locais-embarque", {"ano": ano, "meses": meses, "tipo_servico": tipo_servico, "tipo_local": tipo_local, "pagina": pagina, "categoria": categoria})
+def get_locais_embarque(
+    ano: int, meses: str | None, tipo_servico: str | None = None,
+    tipo_local: str = "embarque", pagina: int = 1, categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None, perm_ids: str | None = None, assuntos: str | None = None,
+) -> dict:
+    return _get("locais-embarque", {
+        "ano": ano, "meses": meses, "tipo_servico": tipo_servico,
+        "tipo_local": tipo_local, "pagina": pagina, "categoria": categoria,
+        "regioes": regioes, "perm_ids": perm_ids, "assuntos": assuntos,
+    })
 
 
-def get_empresas_lista(tipo_servico: str | None) -> list:
-    return _get("empresas-lista", {"tipo_servico": tipo_servico})
+def get_empresas_lista(tipo_servico: str | None, regioes: str | None = None) -> list:
+    return _get("empresas-lista", {"tipo_servico": tipo_servico, "regioes": regioes})

@@ -64,9 +64,15 @@ def resumo(
     meses: str | None = None,
     tipo_servico: str | None = None,
     categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None,
+    perm_ids: str | None = None,
+    assuntos: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_resumo
-    return query_resumo(ano, _parse_meses(meses), _parse_list(tipo_servico), categoria)
+    return query_resumo(
+        ano, _parse_meses(meses), _parse_list(tipo_servico), categoria,
+        _parse_list(regioes), _parse_perm_ids(perm_ids), _parse_list(assuntos),
+    )
 
 
 # ── Gráfico 1: Evolução mensal ────────────────────────────────────────────────
@@ -77,9 +83,15 @@ def evolucao_mensal(
     meses: str | None = None,
     tipo_servico: str | None = None,
     categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None,
+    perm_ids: str | None = None,
+    assuntos: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_evolucao_mensal_v2
-    rows = query_evolucao_mensal_v2(ano, _parse_meses(meses), _parse_list(tipo_servico), categoria)
+    rows = query_evolucao_mensal_v2(
+        ano, _parse_meses(meses), _parse_list(tipo_servico), categoria,
+        _parse_list(regioes), _parse_perm_ids(perm_ids), _parse_list(assuntos),
+    )
     return [{"mes": r[0], "total": r[1]} for r in rows]
 
 
@@ -91,9 +103,14 @@ def assuntos_pizza(
     meses: str | None = None,
     tipo_servico: str | None = None,
     categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None,
+    perm_ids: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_assuntos_pizza
-    rows = query_assuntos_pizza(ano, _parse_meses(meses), _parse_list(tipo_servico), categoria)
+    rows = query_assuntos_pizza(
+        ano, _parse_meses(meses), _parse_list(tipo_servico), categoria,
+        _parse_list(regioes), _parse_perm_ids(perm_ids),
+    )
     return [{"assunto": r[0], "total": r[1]} for r in rows]
 
 
@@ -105,9 +122,14 @@ def empresas_pontuacao(
     meses: str | None = None,
     tipo_servico: str | None = None,
     categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None,
+    assuntos: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_empresas_pontuacao_v2
-    return query_empresas_pontuacao_v2(ano, _parse_meses(meses), _parse_list(tipo_servico), categoria)
+    return query_empresas_pontuacao_v2(
+        ano, _parse_meses(meses), _parse_list(tipo_servico), categoria,
+        _parse_list(regioes), _parse_list(assuntos) or None,
+    )
 
 
 # ── Gráfico 4: Incidência de transporte irregular por empresa ─────────────────
@@ -118,10 +140,11 @@ def empresas_irregular(
     meses: str | None = None,
     tipo_servico: str | None = None,
     categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_empresas_incidencia_irregular
     return query_empresas_incidencia_irregular(
-        ano, _parse_meses(meses), _parse_list(tipo_servico), categoria
+        ano, _parse_meses(meses), _parse_list(tipo_servico), categoria, _parse_list(regioes)
     )
 
 
@@ -154,10 +177,14 @@ def autos_pontuacao(
     pagina: int = 1,
     por_pagina: int = 15,
     categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None,
+    perm_ids: str | None = None,
+    assuntos: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_autos_pontuacao_v2
     return query_autos_pontuacao_v2(
-        ano, _parse_meses(meses), _parse_list(tipo_servico), pagina, por_pagina, categoria
+        ano, _parse_meses(meses), _parse_list(tipo_servico), pagina, por_pagina, categoria,
+        _parse_list(regioes), _parse_perm_ids(perm_ids), _parse_list(assuntos) or None,
     )
 
 
@@ -171,10 +198,13 @@ def autos_irregular(
     pagina: int = 1,
     por_pagina: int = 15,
     categoria: str = "RECLAMAÇÃO",
+    regioes: str | None = None,
+    perm_ids: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_autos_incidencia_irregular
     return query_autos_incidencia_irregular(
-        ano, _parse_meses(meses), _parse_list(tipo_servico), pagina, por_pagina, categoria
+        ano, _parse_meses(meses), _parse_list(tipo_servico), pagina, por_pagina, categoria,
+        _parse_list(regioes), _parse_perm_ids(perm_ids),
     )
 
 
@@ -215,14 +245,19 @@ def locais_embarque(
     por_pagina: int = 15,
     categoria: str = "RECLAMAÇÃO",
     tipo_local: str = "embarque",
+    regioes: str | None = None,
+    perm_ids: str | None = None,
+    assuntos: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_locais_embarque, query_locais_embarque_fretamento
 
     tipo_servicos = _parse_list(tipo_servico)
     if tipo_servicos:
-        return query_locais_embarque(ano, _parse_meses(meses), tipo_servicos, pagina, por_pagina, categoria, tipo_local)
+        return query_locais_embarque(
+            ano, _parse_meses(meses), tipo_servicos, pagina, por_pagina, categoria, tipo_local,
+            _parse_list(regioes), _parse_perm_ids(perm_ids), _parse_list(assuntos) or None,
+        )
     else:
-        # Se nenhum tipo foi especificado, usa o padrão legado (fretamento)
         return query_locais_embarque_fretamento(ano, _parse_meses(meses), pagina, por_pagina, categoria)
 
 
@@ -231,6 +266,7 @@ def locais_embarque(
 @router.get("/qualidade-v2/empresas-lista")
 def empresas_lista(
     tipo_servico: str | None = None,
+    regioes: str | None = None,
 ):
     from repositories.dashboard.qualidade_novo_repo import query_empresas_lista
-    return query_empresas_lista(_parse_list(tipo_servico))
+    return query_empresas_lista(_parse_list(tipo_servico), _parse_list(regioes))
