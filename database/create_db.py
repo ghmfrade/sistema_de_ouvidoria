@@ -1,7 +1,7 @@
 """
-Cria o banco de dados 'sistema_de_ouvidoria' no servidor PostgreSQL caso não exista.
+Cria o banco de dados 'souvi' no servidor PostgreSQL caso não exista.
 
-Conecta ao banco administrativo 'pgsql-sandbox' (banco existente no servidor) e emite
+Conecta ao banco administrativo 'postgres' (banco existente no servidor) e emite
 CREATE DATABASE. Deve ser executado antes de rodar as migrations pela primeira vez.
 
 Uso:

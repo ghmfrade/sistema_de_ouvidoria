@@ -36,7 +36,7 @@ O sistema é composto por três processos independentes. **Streamlit** e **Plotl
                                  │ SQLAlchemy ORM
 ┌────────────────────────────────▼───────────────────────────────────┐
 │  models/  +  database/                                             │
-│  PostgreSQL  (porta 5432  —  banco: sistema_de_ouvidoria)          │
+│  PostgreSQL  (porta 5432  —  banco: souvi)                         │
 └────────────────────────────────────────────────────────────────────┘
 ```
 

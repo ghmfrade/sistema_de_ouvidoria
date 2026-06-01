@@ -82,7 +82,7 @@ sistema_de_ouvidoria/
    POSTGRES_PASSWORD=sua_senha
    POSTGRES_HOST=localhost
    POSTGRES_PORT=5432
-   POSTGRES_DB=sistema_de_ouvidoria
+   POSTGRES_DB=souvi
    POSTGRES_SCHEMA=ouvidoria
 
    JWT_SECRET_KEY=chave_para_uso_da_api
