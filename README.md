@@ -14,7 +14,7 @@ O SOUVI centraliza e gerencia o fluxo de ouvidorias (reclamações, sugestões e
 - **Respostas Técnicas**: Documentação de análises e respostas às reclamações
 - **Respostas de Permissionárias**: Gerenciamento de respostas das empresas de transporte
 - **Análise de Dados**: Dashboard de produtividade (Streamlit) e qualidade (Plotly Dash)
-- **Relatórios**: Geração de relatórios consolidados em HTML
+- **Relatórios Estáticos**: Geração pontual de relatórios HTML via `gerador_de_relatorios.py` (uso secundário — o Dashboard de Qualidade cobre os mesmos dados de forma interativa)
 
 ## Arquitetura
 
@@ -23,7 +23,6 @@ sistema_de_ouvidoria/
 ├── app.py                      # Ponto de entrada principal (Streamlit)
 ├── auth.py                     # Autenticação e controle de sessão
 ├── run_dash.py                 # Ponto de entrada do Dashboard de Qualidade (Dash)
-├── gerador_de_relatorios.py    # Geração de relatórios HTML
 ├── alembic.ini                 # Configuração do Alembic
 ├── models/                     # SQLAlchemy ORM models
 ├── database/                   # Configuração do banco de dados
@@ -31,8 +30,8 @@ sistema_de_ouvidoria/
 ├── api/                        # Backend FastAPI (rotas REST)
 ├── pages/                      # Páginas Streamlit numeradas
 ├── components/                 # Componentes Streamlit reutilizáveis
-├── qualidade_dash/             # App Plotly Dash (Dashboard de Qualidade)
-├── relatorios/                 # Relatórios HTML gerados
+├── qualidade_dash/             # App Plotly Dash — Dashboard de Qualidade (principal)
+├── relatorios/                 # Snapshots HTML gerados por gerador_de_relatorios.py
 ├── migrations/                 # Alembic migrations (versionamento de schema)
 ├── tasks/                      # Tarefas assíncronas/agendadas
 ├── tests/                      # Testes automatizados
@@ -135,7 +134,9 @@ A API FastAPI estará disponível em:
 
 - Login com e-mail e senha
 - Dois tipos de usuário: **Gestor** (acesso administrativo) e **Técnico** (acesso a análises)
-- Usuário padrão: `admin@artesp.sp.gov.br` / `admin123`
+- Usuário padrão criado pelo seed: `admin@artesp.sp.gov.br` / `admin123`
+
+> **Importante:** Após executar `python database/seed.py`, acesse o painel **Admin → Usuários** e troque a senha do administrador antes de disponibilizar o sistema.
 
 ### Páginas Principais
 
@@ -175,12 +176,34 @@ Métricas de produtividade da equipe técnica:
 
 #### 07 - Dashboard Qualidade
 
-Redireciona para o app Plotly Dash (`run_dash.py`) com análise avançada:
+Redireciona para o app Plotly Dash (`run_dash.py`, porta 8050). Interface single-screen: 9 cards-botão no topo, cada um exibe seu gráfico ao ser clicado.
 
-- Distribuição por categoria e subcategoria
-- Análise por permissionária
-- Mapas de calor por região
-- Pontuações de qualidade
+**Filtros globais** (barra superior):
+
+| Filtro | Observação |
+|---|---|
+| Tipo de Serviço | Regular Metropolitano, Regular Intermunicipal, Fretamento Intermunicipal, Fretamento Metropolitano |
+| Ano | Anos disponíveis no banco |
+| Meses | Seleção múltipla; padrão = todos |
+| Região | Só aparece quando há tipo Regular selecionado |
+| Permissionária | Só aparece quando há tipo Regular; máximo de 10 selecionadas |
+| Assunto | Baseado nos assuntos presentes nos dados filtrados |
+
+**Cards e gráficos:**
+
+| # | Card (KPI) | Gráfico exibido |
+|---|---|---|
+| 1 | Total de Reclamações | Evolução mensal (linha temporal) |
+| 2 | Assunto Mais Reclamado | Pizza de distribuição por assunto |
+| 3 | Embarque / Desembarque Mais Crítico | Ranking de locais (paginado); alternável entre embarque e desembarque |
+| 4 | Empresa Mais Reclamada | Ranking de permissionárias por pontuação de reclamações (somente Regular) |
+| 5 | Empresa Mais Vulnerável | Ranking de permissionárias por incidência de transporte irregular (somente Regular) |
+| 6 | Auto Mais Reclamado | Ranking de autos de linha por pontuação (paginado, somente Regular) |
+| 7 | Auto Mais Vulnerável | Ranking de autos por vulnerabilidade ao irregular (paginado, somente Regular) |
+| 8 | Mapa de Calor por Empresa | Heatmap assunto × empresa, com destaque colorido para empresas selecionadas (paginado, somente Regular) |
+| 9 | Mapa de Calor por Autos | Heatmap assunto × auto de linha (paginado, somente Regular) |
+
+Cards 4–9 ficam desabilitados quando o filtro de tipo de serviço não inclui nenhum serviço Regular.
 
 #### 08 - Admin
 
@@ -269,18 +292,17 @@ alembic upgrade head
 alembic downgrade -1
 ```
 
-## Relatórios
+## Relatórios Estáticos
 
-O sistema gera relatórios consolidados em **HTML com gráficos interativos** (Plotly).
+> **Nota:** Os relatórios HTML gerados por `gerador_de_relatorios.py` são uma funcionalidade secundária. O **Dashboard de Qualidade** (`qualidade_dash/`, acessível via `python run_dash.py`) oferece os mesmos dados de forma interativa e atualizada em tempo real — prefira-o para análise cotidiana.
+
+Para gerar um snapshot estático em HTML (uso pontual, exportação, arquivo):
 
 ```bash
 python gerador_de_relatorios.py
 ```
 
-Relatórios gerados em `relatorios/`:
-
-- `relatorio_reclamacoes_2025.html` — Reclamações de 2025
-- `relatorio_reclamacoes_2026.html` — Reclamações de 2026
+Os arquivos são gravados em `relatorios/`, um por ano-base encontrado nos dados.
 
 **Conteúdo dos relatórios:**
 
