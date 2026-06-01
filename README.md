@@ -1,10 +1,13 @@
-# SIGO-SUCOL — Sistema Integrado de Gestão de Ouvidorias da SUCOL
+# SOUVI — Sistema de Ouvidorias da SUCOL
+
+> **SOUVI** é uma sigla-trocadilho:
+> **SOU**VI = **SOU** + **OUVI** → _sistema de ouvidorias_ que ao mesmo tempo remete ao verbo _ouvir_ ("sou ouvido").
 
 Sistema web de gerenciamento de ouvidorias desenvolvido para a ARTESP (Agência de Transporte Estadual de São Paulo), permitindo o acompanhamento integrado de reclamações e solicitações de usuários sobre serviços de transporte.
 
 ## Visão Geral
 
-O SIGO-SUCOL centraliza e gerencia o fluxo de ouvidorias (reclamações, sugestões e elogios) relacionadas aos serviços de transporte sob regulação da ARTESP. O sistema integra:
+O SOUVI centraliza e gerencia o fluxo de ouvidorias (reclamações, sugestões e elogios) relacionadas aos serviços de transporte sob regulação da ARTESP. O sistema integra:
 
 - **Gestão de Ouvidorias**: Registro, acompanhamento e conclusão de ouvidorias
 - **Atribuição de Responsáveis**: Distribuição de tarefas entre técnicos por gerência/coordenação
@@ -107,11 +110,13 @@ sistema_de_ouvidoria/
 8. **(Opcional) Inicie o backend FastAPI**
 
    **Windows:**
+
    ```powershell
    .venv\Scripts\uvicorn.exe api.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
    **Linux/macOS:**
+
    ```bash
    .venv/bin/uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
    ```
@@ -119,6 +124,7 @@ sistema_de_ouvidoria/
 A aplicação Streamlit estará disponível em `http://localhost:8501`.
 O Dashboard de Qualidade estará disponível em `http://localhost:8050`.
 A API FastAPI estará disponível em:
+
 - **Localmente**: `http://localhost:8000` ou `http://127.0.0.1:8000`
 - **De outro PC na rede**: `http://<seu-ip>:8000` (ex: `http://10.23.42.237:8000`)
 - **Documentação Swagger**: `http://localhost:8000/docs`

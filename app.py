@@ -3,7 +3,7 @@ import streamlit as st
 from components import reduz_margem_side_bar
 
 st.set_page_config(
-    page_title="SIGO-SUCOL",
+    page_title="SOUVI",
     page_icon="📋",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -16,8 +16,8 @@ from auth import usuario_logado
 def pagina_login():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.title("📋 SIGO-SUCOL")
-        st.subheader("Sistema Integrado de Gestão de Ouvidorias - ARTESP")
+        st.title("📋 SOUVI")
+        st.subheader("Sistema de Ouvidorias da SUCOL")
         st.divider()
         with st.form("form_login"):
             email = st.text_input("E-mail", placeholder="usuario@artesp.sp.gov.br")
@@ -67,6 +67,6 @@ if not u:
 else:
     reduz_margem_side_bar()
     sidebar_usuario()
-    st.title("📋 SIGO-SUCOL")
-    st.subheader("Sistema Integrado de Gestão de Ouvidorias - ARTESP")
+    st.title("📋 SOUVI")
+    st.subheader("Sistema de Ouvidorias da SUCOL")
     st.info("Use o menu na barra lateral para navegar.")
