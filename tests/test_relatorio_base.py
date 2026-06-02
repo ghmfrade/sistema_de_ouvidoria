@@ -1,7 +1,7 @@
 """Testes para o repositório e endpoint de relatório base."""
 import pytest
 from datetime import date, timedelta
-from repositories.relatorios.relatorio_base_repo import get_relatorio_base
+from api.repositories.relatorios.relatorio_base_repo import get_relatorio_base
 
 
 class TestRelatorioBaseRepo:
@@ -37,7 +37,8 @@ class TestRelatorioBaseRepo:
                 "data_1a_resposta_tecnica", "data_conclusao",
                 "id_reclamacao", "categoria", "assunto",
                 "cidade_origem", "cidade_destino",
-                "n_autos", "sistema", "origem", "destino", "permissionaria", "pontuacao"
+                "n_autos", "sistema", "origem", "destino", "permissionaria", "pontuacao",
+                "empresa_fretamento",
             }
             assert set(result[0].keys()) == expected_keys
 

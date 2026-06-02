@@ -1,7 +1,7 @@
 """Etapa 4 — paridade entre endpoints de ouvidorias e repositórios atuais."""
 from datetime import date, timedelta
 import pytest
-from repositories.ouvidoria_repo import get_ouvidorias, get_ouvidoria_completa
+from api.repositories.ouvidoria_repo import get_ouvidorias, get_ouvidoria_completa
 from tests.conftest import OUVIDORIA_ID_FIXTURE
 
 DATA_INI = (date.today() - timedelta(days=365)).isoformat()

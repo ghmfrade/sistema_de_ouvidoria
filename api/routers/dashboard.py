@@ -23,7 +23,7 @@ def kpis_produtividade(
     status_ids: Optional[str] = None,
     _=Depends(requer_gestor),
 ):
-    from repositories.dashboard.produtividade_repo import query_kpis_produtividade
+    from api.repositories.dashboard.produtividade_repo import query_kpis_produtividade
     status_list = [s for s in (status_ids or "").split(",") if s]
     total, concluidas, vencidas = query_kpis_produtividade(data_ini, data_fim, ger_id, status_list)
     return {"total": total, "concluidas": concluidas, "vencidas": vencidas}
@@ -37,7 +37,7 @@ def tempo_medio(
     status_ids: Optional[str] = None,
     _=Depends(requer_gestor),
 ):
-    from repositories.dashboard.produtividade_repo import query_tempo_medio_resposta
+    from api.repositories.dashboard.produtividade_repo import query_tempo_medio_resposta
     status_list = [s for s in (status_ids or "").split(",") if s]
     resultado = query_tempo_medio_resposta(data_ini, data_fim, ger_id, status_list)
     return {"dias": float(resultado) if resultado is not None else None}
@@ -51,7 +51,7 @@ def volume_por_mes(
     status_ids: Optional[str] = None,
     _=Depends(requer_gestor),
 ):
-    from repositories.dashboard.produtividade_repo import query_volume_por_mes
+    from api.repositories.dashboard.produtividade_repo import query_volume_por_mes
     status_list = [s for s in (status_ids or "").split(",") if s]
     rows = query_volume_por_mes(data_ini, data_fim, ger_id, status_list)
     return [{"mes": str(r[0]), "total": r[1]} for r in rows]
@@ -65,7 +65,7 @@ def distribuicao_status(
     status_ids: Optional[str] = None,
     _=Depends(requer_gestor),
 ):
-    from repositories.dashboard.produtividade_repo import query_distribuicao_status
+    from api.repositories.dashboard.produtividade_repo import query_distribuicao_status
     status_list = [s for s in (status_ids or "").split(",") if s]
     rows = query_distribuicao_status(data_ini, data_fim, ger_id, status_list)
     return [{"status": r[0], "total": r[1]} for r in rows]
@@ -77,7 +77,7 @@ def vencidas_por_coordenacao(
     data_fim: date,
     _=Depends(requer_gestor),
 ):
-    from repositories.dashboard.produtividade_repo import query_vencidas_por_coordenacao
+    from api.repositories.dashboard.produtividade_repo import query_vencidas_por_coordenacao
     rows = query_vencidas_por_coordenacao(data_ini, data_fim)
     return [{"coordenacao": r[0], "total": r[1]} for r in rows]
 
@@ -88,7 +88,7 @@ def tempo_medio_por_tecnico(
     data_fim: date,
     _=Depends(requer_gestor),
 ):
-    from repositories.dashboard.produtividade_repo import query_tempo_medio_por_tecnico
+    from api.repositories.dashboard.produtividade_repo import query_tempo_medio_por_tecnico
     rows = query_tempo_medio_por_tecnico(data_ini, data_fim)
     return [{"tecnico_nome": r[0], "dias_medios": float(r[1]) if r[1] else None} for r in rows]
 
@@ -101,7 +101,7 @@ def ranking_coordenacoes(
     status_ids: Optional[str] = None,
     _=Depends(requer_gestor),
 ):
-    from repositories.dashboard.produtividade_repo import query_ranking_coordenacoes
+    from api.repositories.dashboard.produtividade_repo import query_ranking_coordenacoes
     status_list = [s for s in (status_ids or "").split(",") if s]
     rows = query_ranking_coordenacoes(data_ini, data_fim, ger_id, status_list)
     return [{"coordenacao_nome": r[0], "metrica": float(r[1]) if r[1] else None} for r in rows]

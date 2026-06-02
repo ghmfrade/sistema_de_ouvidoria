@@ -34,7 +34,7 @@ def _limpar_dados_pytest():
     Executado no início E no fim da sessão para garantir limpeza mesmo após
     falhas que abortaram o teardown anterior.
     """
-    from database.connection import db_session
+    from api.database.connection import db_session
     with db_session() as s:
         # Ordem importa: remover dependentes antes dos pais
         s.execute(text("DELETE FROM subcategorias WHERE nome LIKE '_pytest_%'"))
@@ -49,7 +49,7 @@ def _limpar_dados_pytest():
 # ── Criação e limpeza de usuários de teste ────────────────────────────────────
 
 def _criar_usuario_teste(session, email: str, tipo: str, gerencia_id=None):
-    from models import Usuario, TipoUsuario
+    from api.models import Usuario, TipoUsuario
     import bcrypt
     senha_hash = bcrypt.hashpw(_SENHA_TESTE.encode(), bcrypt.gensalt()).decode()
     u = Usuario(
@@ -72,15 +72,15 @@ def _usuarios_teste():
     Também executa _limpar_dados_pytest() no início (lixo de runs anteriores)
     e no fim da sessão.
     """
-    from database.connection import db_session
-    from models import Usuario
+    from api.database.connection import db_session
+    from api.models import Usuario
 
     # Limpeza inicial — remove lixo de runs anteriores que falharam
     _limpar_dados_pytest()
 
     with db_session() as s:
         # Busca gerência existente para o gestor (opcional)
-        from models import Gerencia
+        from api.models import Gerencia
         ger = s.query(Gerencia).filter_by(ativo=True).first()
         ger_id = ger.id if ger else None
 

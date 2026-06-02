@@ -1,11 +1,11 @@
 """Etapa 3 — paridade entre endpoints de catálogo/autos e repositórios atuais."""
 import pytest
-from repositories.catalog_repo import (
+from api.repositories.catalog_repo import (
     get_categorias, get_subcategorias, get_gerencias,
     get_coordenacoes, get_tecnicos_ativos, get_todas_permissionarias,
 )
-from repositories.municipios_repo import get_municipios_sp, get_municipios_com_linhas
-from repositories.autos_repo import get_todos_autos, get_permissionarias
+from api.repositories.municipios_repo import get_municipios_sp, get_municipios_com_linhas
+from api.repositories.autos_repo import get_todos_autos, get_permissionarias
 
 TIPO_SERVICO = "Regular – Metropolitano"
 

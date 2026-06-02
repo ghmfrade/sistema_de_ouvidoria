@@ -36,7 +36,7 @@ def _parse_perm_ids(perm_ids_str: str | None) -> list[int]:
 
 @router.get("/qualidade-v2/anos-disponiveis")
 def anos_disponiveis():
-    from repositories.dashboard.qualidade_novo_repo import query_anos_disponiveis
+    from api.repositories.dashboard.qualidade_novo_repo import query_anos_disponiveis
     return query_anos_disponiveis()
 
 
@@ -46,13 +46,13 @@ def meses_disponiveis(
     tipo_servico: str | None = None,
     categoria: str = "RECLAMAÇÃO",
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_meses_disponiveis
+    from api.repositories.dashboard.qualidade_novo_repo import query_meses_disponiveis
     return query_meses_disponiveis(ano, _parse_list(tipo_servico), categoria)
 
 
 @router.get("/qualidade-v2/regioes-disponiveis")
 def regioes_disponiveis(tipo_servico: str | None = None):
-    from repositories.dashboard.qualidade_novo_repo import query_regioes_disponiveis
+    from api.repositories.dashboard.qualidade_novo_repo import query_regioes_disponiveis
     return query_regioes_disponiveis(_parse_list(tipo_servico))
 
 
@@ -68,7 +68,7 @@ def resumo(
     perm_ids: str | None = None,
     assuntos: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_resumo
+    from api.repositories.dashboard.qualidade_novo_repo import query_resumo
     return query_resumo(
         ano, _parse_meses(meses), _parse_list(tipo_servico), categoria,
         _parse_list(regioes), _parse_perm_ids(perm_ids), _parse_list(assuntos),
@@ -87,7 +87,7 @@ def evolucao_mensal(
     perm_ids: str | None = None,
     assuntos: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_evolucao_mensal_v2
+    from api.repositories.dashboard.qualidade_novo_repo import query_evolucao_mensal_v2
     rows = query_evolucao_mensal_v2(
         ano, _parse_meses(meses), _parse_list(tipo_servico), categoria,
         _parse_list(regioes), _parse_perm_ids(perm_ids), _parse_list(assuntos),
@@ -106,7 +106,7 @@ def assuntos_pizza(
     regioes: str | None = None,
     perm_ids: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_assuntos_pizza
+    from api.repositories.dashboard.qualidade_novo_repo import query_assuntos_pizza
     rows = query_assuntos_pizza(
         ano, _parse_meses(meses), _parse_list(tipo_servico), categoria,
         _parse_list(regioes), _parse_perm_ids(perm_ids),
@@ -125,7 +125,7 @@ def empresas_pontuacao(
     regioes: str | None = None,
     assuntos: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_empresas_pontuacao_v2
+    from api.repositories.dashboard.qualidade_novo_repo import query_empresas_pontuacao_v2
     return query_empresas_pontuacao_v2(
         ano, _parse_meses(meses), _parse_list(tipo_servico), categoria,
         _parse_list(regioes), _parse_list(assuntos) or None,
@@ -142,7 +142,7 @@ def empresas_irregular(
     categoria: str = "RECLAMAÇÃO",
     regioes: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_empresas_incidencia_irregular
+    from api.repositories.dashboard.qualidade_novo_repo import query_empresas_incidencia_irregular
     return query_empresas_incidencia_irregular(
         ano, _parse_meses(meses), _parse_list(tipo_servico), categoria, _parse_list(regioes)
     )
@@ -160,7 +160,7 @@ def heatmap_assunto_empresa(
     categoria: str = "RECLAMAÇÃO",
     regioes: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_heatmap_assunto_empresa
+    from api.repositories.dashboard.qualidade_novo_repo import query_heatmap_assunto_empresa
     return query_heatmap_assunto_empresa(
         ano, _parse_meses(meses), _parse_list(tipo_servico), pagina, por_pagina, categoria,
         _parse_list(regioes),
@@ -181,7 +181,7 @@ def autos_pontuacao(
     perm_ids: str | None = None,
     assuntos: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_autos_pontuacao_v2
+    from api.repositories.dashboard.qualidade_novo_repo import query_autos_pontuacao_v2
     return query_autos_pontuacao_v2(
         ano, _parse_meses(meses), _parse_list(tipo_servico), pagina, por_pagina, categoria,
         _parse_list(regioes), _parse_perm_ids(perm_ids), _parse_list(assuntos) or None,
@@ -201,7 +201,7 @@ def autos_irregular(
     regioes: str | None = None,
     perm_ids: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_autos_incidencia_irregular
+    from api.repositories.dashboard.qualidade_novo_repo import query_autos_incidencia_irregular
     return query_autos_incidencia_irregular(
         ano, _parse_meses(meses), _parse_list(tipo_servico), pagina, por_pagina, categoria,
         _parse_list(regioes), _parse_perm_ids(perm_ids),
@@ -221,7 +221,7 @@ def heatmap_assunto_auto(
     categoria: str = "RECLAMAÇÃO",
     regioes: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_heatmap_assunto_auto
+    from api.repositories.dashboard.qualidade_novo_repo import query_heatmap_assunto_auto
     return query_heatmap_assunto_auto(
         ano,
         _parse_meses(meses),
@@ -249,7 +249,7 @@ def locais_embarque(
     perm_ids: str | None = None,
     assuntos: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_locais_embarque, query_locais_embarque_fretamento
+    from api.repositories.dashboard.qualidade_novo_repo import query_locais_embarque, query_locais_embarque_fretamento
 
     tipo_servicos = _parse_list(tipo_servico)
     if tipo_servicos:
@@ -268,5 +268,5 @@ def empresas_lista(
     tipo_servico: str | None = None,
     regioes: str | None = None,
 ):
-    from repositories.dashboard.qualidade_novo_repo import query_empresas_lista
+    from api.repositories.dashboard.qualidade_novo_repo import query_empresas_lista
     return query_empresas_lista(_parse_list(tipo_servico), _parse_list(regioes))

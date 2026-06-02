@@ -10,11 +10,11 @@ from api.schemas.admin import (
     CriarUsuarioRequest, CriarCategoriaRequest, CriarSubcategoriaRequest,
     CriarGerenciaRequest, CriarCoordenacaoRequest, ToggleRequest, EditarUsuarioRequest,
 )
-from repositories.catalog_repo import (
+from api.repositories.catalog_repo import (
     get_usuarios, get_usuario_por_id, get_categorias, get_subcategorias,
     get_gerencias, get_coordenacoes,
 )
-from repositories.admin_write_repo import (
+from api.repositories.admin_write_repo import (
     email_existe as _email_existe,
     criar_usuario as _criar_usuario,
     toggle_usuario as _toggle_usuario,

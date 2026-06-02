@@ -2,7 +2,7 @@ from datetime import date
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
-from repositories.relatorios.relatorio_base_repo import get_relatorio_base
+from api.repositories.relatorios.relatorio_base_repo import get_relatorio_base
 from utils.formatters import to_excel
 
 router = APIRouter(tags=["relatorio-base"])

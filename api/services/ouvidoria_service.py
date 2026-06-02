@@ -3,7 +3,7 @@ import os
 import uuid
 from pathlib import Path
 
-from repositories.ouvidoria_write_repo import criar_ouvidoria
+from api.repositories.ouvidoria_write_repo import criar_ouvidoria
 
 UPLOADS_DIR = Path(os.environ.get("UPLOADS_DIR", "uploads"))
 

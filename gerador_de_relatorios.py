@@ -10,7 +10,7 @@ Saída:
     relatorios/relatorio_reclamacoes_2026.html
 """
 
-from relatorios.gerar_reclamacoes import main
+from scripts.gerar_reclamacoes import main
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,7 @@ a partir dos dados que os repositórios retornam hoje.
 Não sobe a API; testa apenas a camada de schemas.
 """
 import pytest
-from repositories.catalog_repo import (
+from api.repositories.catalog_repo import (
     get_categorias,
     get_subcategorias,
     get_gerencias,
@@ -12,8 +12,8 @@ from repositories.catalog_repo import (
     get_tecnicos_ativos,
     get_todas_permissionarias,
 )
-from repositories.municipios_repo import get_municipios_sp
-from repositories.ouvidoria_repo import get_ouvidorias, get_ouvidoria_completa
+from api.repositories.municipios_repo import get_municipios_sp
+from api.repositories.ouvidoria_repo import get_ouvidorias, get_ouvidoria_completa
 from api.schemas.catalog import (
     CategoriaSchema, SubcategoriaSchema, GerenciaSchema,
     CoordenacaoSchema, UsuarioSchema, PermissionariaSchema, MunicipioSchema,

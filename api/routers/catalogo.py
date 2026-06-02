@@ -6,13 +6,13 @@ from api.schemas.catalog import (
     CategoriaSchema, SubcategoriaSchema, GerenciaSchema,
     CoordenacaoSchema, UsuarioSchema, PermissionariaSchema, MunicipioSchema,
 )
-from repositories.catalog_repo import (
+from api.repositories.catalog_repo import (
     get_categorias, get_subcategorias, get_gerencias,
     get_coordenacoes, get_tecnicos_ativos, get_todas_permissionarias,
 )
-from repositories.municipios_repo import get_municipios_sp, get_municipios_com_linhas
-from repositories.autos_repo import get_municipios_destino, get_autos_regioes_metropolitanas
-from repositories.autos_repo import get_permissionarias
+from api.repositories.municipios_repo import get_municipios_sp, get_municipios_com_linhas
+from api.repositories.autos_repo import get_municipios_destino, get_autos_regioes_metropolitanas
+from api.repositories.autos_repo import get_permissionarias
 
 router = APIRouter()
 

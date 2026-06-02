@@ -1,7 +1,7 @@
 """Etapa 6 — paridade entre endpoints de admin e repositórios atuais."""
 import uuid
 import pytest
-from repositories.catalog_repo import get_usuarios, get_categorias, get_gerencias, get_coordenacoes
+from api.repositories.catalog_repo import get_usuarios, get_categorias, get_gerencias, get_coordenacoes
 
 
 def test_paridade_usuarios(client, headers_gestor):
@@ -106,8 +106,8 @@ def _payload_usuario(email: str) -> dict:
 
 def _buscar_id_por_email(email: str) -> int | None:
     """Retorna o id do usuário com o e-mail informado, ou None."""
-    from database.connection import db_session
-    from models import Usuario
+    from api.database.connection import db_session
+    from api.models import Usuario
     with db_session() as s:
         u = s.query(Usuario).filter(Usuario.email == email).first()
         return u.id if u else None
@@ -119,8 +119,8 @@ def test_criar_usuario_email_novo(client, headers_gestor):
     r = client.post("/admin/usuarios", json=_payload_usuario(email), headers=headers_gestor)
     assert r.status_code == 200, r.text
     # Limpeza: remove via banco (o conftest também apaga ao final da sessão)
-    from database.connection import db_session
-    from models import Usuario
+    from api.database.connection import db_session
+    from api.models import Usuario
     from sqlalchemy import text
     with db_session() as s:
         s.execute(text("DELETE FROM usuarios WHERE email = :e"), {"e": email})
@@ -139,7 +139,7 @@ def test_criar_usuario_email_ativo_retorna_409(client, headers_gestor):
     assert "ativo" in r2.json()["detail"].lower()
 
     # Limpeza
-    from database.connection import db_session
+    from api.database.connection import db_session
     from sqlalchemy import text
     with db_session() as s:
         s.execute(text("DELETE FROM usuarios WHERE email = :e"), {"e": email})
@@ -164,7 +164,7 @@ def test_criar_usuario_email_inativo_permitido(client, headers_gestor):
     )
 
     # Limpeza: remove ambos os usuários com este e-mail
-    from database.connection import db_session
+    from api.database.connection import db_session
     from sqlalchemy import text
     with db_session() as s:
         s.execute(text("DELETE FROM usuarios WHERE email = :e"), {"e": email})
@@ -192,7 +192,7 @@ def test_reativar_usuario_email_conflito_retorna_409(client, headers_gestor):
     )
 
     # Limpeza
-    from database.connection import db_session
+    from api.database.connection import db_session
     from sqlalchemy import text
     with db_session() as s:
         s.execute(text("DELETE FROM usuarios WHERE email = :e"), {"e": email})

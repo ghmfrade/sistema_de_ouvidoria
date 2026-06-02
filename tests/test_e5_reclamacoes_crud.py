@@ -11,9 +11,9 @@ from datetime import date, timedelta
 
 import pytest
 
-from repositories.catalog_repo import get_categorias
-from repositories.ouvidoria_repo import get_ouvidoria_completa
-from repositories.ouvidoria_write_repo import _resolve_tipo_servico
+from api.repositories.catalog_repo import get_categorias
+from api.repositories.ouvidoria_repo import get_ouvidoria_completa
+from api.repositories.ouvidoria_write_repo import _resolve_tipo_servico
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ def tecnico_id_fixture(_usuarios_teste):
 # ── _resolve_tipo_servico ─────────────────────────────────────────────────────
 
 def test_resolve_tipo_servico_valido():
-    from models import TipoServico
+    from api.models import TipoServico
     resultado = _resolve_tipo_servico("Regular – Intermunicipal")
     assert resultado == TipoServico.REGULAR_INTERMUNICIPAL
 

@@ -4,8 +4,8 @@ Todos os testes que criam dados os limpam ao final para não poluir o banco de d
 """
 from datetime import date, timedelta
 import pytest
-from repositories.catalog_repo import get_categorias
-from repositories.ouvidoria_repo import get_ouvidoria_completa
+from api.repositories.catalog_repo import get_categorias
+from api.repositories.ouvidoria_repo import get_ouvidoria_completa
 from tests.conftest import OUVIDORIA_ID_FIXTURE
 
 

@@ -11,8 +11,8 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 from jose import jwt, JWTError
 
-from database.connection import get_session
-from models import Usuario
+from api.database.connection import get_session
+from api.models import Usuario
 
 _SECRET = os.environ.get("JWT_SECRET_KEY", "")
 _ALGORITHM = "HS256"

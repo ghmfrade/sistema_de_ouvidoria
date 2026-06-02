@@ -13,7 +13,7 @@ from api.schemas.ouvidoria import (
     AtualizarReclamacoesRequest, RegistrarRespostaPermissionariaRequest,
     OuvidoriaIdResponse, RespostaTecnicaConcluidaResponse,
 )
-from repositories.ouvidoria_repo import (
+from api.repositories.ouvidoria_repo import (
     get_ouvidorias, get_ouvidoria_completa, get_id_por_protocolo,
     get_ouvidoria_permissionaria, get_atribuicao_tecnico, get_respostas_tecnico,
 )
@@ -92,7 +92,7 @@ def resposta_tecnica_view(
 
 @router.get("/{ouvidoria_id}/resumo-html", response_class=HTMLResponse)
 def resumo_html(ouvidoria_id: int):
-    from utils.html_resumo import gerar_html_resumo
+    from api.utils.html_resumo import gerar_html_resumo
     return gerar_html_resumo(ouvidoria_id)
 
 
@@ -111,7 +111,7 @@ def editar_ouvidoria(
     body: EditarOuvidoriaRequest,
     _=Depends(requer_gestor),
 ):
-    from repositories.ouvidoria_write_repo import editar_ouvidoria as _editar
+    from api.repositories.ouvidoria_write_repo import editar_ouvidoria as _editar
     _editar(
         ouvidoria_id,
         protocolo=body.protocolo,
@@ -125,14 +125,14 @@ def editar_ouvidoria(
 
 @router.delete("/{ouvidoria_id}")
 def excluir_ouvidoria(ouvidoria_id: int, _=Depends(requer_gestor)):
-    from repositories.ouvidoria_write_repo import excluir_ouvidoria as _excluir
+    from api.repositories.ouvidoria_write_repo import excluir_ouvidoria as _excluir
     _excluir(ouvidoria_id)
     return {"ok": True}
 
 
 @router.post("/{ouvidoria_id}/concluir")
 def concluir_ouvidoria(ouvidoria_id: int, _=Depends(requer_gestor)):
-    from repositories.ouvidoria_write_repo import concluir_ouvidoria as _concluir
+    from api.repositories.ouvidoria_write_repo import concluir_ouvidoria as _concluir
     _concluir(ouvidoria_id)
     return {"ok": True}
 
@@ -143,7 +143,7 @@ def atribuir_tecnico(
     body: AtribuirTecnicoRequest,
     _=Depends(requer_gestor),
 ):
-    from repositories.ouvidoria_write_repo import atribuir_tecnico as _atribuir
+    from api.repositories.ouvidoria_write_repo import atribuir_tecnico as _atribuir
     resultado = _atribuir(ouvidoria_id, body.tecnico_id)
     if resultado is False:
         raise HTTPException(status_code=409, detail="Técnico já atribuído a esta ouvidoria")
@@ -156,7 +156,7 @@ def atualizar_prazo_permissionaria(
     body: AtualizarPrazoPermissionariaRequest,
     _=Depends(requer_gestor),
 ):
-    from repositories.ouvidoria_write_repo import atualizar_prazo_permissionaria as _prazo
+    from api.repositories.ouvidoria_write_repo import atualizar_prazo_permissionaria as _prazo
     _prazo(ouvidoria_id, body.prazo)
     return {"ok": True}
 
@@ -167,7 +167,7 @@ def atualizar_reclamacoes(
     body: AtualizarReclamacoesRequest,
     _=Depends(usuario_corrente),
 ):
-    from repositories.ouvidoria_write_repo import atualizar_reclamacoes as _upd
+    from api.repositories.ouvidoria_write_repo import atualizar_reclamacoes as _upd
     _upd(ouvidoria_id, [r.model_dump() for r in body.recs_edit])
     return {"ok": True}
 
@@ -178,7 +178,7 @@ def registrar_resposta_tecnica(
     body: RegistrarRespostaTecnicaRequest,
     _=Depends(usuario_corrente),
 ):
-    from repositories.ouvidoria_write_repo import registrar_resposta_tecnica as _resp
+    from api.repositories.ouvidoria_write_repo import registrar_resposta_tecnica as _resp
     todos = _resp(ouvidoria_id, body.tecnico_id, body.texto)
     return RespostaTecnicaConcluidaResponse(todos_responderam=bool(todos))
 
@@ -189,7 +189,7 @@ def registrar_resposta_permissionaria(
     body: RegistrarRespostaPermissionariaRequest,
     _=Depends(usuario_corrente),
 ):
-    from repositories.ouvidoria_write_repo import registrar_resposta_permissionaria as _resp
+    from api.repositories.ouvidoria_write_repo import registrar_resposta_permissionaria as _resp
     _resp(ouvidoria_id, body.conteudo, body.data_resposta, body.registrado_por_id)
     return {"ok": True}
 
@@ -200,7 +200,7 @@ def deletar_resposta_permissionaria(
     rp_id: int,
     _=Depends(usuario_corrente),
 ):
-    from repositories.ouvidoria_write_repo import deletar_resposta_permissionaria as _del
+    from api.repositories.ouvidoria_write_repo import deletar_resposta_permissionaria as _del
     _del(rp_id)
     return {"ok": True}
 
@@ -228,7 +228,7 @@ async def upload_anexo(
     ext = Path(arquivo.filename or "arquivo").suffix
     nome_storage = f"{uuid.uuid4().hex}{ext}"
     (_UPLOADS_DIR / nome_storage).write_bytes(conteudo)
-    from repositories.ouvidoria_write_repo import add_anexos
+    from api.repositories.ouvidoria_write_repo import add_anexos
     add_anexos(ouvidoria_id, [{
         "nome_arquivo": arquivo.filename or nome_storage,
         "nome_storage": nome_storage,
@@ -245,6 +245,6 @@ def deletar_anexo(
     anexo_id: int,
     _=Depends(usuario_corrente),
 ):
-    from repositories.ouvidoria_write_repo import delete_anexo
+    from api.repositories.ouvidoria_write_repo import delete_anexo
     nome_storage = delete_anexo(anexo_id)
     return {"ok": True, "nome_storage": nome_storage}

@@ -3,8 +3,8 @@ from typing import Optional
 
 from api.deps import usuario_corrente
 from api.schemas.ouvidoria import AutoSchema
-from repositories.autos_repo import get_todos_autos, buscar_autos_por_trecho
-from repositories.ouvidoria_write_repo import get_auto_permissionaria_nome
+from api.repositories.autos_repo import get_todos_autos, buscar_autos_por_trecho
+from api.repositories.ouvidoria_write_repo import get_auto_permissionaria_nome
 
 router = APIRouter()
 

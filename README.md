@@ -18,27 +18,50 @@ O SOUVI centraliza e gerencia o fluxo de ouvidorias (reclamações, sugestões e
 
 ## Arquitetura
 
+O projeto é um monorepo com três serviços independentes e código auxiliar agrupado por dono:
+
 ```
 sistema_de_ouvidoria/
-├── app.py                      # Ponto de entrada principal (Streamlit)
-├── auth.py                     # Autenticação e controle de sessão
-├── run_dash.py                 # Ponto de entrada do Dashboard de Qualidade (Dash)
-├── alembic.ini                 # Configuração do Alembic
-├── models/                     # SQLAlchemy ORM models
-├── database/                   # Configuração do banco de dados
-├── repositories/               # Data access layer (read/write)
-├── api/                        # Backend FastAPI (rotas REST)
-├── pages/                      # Páginas Streamlit numeradas
-├── components/                 # Componentes Streamlit reutilizáveis
-├── qualidade_dash/             # App Plotly Dash — Dashboard de Qualidade (principal)
-├── relatorios/                 # Snapshots HTML gerados por gerador_de_relatorios.py
-├── migrations/                 # Alembic migrations (versionamento de schema)
-├── tasks/                      # Tarefas assíncronas/agendadas
-├── tests/                      # Testes automatizados
-├── tools/                      # Scripts utilitários pontuais
+├── frontend/                   # Streamlit (UI principal)
+│   ├── app.py                  # Entry point
+│   ├── auth.py                 # Sessão + login via API
+│   ├── pages/                  # Páginas numeradas 01..09
+│   ├── components/             # Componentes Streamlit reutilizáveis
+│   └── .streamlit/config.toml
+│
+├── api/                        # FastAPI + camada de dados completa
+│   ├── main.py                 # FastAPI app + registro de routers
+│   ├── routers/                # Endpoints REST por domínio
+│   ├── schemas/                # Pydantic (request/response)
+│   ├── services/               # Lógica de negócio
+│   ├── client/                 # HTTP client SDK (consumido pelo frontend)
+│   ├── models/                 # SQLAlchemy ORM
+│   ├── database/               # Conexão + scripts seed
+│   ├── repositories/           # Read/Write repos (TypedDicts)
+│   ├── migrations/             # Alembic versionamento de schema
+│   ├── utils/                  # Utilitários server-side (html_resumo, types)
+│   └── alembic.ini
+│
+├── qualidade_dash/             # Plotly Dash — Dashboard de Qualidade (principal)
+│   ├── app.py
+│   ├── api_client.py           # Consome a API via HTTP
+│   ├── layout.py, callbacks.py, components.py
+│   └── run.py                  # Entry point (`python -m qualidade_dash.run`)
+│
+├── utils/                      # Compartilhado entre frontend e api
+│   └── formatters.py
+│
+├── scripts/                    # Scripts auxiliares server-side (ver scripts/README.md)
+│
+├── tests/                      # Suíte pytest
 ├── docs/                       # Documentação adicional
-└── utils/                      # Utilitários diversos
+├── pasta_seed/                 # Planilhas de entrada para seeds
+├── normalizacao_dados/         # Planilhas usadas pelos scripts de enriquecimento
+├── relatorios/                 # HTMLs gerados por gerador_de_relatorios.py
+└── gerador_de_relatorios.py    # Launcher de scripts/gerar_reclamacoes.py
 ```
+
+**Comunicação entre serviços:** o frontend Streamlit e o `qualidade_dash` conversam com o backend **exclusivamente via HTTP** (FastAPI). Não há acesso direto ao banco a partir do frontend.
 
 ## Quickstart
 
@@ -89,35 +112,55 @@ sistema_de_ouvidoria/
 
 5. **Inicialize o banco de dados**
 
-   ```bash
-   alembic upgrade head
-   python database/seed.py
-   ```
+   Todos os comandos abaixo rodam a partir da raiz do projeto.
 
-6. **Inicie a aplicação Streamlit**
+   **Aplicar migrations** (Alembic mora dentro de `api/`):
 
    ```bash
-   streamlit run app.py
+   cd api
+   py -m alembic upgrade head
+   cd ..
    ```
 
-7. **(Opcional) Inicie o Dashboard de Qualidade**
+   **Popular o banco com dados base** (na ordem):
 
    ```bash
-   python run_dash.py
+   py api/database/seed_all.py
    ```
 
-8. **(Opcional) Inicie o backend FastAPI**
-
-   **Windows:**
-
-   ```powershell
-   .venv\Scripts\uvicorn.exe api.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-   **Linux/macOS:**
+   Ou seeds individuais:
 
    ```bash
-   .venv/bin/uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+   py api/database/seed_municipios.py
+   py api/database/seed_empresas.py
+   py api/database/seed_autos_intermunicipal.py
+   py api/database/seed_autos_metropolitano.py
+   py api/database/seed_categorias.py
+   py api/database/seed_usuarios.py
+   ```
+
+   **(Opcional) Importar dados históricos** (planilha em `pasta_seed/`):
+
+   ```bash
+   py api/database/seed_dados_antigos.py
+   ```
+
+6. **Inicie o backend FastAPI** (precisa estar de pé para o frontend e o Dash funcionarem)
+
+   ```bash
+   uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+7. **Inicie a aplicação Streamlit** (em outro terminal)
+
+   ```bash
+   streamlit run frontend/app.py
+   ```
+
+8. **(Opcional) Inicie o Dashboard de Qualidade** (em outro terminal)
+
+   ```bash
+   py -m qualidade_dash.run
    ```
 
 A aplicação Streamlit estará disponível em `http://localhost:8501`.
@@ -136,7 +179,7 @@ A API FastAPI estará disponível em:
 - Dois tipos de usuário: **Gestor** (acesso administrativo) e **Técnico** (acesso a análises)
 - Usuário padrão criado pelo seed: `admin@artesp.sp.gov.br` / `admin123`
 
-> **Importante:** Após executar `python database/seed.py`, acesse o painel **Admin → Usuários** e troque a senha do administrador antes de disponibilizar o sistema.
+> **Importante:** Após executar `py api/database/seed_all.py` (ou ao menos `seed_usuarios.py`), acesse o painel **Admin → Usuários** e troque a senha do administrador antes de disponibilizar o sistema.
 
 ### Páginas Principais
 
@@ -176,7 +219,7 @@ Métricas de produtividade da equipe técnica:
 
 #### 07 - Dashboard Qualidade
 
-Redireciona para o app Plotly Dash (`run_dash.py`, porta 8050). Interface single-screen: 9 cards-botão no topo, cada um exibe seu gráfico ao ser clicado.
+Redireciona para o app Plotly Dash (`py -m qualidade_dash.run`, porta 8050). Interface single-screen: 9 cards-botão no topo, cada um exibe seu gráfico ao ser clicado.
 
 **Filtros globais** (barra superior):
 
@@ -257,7 +300,7 @@ O projeto segue o padrão **Repository Pattern** com separação entre leitura e
 
 ### Backend FastAPI
 
-O diretório `api/` expõe endpoints REST consumidos por todos os clientes: Streamlit (`api/client/`), Plotly Dash (`qualidade_dash/api_client.py`) e potencialmente integrações externas:
+O diretório `api/` é a "API + camada de dados" do sistema. Expõe endpoints REST consumidos por todos os clientes: Streamlit (`api/client/`), Plotly Dash (`qualidade_dash/api_client.py`) e potencialmente integrações externas. Mantém também os models SQLAlchemy, repositórios e migrations.
 
 ```
 api/
@@ -266,7 +309,12 @@ api/
 ├── routers/         # Endpoints por domínio
 ├── schemas/         # Pydantic schemas (request/response)
 ├── services/        # Lógica de negócio
-└── client/          # Cliente HTTP para uso interno
+├── client/          # Cliente HTTP para uso interno (importado pelo frontend)
+├── models/          # SQLAlchemy ORM
+├── database/        # Conexão + seeds
+├── repositories/    # Read/write repos
+├── migrations/      # Alembic
+└── alembic.ini
 ```
 
 ### Conventions de Código
@@ -281,28 +329,50 @@ Consulte [docs/coding_rules.md](docs/coding_rules.md) para detalhes sobre:
 
 ### Migrations
 
+Os comandos Alembic rodam de dentro de `api/` (onde mora `alembic.ini` e `migrations/`):
+
 ```bash
+cd api
+
 # Criar nova migration
-alembic revision --autogenerate -m "descrição da mudança"
+py -m alembic revision --autogenerate -m "descrição da mudança"
 
 # Aplicar todas as migrations pendentes
-alembic upgrade head
+py -m alembic upgrade head
 
 # Voltar uma versão
-alembic downgrade -1
+py -m alembic downgrade -1
+
+# Estado atual
+py -m alembic current
 ```
 
-## Relatórios Estáticos
-
-> **Nota:** Os relatórios HTML gerados por `gerador_de_relatorios.py` são uma funcionalidade secundária. O **Dashboard de Qualidade** (`qualidade_dash/`, acessível via `python run_dash.py`) oferece os mesmos dados de forma interativa e atualizada em tempo real — prefira-o para análise cotidiana.
-
-Para gerar um snapshot estático em HTML (uso pontual, exportação, arquivo):
+### Testes
 
 ```bash
-python gerador_de_relatorios.py
+# Suíte completa (ignora integração que precisa de API rodando)
+py -m pytest --ignore=tests/integration
+
+# Suíte de integração (precisa do FastAPI no ar)
+py -m pytest tests/integration
 ```
 
-Os arquivos são gravados em `relatorios/`, um por ano-base encontrado nos dados.
+## Relatórios e scripts auxiliares
+
+Há uma família de scripts standalone em `scripts/` para gerar relatórios, enriquecer planilhas com dados do banco e cruzar municípios. Consulte [scripts/README.md](scripts/README.md) para o catálogo completo de **quais arquivos cada script lê e onde grava as saídas**.
+
+> **Nota:** O snapshot HTML gerado por `gerador_de_relatorios.py` é uma funcionalidade secundária. O **Dashboard de Qualidade** (`qualidade_dash/`, em `py -m qualidade_dash.run`) oferece os mesmos dados de forma interativa e em tempo real — prefira-o para análise cotidiana.
+
+**Gerador de relatórios HTML** (via launcher na raiz):
+
+```bash
+py gerador_de_relatorios.py
+```
+
+Saída em `relatorios/` (um arquivo por ano-base encontrado nos dados):
+
+- `relatorio_reclamacoes_2025.html` — Reclamações de 2025
+- `relatorio_reclamacoes_2026.html` — Reclamações de 2026
 
 **Conteúdo dos relatórios:**
 
