@@ -21,6 +21,7 @@ from api.client.ouvidoria_client import (
     atualizar_prazo_permissionaria,
     concluir_ouvidoria,
     delete_anexo,
+    download_anexo,
     editar_ouvidoria,
     excluir_ouvidoria,
     add_anexo,
@@ -35,9 +36,6 @@ auth.require_auth()
 
 u = usuario_logado()
 reduz_margem_topo_page()
-
-UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
-os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 ALLOWED_MIMES = {
     "application/pdf",
@@ -236,23 +234,20 @@ with col_dir:
         st.markdown("### 📎 Anexos")
         if ouvidoria["anexos"]:
             for an in ouvidoria["anexos"]:
-                caminho = os.path.join(UPLOADS_DIR, an["nome_storage"])
                 tamanho_kb = round(an["tamanho"] / 1024, 1) if an.get("tamanho") else "?"
                 col_info, col_dl, col_del = st.columns([3, 1, 1])
                 col_info.write(f"📎 **{an['nome_arquivo']}** ({tamanho_kb} KB)")
-                if os.path.exists(caminho):
-                    with open(caminho, "rb") as f:
-                        col_dl.download_button("⬇", data=f.read(), file_name=an["nome_arquivo"],
-                                               mime=an.get("tipo_mime") or "application/octet-stream",
-                                               key=f"dl_{an['id']}", use_container_width=True)
+                col_dl.download_button(
+                    "⬇",
+                    data=download_anexo(ouvidoria_id, an["id"]),
+                    file_name=an["nome_arquivo"],
+                    mime=an.get("tipo_mime") or "application/octet-stream",
+                    key=f"dl_{an['id']}",
+                    use_container_width=True,
+                )
                 if u.get("tipo") == TIPO_USUARIO_GESTOR:
                     if col_del.button("🗑", key=f"del_anexo_{an['id']}", use_container_width=True):
-                        nome_storage = delete_anexo(ouvidoria_id, an["id"])
-                        if nome_storage:
-                            try:
-                                os.remove(os.path.join(UPLOADS_DIR, nome_storage))
-                            except OSError:
-                                pass
+                        delete_anexo(ouvidoria_id, an["id"])
                         st.toast("Anexo excluído."); st.rerun()
         else:
             st.info("Nenhum anexo.")
@@ -294,11 +289,6 @@ if u.get("tipo") == TIPO_USUARIO_GESTOR:
         st.warning("⚠️ Esta ação não pode ser desfeita. Confirmar exclusão?")
         col_s, col_n = st.columns(2)
         if col_s.button("Sim, excluir", type="primary", use_container_width=True):
-            for an in ouvidoria["anexos"]:
-                try:
-                    os.remove(os.path.join(UPLOADS_DIR, an["nome_storage"]))
-                except OSError:
-                    pass
             excluir_ouvidoria(ouvidoria_id)
             st.session_state.pop("confirmar_exclusao", None)
             st.switch_page("pages/01_Ouvidorias.py")

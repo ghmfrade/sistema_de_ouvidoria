@@ -21,6 +21,7 @@ from api.client.ouvidoria_client import (
     atualizar_reclamacoes,
     carregar_ouvidoria_para_resposta_tecnica,
     deletar_resposta_permissionaria,
+    download_anexo,
     registrar_resposta_permissionaria,
     registrar_resposta_tecnica,
 )
@@ -43,8 +44,6 @@ auth.require_auth()
 
 u = usuario_logado()
 reduz_margem_topo_page()
-
-UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 reduz_margem_side_bar()
@@ -166,18 +165,14 @@ with tab_responder:
     if anexos_data:
         with st.expander(f"Anexos ({len(anexos_data)})", expanded=False):
             for an in anexos_data:
-                caminho = os.path.join(UPLOADS_DIR, an["nome_storage"])
                 tamanho_kb = round(an["tamanho"] / 1024, 1) if an.get("tamanho") else "?"
-                if os.path.exists(caminho):
-                    with open(caminho, "rb") as f:
-                        st.download_button(
-                            f"📎 {an['nome_arquivo']} ({tamanho_kb} KB)",
-                            data=f.read(), file_name=an["nome_arquivo"],
-                            mime=an.get("tipo_mime") or "application/octet-stream",
-                            key=f"dl_anexo_{an['id']}",
-                        )
-                else:
-                    st.write(f"📎 {an['nome_arquivo']} — arquivo não encontrado")
+                st.download_button(
+                    f"📎 {an['nome_arquivo']} ({tamanho_kb} KB)",
+                    data=download_anexo(ouvidoria_id, an["id"]),
+                    file_name=an["nome_arquivo"],
+                    mime=an.get("tipo_mime") or "application/octet-stream",
+                    key=f"dl_anexo_{an['id']}",
+                )
 
     # ── Verificar se já respondeu ─────────────────────────────────────────────
     todas_respostas = ouvidoria.get("respostas_tecnicas", [])

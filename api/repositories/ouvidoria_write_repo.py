@@ -142,12 +142,15 @@ def atribuir_tecnico(ouvidoria_id: int, tecnico_id: int):
     return True
 
 
-def excluir_ouvidoria(oid: int):
-    """Exclui ouvidoria por id."""
+def excluir_ouvidoria(oid: int) -> list[str]:
+    """Exclui ouvidoria por id. Retorna nome_storage dos anexos para cleanup pelo caller."""
     with db_session() as s:
         o = s.query(Ouvidoria).filter_by(id=oid).first()
-        if o:
-            s.delete(o)
+        if not o:
+            return []
+        storages = [a.nome_storage for a in o.anexos]
+        s.delete(o)
+        return storages
 
 
 def concluir_ouvidoria(oid: int):

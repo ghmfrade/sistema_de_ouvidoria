@@ -154,6 +154,24 @@ def add_anexo(oid: int, file_bytes: bytes, filename: str, content_type: str) -> 
     return post_file(f"/ouvidorias/{oid}/anexos", file_bytes, filename, content_type)["nome_storage"]
 
 
+def download_anexo(ouvidoria_id: int, anexo_id: int) -> bytes:
+    """Baixa o conteudo binario de um anexo via API."""
+    import httpx
+    from api.client.base import API_BASE, _headers, ApiError
+    r = httpx.get(
+        f"{API_BASE}/ouvidorias/{ouvidoria_id}/anexos/{anexo_id}/download",
+        headers=_headers(),
+        timeout=60.0,
+    )
+    if not r.is_success:
+        try:
+            detail = r.json().get("detail", r.text)
+        except Exception:
+            detail = r.text
+        raise ApiError(r.status_code, detail)
+    return r.content
+
+
 def delete_anexo(oid: int, anexo_id: int) -> None:
     delete(f"/ouvidorias/{oid}/anexos/{anexo_id}")
 

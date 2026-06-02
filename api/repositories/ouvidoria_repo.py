@@ -99,6 +99,21 @@ def _to_anexo_dict(an: AnexoOuvidoria) -> AnexoDict:
     )
 
 
+def get_anexo(anexo_id: int) -> dict | None:
+    """Busca um anexo por id. Retorna dict com dados necessarios para download."""
+    with db_session() as session:
+        a = session.get(AnexoOuvidoria, anexo_id)
+        if a is None:
+            return None
+        return {
+            "id": a.id,
+            "ouvidoria_id": a.ouvidoria_id,
+            "nome_arquivo": a.nome_arquivo,
+            "nome_storage": a.nome_storage,
+            "tipo_mime": a.tipo_mime,
+        }
+
+
 def _to_detalhe(o: Ouvidoria) -> OuvidoriaDetalheDict:
     return OuvidoriaDetalheDict(
         id=o.id,

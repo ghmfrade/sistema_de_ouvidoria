@@ -1,9 +1,8 @@
-import uuid
-from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
+from api import storage
 from api.deps import usuario_corrente, requer_gestor
 from api.schemas.ouvidoria import (
     OuvidoriaResumoSchema, OuvidoriaDetalheSchema,
@@ -16,6 +15,7 @@ from api.schemas.ouvidoria import (
 from api.repositories.ouvidoria_repo import (
     get_ouvidorias, get_ouvidoria_completa, get_id_por_protocolo,
     get_ouvidoria_permissionaria, get_atribuicao_tecnico, get_respostas_tecnico,
+    get_anexo,
 )
 
 router = APIRouter()
@@ -126,7 +126,9 @@ def editar_ouvidoria(
 @router.delete("/{ouvidoria_id}")
 def excluir_ouvidoria(ouvidoria_id: int, _=Depends(requer_gestor)):
     from api.repositories.ouvidoria_write_repo import excluir_ouvidoria as _excluir
-    _excluir(ouvidoria_id)
+    storages = _excluir(ouvidoria_id)
+    for nome_storage in storages:
+        storage.remove_file(nome_storage)
     return {"ok": True}
 
 
@@ -212,7 +214,6 @@ _ALLOWED_MIMES = {
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 }
-_UPLOADS_DIR = Path("uploads")
 
 
 @router.post("/{ouvidoria_id}/anexos")
@@ -224,10 +225,7 @@ async def upload_anexo(
     if arquivo.content_type not in _ALLOWED_MIMES:
         raise HTTPException(status_code=422, detail=f"Tipo de arquivo não permitido: {arquivo.content_type}")
     conteudo = await arquivo.read()
-    _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    ext = Path(arquivo.filename or "arquivo").suffix
-    nome_storage = f"{uuid.uuid4().hex}{ext}"
-    (_UPLOADS_DIR / nome_storage).write_bytes(conteudo)
+    nome_storage = storage.save_bytes(conteudo, arquivo.filename or "arquivo")
     from api.repositories.ouvidoria_write_repo import add_anexos
     add_anexos(ouvidoria_id, [{
         "nome_arquivo": arquivo.filename or nome_storage,
@@ -239,6 +237,24 @@ async def upload_anexo(
     return {"ok": True, "nome_storage": nome_storage}
 
 
+@router.get("/{ouvidoria_id}/anexos/{anexo_id}/download")
+def download_anexo(
+    ouvidoria_id: int,
+    anexo_id: int,
+    _=Depends(usuario_corrente),
+):
+    anexo = get_anexo(anexo_id)
+    if anexo is None or anexo["ouvidoria_id"] != ouvidoria_id:
+        raise HTTPException(status_code=404, detail="Anexo não encontrado")
+    if not storage.exists(anexo["nome_storage"]):
+        raise HTTPException(status_code=410, detail="Arquivo não disponível no storage")
+    return FileResponse(
+        path=storage.path_for(anexo["nome_storage"]),
+        media_type=anexo["tipo_mime"],
+        filename=anexo["nome_arquivo"],
+    )
+
+
 @router.delete("/{ouvidoria_id}/anexos/{anexo_id}")
 def deletar_anexo(
     ouvidoria_id: int,
@@ -247,4 +263,6 @@ def deletar_anexo(
 ):
     from api.repositories.ouvidoria_write_repo import delete_anexo
     nome_storage = delete_anexo(anexo_id)
-    return {"ok": True, "nome_storage": nome_storage}
+    if nome_storage:
+        storage.remove_file(nome_storage)
+    return {"ok": True}

@@ -24,9 +24,6 @@ auth.require_gestor()
 u = usuario_logado()
 reduz_margem_topo_page()
 
-UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "uploads")
-os.makedirs(UPLOADS_DIR, exist_ok=True)
-
 ALLOWED_MIMES = {
     "application/pdf",
     "image/png", "image/jpeg", "image/gif", "image/bmp",

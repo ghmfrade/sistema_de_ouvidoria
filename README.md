@@ -108,6 +108,11 @@ sistema_de_ouvidoria/
    POSTGRES_SCHEMA=ouvidoria
 
    JWT_SECRET_KEY=chave_para_uso_da_api
+
+   # Opcional: caminho de storage de anexos.
+   # Default: api/uploads/ (relativo à raiz do projeto).
+   # Em prod, apontar para um volume compartilhado entre as instâncias da API.
+   # UPLOADS_DIR=/data/uploads
    ```
 
 5. **Inicialize o banco de dados**
@@ -314,8 +319,11 @@ api/
 ├── database/        # Conexão + seeds
 ├── repositories/    # Read/write repos
 ├── migrations/      # Alembic
+├── storage.py       # Camada de storage de anexos (filesystem; configurável via UPLOADS_DIR)
 └── alembic.ini
 ```
+
+**Storage de anexos (PDFs e documentos das ouvidorias):** os arquivos são gravados em `api/uploads/` por padrão. Em produção (containers, multi-VM), defina a env var `UPLOADS_DIR` apontando para um volume compartilhado entre as instâncias da API (NFS/NAS). O frontend nunca acessa o disco diretamente — sempre baixa via `GET /ouvidorias/{id}/anexos/{anexo_id}/download`.
 
 ### Conventions de Código
 

@@ -1,11 +1,6 @@
 """Serviço de ouvidoria: orquestra repositórios de leitura e escrita."""
-import os
-import uuid
-from pathlib import Path
-
+from api import storage
 from api.repositories.ouvidoria_write_repo import criar_ouvidoria
-
-UPLOADS_DIR = Path(os.environ.get("UPLOADS_DIR", "uploads"))
 
 
 def criar_ouvidoria_sem_anexos(body) -> int:
@@ -37,21 +32,17 @@ def criar_ouvidoria_sem_anexos(body) -> int:
 
 
 def criar_ouvidoria_com_anexos(body, arquivos: list[tuple]) -> int:
-    """Cria ouvidoria salvando arquivos em disco.
+    """Cria ouvidoria salvando arquivos via storage.
 
     arquivos: lista de (nome_original, conteudo_bytes, mime, tamanho, usuario_id)
     Faz rollback dos arquivos se o DB falhar.
     """
-    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     anexos_meta = []
-    salvos: list[Path] = []
+    salvos: list[str] = []
     try:
         for nome_orig, conteudo, mime, tamanho, uid in arquivos:
-            ext = Path(nome_orig).suffix
-            nome_storage = f"{uuid.uuid4().hex}{ext}"
-            caminho = UPLOADS_DIR / nome_storage
-            caminho.write_bytes(conteudo)
-            salvos.append(caminho)
+            nome_storage = storage.save_bytes(conteudo, nome_orig)
+            salvos.append(nome_storage)
             anexos_meta.append({
                 "nome_arquivo": nome_orig,
                 "nome_storage": nome_storage,
@@ -84,6 +75,6 @@ def criar_ouvidoria_com_anexos(body, arquivos: list[tuple]) -> int:
             anexos_meta=anexos_meta,
         )
     except Exception:
-        for p in salvos:
-            p.unlink(missing_ok=True)
+        for nome_storage in salvos:
+            storage.remove_file(nome_storage)
         raise
