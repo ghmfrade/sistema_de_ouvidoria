@@ -1,0 +1,146 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: $APPLICATION_NAME_UI
+  namespace: $K8S_NAMESPACE
+  labels:
+    workload.user.cattle.io/workloadselector: apps.deployment-$K8S_NAMESPACE-$APPLICATION_NAME_UI
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      workload.user.cattle.io/workloadselector: apps.deployment-$K8S_NAMESPACE-$APPLICATION_NAME_UI
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        workload.user.cattle.io/workloadselector: apps.deployment-$K8S_NAMESPACE-$APPLICATION_NAME_UI
+    spec:
+      containers:
+        - name: $APPLICATION_NAME_UI
+          image: >-
+            ${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: $APPLICATION_NAME_UI-cm
+            - secretRef:
+                name: $APPLICATION_NAME_UI-sec
+          resources:
+            limits:
+              cpu: ${CPU_LIMITS}
+              memory: ${MEMORY_LIMITS}
+            requests:
+              cpu: 80m
+              memory: 180Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      imagePullSecrets:
+        - name: registry-artesp
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600
+
+
+---
+
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: $APPLICATION_NAME_UI-cm
+  namespace: $K8S_NAMESPACE
+  labels:
+    app: $APPLICATION_NAME_UI
+    app.kubernetes.io/component: $APPLICATION_NAME_UI
+data:
+  POSTGRES_USER: $POSTGRES_USER
+  POSTGRES_HOST: $POSTGRES_HOST
+  POSTGRES_PORT: $POSTGRES_PORT
+  POSTGRES_DB: $POSTGRES_DB
+  POSTGRES_SCHEMA: $POSTGRES_SCHEMA
+  API_BASE_URL: $API_BASE_URL
+  API_PUBLIC_URL: $API_PUBLIC_URL
+  DASH_URL: $DASH_URL
+  TEST_OUVIDORIA_ID: $TEST_OUVIDORIA_ID
+  TEST_SERVER_URL: $TEST_SERVER_URL
+  TEST_SERVER_EMAIL: $TEST_SERVER_EMAIL
+  TZ: America/Sao_Paulo
+
+---
+
+
+kind: Secret
+apiVersion: v1
+metadata:
+  name: $APPLICATION_NAME_UI-sec
+  namespace: $K8S_NAMESPACE
+  labels:
+    app: $APPLICATION_NAME_UI
+    app.kubernetes.io/component: $APPLICATION_NAME_UI
+stringData:
+  POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+  JWT_SECRET_KEY: $JWT_SECRET_KEY
+  TEST_SERVER_PASSWORD: $TEST_SERVER_PASSWORD
+type: Opaque
+
+  
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    field.cattle.io/targetWorkloadIds: '["$K8S_NAMESPACE/$APPLICATION_NAME_UI"]'
+    management.cattle.io/ui-managed: 'true'
+  labels:
+    app: $APPLICATION_NAME_UI
+    app.kubernetes.io/component: $APPLICATION_NAME_UI
+  name: $APPLICATION_NAME_UI-svc
+  namespace: $K8S_NAMESPACE
+spec:
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+    - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+    - name: http
+      port: ${APP_PORT_UI}
+      protocol: TCP
+      targetPort: ${APP_PORT_UI}
+  selector:
+    workload.user.cattle.io/workloadselector: apps.deployment-$K8S_NAMESPACE-$APPLICATION_NAME_UI
+  sessionAffinity: None
+  type: ClusterIP
+
+  
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: $APPLICATION_NAME_UI
+  namespace: $K8S_NAMESPACE
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: $INGRESS_HOST
+      http:
+        paths:
+          - backend:
+              service:
+                name: $APPLICATION_NAME_UI-svc
+                port:
+                  number: ${APP_PORT_UI}
+            path: $INGRESS_PATH
+            pathType: Prefix

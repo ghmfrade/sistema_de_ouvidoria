@@ -1,0 +1,110 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  CI_REGISTRY_IMAGE: "${CI_REGISTRY}/souvi/souvi-ui"
+  CI_REGISTRY_USER: "admin"
+  CI_REGISTRY_PASSWORD: "${HARBOR_PASSWORD}"
+  APPLICATION_NAME_UI: souvi-ui
+  #INGRESS_HOST - Definida nas variáveis de CI/CD
+  #INGRESS_PATH - Definida nas variáveis de CI/CD
+  #K8S_NAMESPACE- Definida nas variáveis de CI/CD
+  #KUBECONFIG - Definida nas variáveis de CI/CD 
+  DOCKER_CONFIG: "/kaniko/.docker"
+  DOCKER_FILE: "./frontend/Dockerfile" 
+  KANIKO_CACHE: "true"
+  KANIKO_CACHE_TTL: "72h"
+  KANIKO_CACHE_REPO: "${CI_REGISTRY_IMAGE}/cache"
+  # CORREÇÃO: Desabilitar clone automático do runner
+#  GIT_STRATEGY: none
+
+build-image:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.19.0-debug
+    entrypoint: [""]
+  # Mantida a tag 'kaniko'
+  tags:
+    - docker-vm
+  interruptible: true
+  timeout: 10 minutes
+  script:
+    # ... (script existente sem alterações) ...
+    - echo "🔧 Configurando autenticação no Harbor..."
+    - mkdir -p /kaniko/.docker
+    - echo ${CI_REGISTRY_USER}
+    - echo ${CI_REGISTRY_PASSWORD}
+    - |
+      cat > /kaniko/.docker/config.json <<EOF
+      {
+        "auths": {
+          "${CI_REGISTRY}": {
+            "auth": "$(echo -n "${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD}" | base64 -w0)"
+          }
+        }
+      }
+      EOF
+    - echo "🚀 Iniciando build da imagem com Kaniko..."
+    - |
+     /kaniko/executor \
+        --context "${CI_PROJECT_DIR}" \
+        --dockerfile "${CI_PROJECT_DIR}/${DOCKER_FILE}" \
+        --build-arg "BUILD_ENV=${CI_ENVIRONMENT_NAME}" \
+        --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}" \
+        --destination "${CI_REGISTRY_IMAGE}:latest" \
+        --cache=${KANIKO_CACHE} \
+        --cache-ttl=${KANIKO_CACHE_TTL} \
+        --cache-repo=${KANIKO_CACHE_REPO} \
+        --compressed-caching=true \
+        --snapshotMode=time \
+        --use-new-run
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "develop"
+      variables:
+        CI_ENVIRONMENT_NAME: "hom"
+    - if: $CI_COMMIT_REF_NAME == "main"
+      variables:
+        CI_ENVIRONMENT_NAME: "prod"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "main"
+  retry:  # enable auto-retry
+    max: 2  
+    when:  
+      - script_failure  # Retry only if the script fails (not on other errors)
+
+
+deploy_to_k8s:
+  stage: deploy
+  image: 
+    name: bitnamisecure/kubectl
+    entrypoint: [""]
+  tags:
+    - docker-vm
+  environment:
+    name: $CI_ENVIRONMENT_NAME
+  script:
+    - echo "Configurando acesso ao cluster..."
+    - mkdir -p ~/.kube
+    - echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+    - chmod 600 ~/.kube/config
+    - cat ~/.kube/config
+    - kubectl config view
+    - kubectl config set-context --current --namespace=$K8S_NAMESPACE || true
+    - |
+      echo "Aplicando deployment-ui.yaml..."
+      envsubst < deployment-ui.yaml | tee deployment-processed.yaml
+      kubectl apply -f deployment-processed.yaml --namespace=$K8S_NAMESPACE
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "develop"
+      variables:
+        CI_ENVIRONMENT_NAME: "HOM"
+    - if: $CI_COMMIT_REF_NAME == "main"
+      variables:
+        CI_ENVIRONMENT_NAME: "PROD"
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_BRANCH == "main"
+  retry:  # enable auto-retry
+    max: 2  
+    when:  
+      - script_failure  # Retry only if the script fails (not on other errors)
