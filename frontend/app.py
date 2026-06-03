@@ -55,7 +55,8 @@ def sidebar_usuario():
             with st.container(border=True):
                 st.markdown("<p style='text-align: center; font-size: 16px;'><b>Manual de classificação</b></p>", unsafe_allow_html=True)
                 guia_pdf = os.path.join(
-                    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                    os.path.dirname(os.path.abspath(__file__)),
+                    "assets",
                     "GUIA_OPERACIONAL_Manual_Classificacao.pdf",
                 )
                 with open(guia_pdf, "rb") as pdf_file:
