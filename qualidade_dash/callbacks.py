@@ -444,15 +444,13 @@ def register_callbacks(app):
         prevent_initial_call=True,
     )
 
-    # ── Controla visibilidade do overlay conforme store-loading ───────────────
-    @app.callback(
+    # ── Controla visibilidade do overlay conforme store-loading (client-side) ──
+    app.clientside_callback(
+        "function(loading) { return loading ? 'loading-overlay ativo' : 'loading-overlay'; }",
         Output("loading-overlay", "className"),
         Input("store-loading", "data"),
         prevent_initial_call=False,
     )
-    def toggle_loading_overlay(loading):
-        base = "loading-overlay"
-        return f"{base} ativo" if loading else base
 
     # ── Inicialização de anos ─────────────────────────────────────────────────
     @app.callback(
