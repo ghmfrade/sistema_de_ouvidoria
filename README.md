@@ -414,8 +414,8 @@ Isso sobe **4 serviços**:
 |---|---|---|
 | `souvi-caddy` | Reverse proxy (TLS, roteamento) | 80 / 443 |
 | `souvi-api` | FastAPI | só via Caddy (`api.souvi…`) |
-| `souvi-frontend` | Streamlit | só via Caddy (`painel.souvi…`) |
-| `souvi-dash` | Plotly Dash | só via Caddy (`qualidade.souvi…`) |
+| `souvi-frontend` | Streamlit | só via Caddy (`souvi…`) |
+| `souvi-dash` | Plotly Dash | só via Caddy (`painel.souvi…`) |
 
 Os serviços de aplicação **não publicam portas no host** — só o Caddy. Acesso interno entre eles passa pela rede `souvi` usando os hostnames `api`, `frontend`, `qualidade_dash`. A API expõe um volume nomeado `uploads` em `/data/uploads` (anexos persistem entre restarts).
 
@@ -425,9 +425,9 @@ O [Caddyfile](Caddyfile) define 3 vhosts por subdomínio (configuráveis via env
 
 | Subdomínio | Aponta para |
 |---|---|
-| `painel.souvi.artesp.sp.gov.br` | frontend Streamlit |
+| `souvi.artesp.sp.gov.br` | frontend Streamlit (entrada principal) |
 | `api.souvi.artesp.sp.gov.br` | API FastAPI |
-| `qualidade.souvi.artesp.sp.gov.br` | Dashboard Dash |
+| `painel.souvi.artesp.sp.gov.br` | Dashboard Dash (painel de qualidade) |
 
 **TLS:** por padrão usa `tls internal` (Caddy gera certs auto-assinados na inicialização — browser vai reclamar mas funciona). Em produção, trocar no Caddyfile para:
 - `tls {$CADDY_LE_EMAIL}` — obtém cert do Let's Encrypt automaticamente (precisa que o domínio esteja resolvível publicamente e portas 80/443 acessíveis externamente)
@@ -436,12 +436,12 @@ O [Caddyfile](Caddyfile) define 3 vhosts por subdomínio (configuráveis via env
 **Pra testar localmente** sem DNS, adicione ao seu `hosts`:
 
 ```
-127.0.0.1 painel.souvi.artesp.sp.gov.br
+127.0.0.1 souvi.artesp.sp.gov.br
 127.0.0.1 api.souvi.artesp.sp.gov.br
-127.0.0.1 qualidade.souvi.artesp.sp.gov.br
+127.0.0.1 painel.souvi.artesp.sp.gov.br
 ```
 
-E acesse `https://painel.souvi.artesp.sp.gov.br` (aceitar o cert auto-assinado).
+E acesse `https://souvi.artesp.sp.gov.br` (aceitar o cert auto-assinado).
 
 **Pra acesso direto sem Caddy em dev** (debug), descomente os blocos `ports:` em [docker-compose.yml](docker-compose.yml) dos serviços api/frontend/qualidade_dash.
 

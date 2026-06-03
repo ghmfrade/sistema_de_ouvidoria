@@ -8,9 +8,9 @@ services:
       - "443:443"
       - "443:443/udp"  # HTTP/3
     environment:
-      PAINEL_DOMAIN: ${PAINEL_DOMAIN:-painel.souvi.artesp.sp.gov.br}
+      FRONTEND_DOMAIN: ${FRONTEND_DOMAIN:-souvi.artesp.sp.gov.br}
       API_DOMAIN: ${API_DOMAIN:-api.souvi.artesp.sp.gov.br}
-      DASH_DOMAIN: ${DASH_DOMAIN:-qualidade.souvi.artesp.sp.gov.br}
+      PAINEL_DOMAIN: ${PAINEL_DOMAIN:-painel.souvi.artesp.sp.gov.br}
       CADDY_LE_EMAIL: ${CADDY_LE_EMAIL:-admin@artesp.sp.gov.br}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

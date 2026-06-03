@@ -13,7 +13,7 @@
 }
 
 # ── Frontend (Streamlit) ─────────────────────────────────────────────────────
-{$PAINEL_DOMAIN:painel.souvi.artesp.sp.gov.br} {
+{$FRONTEND_DOMAIN:souvi.artesp.sp.gov.br} {
 	tls internal
 	encode zstd gzip
 
@@ -49,8 +49,8 @@
 	}
 }
 
-# ── Dashboard de Qualidade (Plotly Dash) ─────────────────────────────────────
-{$DASH_DOMAIN:qualidade.souvi.artesp.sp.gov.br} {
+# ── Painel (Plotly Dash — Dashboard de Qualidade) ────────────────────────────
+{$PAINEL_DOMAIN:painel.souvi.artesp.sp.gov.br} {
 	tls internal
 	encode zstd gzip
 
