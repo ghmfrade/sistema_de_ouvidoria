@@ -73,6 +73,7 @@ data:
   API_BASE_URL: $API_BASE_URL
   API_PUBLIC_URL: $API_PUBLIC_URL
   DASH_URL: $DASH_URL
+  ROOT_PATH: /api
   TEST_OUVIDORIA_ID: $TEST_OUVIDORIA_ID
   TEST_SERVER_URL: $TEST_SERVER_URL
   TEST_SERVER_EMAIL: $TEST_SERVER_EMAIL
@@ -131,6 +132,9 @@ kind: Ingress
 metadata:
   name: $APPLICATION_NAME_API
   namespace: $K8S_NAMESPACE
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
   ingressClassName: nginx
   rules:
@@ -142,5 +146,5 @@ spec:
                 name: $APPLICATION_NAME_API-svc
                 port:
                   number: ${APP_PORT_API}
-            path: $INGRESS_PATH_API
-            pathType: Prefix
+            path: /api(/|$)(.*)
+            pathType: ImplementationSpecific

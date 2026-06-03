@@ -408,42 +408,25 @@ A partir da raiz do projeto, com `.env` configurado:
 docker compose up -d --build
 ```
 
-Isso sobe **4 serviços**:
+Isso sobe **3 serviços**:
 
-| Serviço | Função | Acesso externo |
+| Serviço | Função | Porta |
 |---|---|---|
-| `souvi-caddy` | Reverse proxy (TLS, roteamento) | 80 / 443 |
-| `souvi-api` | FastAPI | só via Caddy (`api.souvi…`) |
-| `souvi-frontend` | Streamlit | só via Caddy (`souvi…`) |
-| `souvi-dash` | Plotly Dash | só via Caddy (`painel.souvi…`) |
+| `souvi-api` | FastAPI | 8000 |
+| `souvi-frontend` | Streamlit | 8501 |
+| `souvi-dash` | Plotly Dash | 8050 |
 
-Os serviços de aplicação **não publicam portas no host** — só o Caddy. Acesso interno entre eles passa pela rede `souvi` usando os hostnames `api`, `frontend`, `qualidade_dash`. A API expõe um volume nomeado `uploads` em `/data/uploads` (anexos persistem entre restarts).
+Acesso interno entre os serviços passa pela rede `souvi` usando os hostnames `api`, `frontend`, `qualidade_dash`. A API expõe um volume nomeado `uploads` em `/data/uploads` (anexos persistem entre restarts).
 
-### Reverse proxy com Caddy
+Em produção (Kubernetes/Rancher), o roteamento externo é feito pelo **Ingress Controller** do cluster:
 
-O [Caddyfile](Caddyfile) define 3 vhosts por subdomínio (configuráveis via env vars no `.env`):
-
-| Subdomínio | Aponta para |
+| URL pública | Serviço |
 |---|---|
-| `souvi.artesp.sp.gov.br` | frontend Streamlit (entrada principal) |
-| `api.souvi.artesp.sp.gov.br` | API FastAPI |
-| `painel.souvi.artesp.sp.gov.br` | Dashboard Dash (painel de qualidade) |
+| `souvi.artesp.sp.gov.br/` | frontend Streamlit |
+| `souvi.artesp.sp.gov.br/api` | API FastAPI |
+| `painel-souvi.artesp.sp.gov.br/` | Dashboard Dash |
 
-**TLS:** por padrão usa `tls internal` (Caddy gera certs auto-assinados na inicialização — browser vai reclamar mas funciona). Em produção, trocar no Caddyfile para:
-- `tls {$CADDY_LE_EMAIL}` — obtém cert do Let's Encrypt automaticamente (precisa que o domínio esteja resolvível publicamente e portas 80/443 acessíveis externamente)
-- `tls /certs/cert.pem /certs/key.pem` — usa cert da AC interna ARTESP (montar via volume)
-
-**Pra testar localmente** sem DNS, adicione ao seu `hosts`:
-
-```
-127.0.0.1 souvi.artesp.sp.gov.br
-127.0.0.1 api.souvi.artesp.sp.gov.br
-127.0.0.1 painel.souvi.artesp.sp.gov.br
-```
-
-E acesse `https://souvi.artesp.sp.gov.br` (aceitar o cert auto-assinado).
-
-**Pra acesso direto sem Caddy em dev** (debug), descomente os blocos `ports:` em [docker-compose.yml](docker-compose.yml) dos serviços api/frontend/qualidade_dash.
+O Ingress deve reescrever o prefixo `/api` antes de encaminhar para o container da API (strip do path prefix), de modo que a FastAPI receba as rotas sem o prefixo.
 
 ### Deploy multi-VM com volume compartilhado
 

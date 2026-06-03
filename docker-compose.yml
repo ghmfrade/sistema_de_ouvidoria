@@ -1,28 +1,4 @@
 services:
-  caddy:
-    image: caddy:2-alpine
-    container_name: souvi-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"  # HTTP/3
-    environment:
-      FRONTEND_DOMAIN: ${FRONTEND_DOMAIN:-souvi.artesp.sp.gov.br}
-      API_DOMAIN: ${API_DOMAIN:-api.souvi.artesp.sp.gov.br}
-      PAINEL_DOMAIN: ${PAINEL_DOMAIN:-painel.souvi.artesp.sp.gov.br}
-      CADDY_LE_EMAIL: ${CADDY_LE_EMAIL:-admin@artesp.sp.gov.br}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - api
-      - frontend
-      - qualidade_dash
-    networks:
-      - souvi
-
   api:
     build:
       context: .
@@ -34,10 +10,8 @@ services:
       UPLOADS_DIR: /data/uploads
     volumes:
       - uploads:/data/uploads
-    # ports: 8000 nao e exposto externamente — apenas via Caddy.
-    # Para debug local, descomente:
-    # ports:
-    #   - "8000:8000"
+    ports:
+      - "8000:8000"
     expose:
       - "8000"
     networks:
@@ -58,10 +32,9 @@ services:
     env_file:
       - .env
     environment:
-      # Sobrescreve as URLs do .env para usar o nome do servico na rede docker
       API_BASE_URL: http://api:8000
-      # API_PUBLIC_URL continua vindo do .env (endereco visivel ao browser)
-    # ports: 8501 nao e exposto externamente — apenas via Caddy.
+    ports:
+      - "8501:8501"
     expose:
       - "8501"
     depends_on:
@@ -78,7 +51,8 @@ services:
     container_name: souvi-dash
     environment:
       API_URL: http://api:8000
-    # ports: 8050 nao e exposto externamente — apenas via Caddy.
+    ports:
+      - "8050:8050"
     expose:
       - "8050"
     depends_on:
@@ -100,8 +74,4 @@ volumes:
     #   type: nfs
     #   o: addr=10.x.x.x,rw
     #   device: ":/exports/souvi/uploads"
-    driver: local
-  caddy_data:
-    driver: local
-  caddy_config:
     driver: local

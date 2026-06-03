@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 
 from api.routers import auth, catalogo, autos, ouvidorias, dashboard, admin, dashboard_qualidade_novo, relatorio_base
@@ -6,6 +8,7 @@ app = FastAPI(
     title="ARTESP Ouvidorias API",
     version="1.0",
     description="Backend da aplicação de Ouvidorias ARTESP.",
+    root_path=os.getenv("ROOT_PATH", ""),
 )
 
 app.include_router(auth.router,       prefix="/auth",       tags=["auth"])
