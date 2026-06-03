@@ -60,7 +60,7 @@ st.subheader("Nova resposta da permissionária")
 
 with st.form("form_resp_perm"):
     conteudo_resp = st.text_area("Conteúdo da resposta *", height=250)
-    data_resp = st.date_input("Data da resposta", value=date.today())
+    data_resp = st.date_input("Data da resposta", value=date.today(), format="DD/MM/YYYY")
     submitted = st.form_submit_button("Registrar resposta", type="primary")
 
 if submitted:

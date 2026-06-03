@@ -20,14 +20,16 @@ with st.container():
         data_ini = st.date_input(
             "De",
             value=date.today().replace(day=1),
-            help="Data inicial do período"
+            help="Data inicial do período",
+            format="DD/MM/YYYY",
         )
 
     with col2:
         data_fim = st.date_input(
             "Até",
             value=date.today(),
-            help="Data final do período"
+            help="Data final do período",
+            format="DD/MM/YYYY",
         )
 
 # Validação de datas

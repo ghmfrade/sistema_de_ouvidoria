@@ -104,7 +104,7 @@ def dialog_editar():
     with st.form("form_editar"):
         novo_protocolo = st.text_input("Protocolo", value=ouvidoria["protocolo"])
         novo_conteudo  = st.text_area("Conteúdo da Ouvidoria", value=ouvidoria["conteudo"], height=150)
-        novo_prazo     = st.date_input("Prazo", value=date.fromisoformat(ouvidoria["prazo"]) if ouvidoria.get("prazo") else date.today())
+        novo_prazo     = st.date_input("Prazo", value=date.fromisoformat(ouvidoria["prazo"]) if ouvidoria.get("prazo") else date.today(), format="DD/MM/YYYY")
         novo_status    = st.selectbox("Status", STATUS_OUVIDORIA,
             index=STATUS_OUVIDORIA.index(ouvidoria["status"]) if ouvidoria["status"] in STATUS_OUVIDORIA else 0)
         salvar = st.form_submit_button("💾 Salvar alterações", type="primary", use_container_width=True)
@@ -138,7 +138,7 @@ if u.get("tipo") == TIPO_USUARIO_GESTOR:
             st.session_state["alterar_prazo_perm"] = True
         if st.session_state.get("alterar_prazo_perm"):
             prazo_perm_default = date.fromisoformat(prazo_perm_atual) if prazo_perm_atual else date.today()
-            novo_prazo_perm = st.date_input("Nova data", value=prazo_perm_default, label_visibility="collapsed")
+            novo_prazo_perm = st.date_input("Nova data", value=prazo_perm_default, label_visibility="collapsed", format="DD/MM/YYYY")
             if st.button("💾 Salvar", key="btn_salvar_prazo_perm", use_container_width=True):
                 atualizar_prazo_permissionaria(ouvidoria_id, novo_prazo_perm)
                 st.session_state.pop("alterar_prazo_perm", None)

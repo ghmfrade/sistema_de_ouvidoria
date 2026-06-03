@@ -43,8 +43,8 @@ with st.sidebar:
     st.divider()
     st.markdown("#### Filtros")
     hoje = date.today()
-    data_ini = st.date_input("De", value=hoje - timedelta(days=365), key="prod_ini")
-    data_fim = st.date_input("Até", value=hoje, key="prod_fim")
+    data_ini = st.date_input("De", value=hoje - timedelta(days=365), key="prod_ini", format="DD/MM/YYYY")
+    data_fim = st.date_input("Até", value=hoje, key="prod_fim", format="DD/MM/YYYY")
 
     ger_opcoes = [("", "Todas")] + carregar_gerencias_ativas()
     ger_sel_label = st.selectbox("Gerência", [n for _, n in ger_opcoes], key="prod_ger")

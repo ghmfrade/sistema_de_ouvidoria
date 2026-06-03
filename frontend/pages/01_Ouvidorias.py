@@ -104,10 +104,10 @@ with col_checks:
 data_ini = data_fim = None
 with col_de:
     if usar_periodo:
-        data_ini = st.date_input("De", value=date.today().replace(day=1))
+        data_ini = st.date_input("De", value=date.today().replace(day=1), format="DD/MM/YYYY")
 with col_ate:
     if usar_periodo:
-        data_fim = st.date_input("Até", value=date.today())
+        data_fim = st.date_input("Até", value=date.today(), format="DD/MM/YYYY")
 with col_nova:
     st.write("")
     if u.get("tipo") == TIPO_USUARIO_GESTOR:

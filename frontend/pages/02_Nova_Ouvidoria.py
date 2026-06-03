@@ -66,12 +66,12 @@ if col_limpar.button("🗑 Limpar tudo", use_container_width=True):
 
 protocolo = st.text_input("Protocolo da Ouvidoria *", placeholder="Ex.: 202405241486076")
 conteudo  = st.text_area("Conteúdo da Ouvidoria *", height=300, placeholder="Cole aqui o conteúdo completo da ouvidoria...")
-prazo     = st.date_input("Prazo de resposta *", value=date.today() + timedelta(days=15))
+prazo     = st.date_input("Prazo de resposta *", value=date.today() + timedelta(days=15), format="DD/MM/YYYY")
 
 enviado_permissionaria = st.checkbox("Enviado para a permissionária")
 prazo_permissionaria = None
 if enviado_permissionaria:
-    prazo_permissionaria = st.date_input("Prazo de resposta da permissionária", value=date.today() + timedelta(days=30))
+    prazo_permissionaria = st.date_input("Prazo de resposta da permissionária", value=date.today() + timedelta(days=30), format="DD/MM/YYYY")
 
 st.markdown("#### Anexos")
 arquivos_upload = st.file_uploader(

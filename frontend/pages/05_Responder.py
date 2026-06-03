@@ -209,7 +209,7 @@ with tab_responder:
     nova_manif = st.checkbox("Nova manifestação da permissionária?", key="nova_manif_check")
     if nova_manif:
         manif_conteudo = st.text_area("Conteúdo da manifestação", height=150, key="manif_conteudo")
-        manif_data = st.date_input("Data da manifestação", value=date.today(), key="manif_data")
+        manif_data = st.date_input("Data da manifestação", value=date.today(), key="manif_data", format="DD/MM/YYYY")
         if st.button("📥 Registrar manifestação", key="btn_manif"):
             if not manif_conteudo.strip():
                 st.error("O conteúdo da manifestação é obrigatório.")
@@ -228,7 +228,7 @@ with tab_responder:
 
     with st.form("form_resposta"):
         texto = st.text_area("Texto da resposta técnica *", height=200)
-        st.date_input("Data da resposta", value=date.today(), disabled=True)
+        st.date_input("Data da resposta", value=date.today(), disabled=True, format="DD/MM/YYYY")
         enviar = st.form_submit_button("📤 Enviar Resposta", type="primary")
 
     if enviar:
