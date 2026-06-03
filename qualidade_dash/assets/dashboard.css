@@ -1,5 +1,5 @@
 /* ───────────────────────────────────────────────────────────────────────────
-   Painel SIGO — Dashboard de Qualidade (single-screen, sem scroll global)
+   Painel SOUVI — Dashboard de Qualidade (single-screen, sem scroll global)
    ─────────────────────────────────────────────────────────────────────────── */
 
 html, body {
@@ -17,14 +17,14 @@ html, body {
 }
 
 /* Estrutura da página */
-.sigo-shell {
+.souvi-shell {
     display: flex;
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
 }
 
-.sigo-header {
+.souvi-header {
     background-color: #1a73e8;
     color: white;
     padding: 10px 16px;
@@ -33,14 +33,14 @@ html, body {
     z-index: 1000;
 }
 
-.sigo-header h1 {
+.souvi-header h1 {
     margin: 0;
     font-size: 1.05rem;
     font-weight: 700;
     letter-spacing: 0.2px;
 }
 
-.sigo-filtros {
+.souvi-filtros {
     background-color: #ffffff;
     border-bottom: 1px solid #e2e6ee;
     padding: 8px 12px;
@@ -48,7 +48,7 @@ html, body {
     flex: 0 0 auto;
 }
 
-.sigo-filtros label {
+.souvi-filtros label {
     font-size: 11px;
     color: #4a5568;
     margin-bottom: 2px;
@@ -57,8 +57,8 @@ html, body {
     letter-spacing: 0.3px;
 }
 
-.sigo-filtros .Select-control,
-.sigo-filtros .dash-dropdown {
+.souvi-filtros .Select-control,
+.souvi-filtros .dash-dropdown {
     font-size: 13px;
 }
 
@@ -258,7 +258,7 @@ html, body {
 }
 
 /* Aviso */
-.sigo-aviso {
+.souvi-aviso {
     padding: 0 12px;
 }
 

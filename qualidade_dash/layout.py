@@ -1,4 +1,4 @@
-"""Layout do Painel SIGO — single-screen com cards-botão e gráfico dinâmico."""
+"""Layout do Painel SOUVI — single-screen com cards-botão e gráfico dinâmico."""
 
 import dash_bootstrap_components as dbc
 from dash import dcc, html
@@ -56,7 +56,7 @@ CARD_COLORS = {
 
 def _filtros_globais():
     return html.Div(
-        className="sigo-filtros",
+        className="souvi-filtros",
         children=dbc.Row([
             dbc.Col([
                 html.Label("Tipo de Serviço"),
@@ -284,18 +284,18 @@ def _graph_area():
 
 def build_layout():
     return html.Div(
-        className="sigo-shell",
+        className="souvi-shell",
         children=[
             html.Div(
-                className="sigo-header",
+                className="souvi-header",
                 children=html.H1(
-                    "Painel de Reclamações — Sistema de Gestão de Ouvidorias (SIGO)"
+                    "Painel de Reclamações — Sistema de Ouvidorias (SOUVI)"
                 ),
             ),
             _filtros_globais(),
             dcc.Store(id="card-ativo", data=1),
             _kpi_grid(),
-            html.Div(id="aviso-sem-dados", className="sigo-aviso"),
+            html.Div(id="aviso-sem-dados", className="souvi-aviso"),
             _graph_area(),
         ],
     )

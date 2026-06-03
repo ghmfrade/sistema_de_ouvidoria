@@ -1,4 +1,4 @@
-"""Componentes reutilizáveis do Painel SIGO."""
+"""Componentes reutilizáveis do Painel SOUVI."""
 
 from __future__ import annotations
 
