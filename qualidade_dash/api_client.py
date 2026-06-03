@@ -3,7 +3,7 @@
 import os
 import requests
 
-_BASE = os.getenv("API_URL", "http://localhost:8000")
+_BASE = os.getenv("API_PUBLIC_URL", "http://localhost:8000")
 _TIMEOUT = 30
 
 
