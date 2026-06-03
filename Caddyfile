@@ -1,0 +1,68 @@
+# Caddy reverse-proxy do SOUVI
+# Termina TLS na borda e roteia para os 3 servicos internos por subdominio.
+# Os dominios podem ser sobrescritos via env vars no docker-compose (.env).
+#
+# Em dev (ou sem DNS), Caddy gera certs internos auto-assinados — o browser
+# vai reclamar mas funciona. Em prod com DNS publico, troque
+# `tls internal` por `tls {email}` para Let's Encrypt automatico, OU
+# `tls /certs/cert.pem /certs/key.pem` para certificado interno da ARTESP.
+
+{
+	# Email para Let's Encrypt (se ativar). Pode ficar vazio em dev.
+	email {$CADDY_LE_EMAIL:admin@example.com}
+}
+
+# ── Frontend (Streamlit) ─────────────────────────────────────────────────────
+{$PAINEL_DOMAIN:painel.souvi.artesp.sp.gov.br} {
+	tls internal
+	encode zstd gzip
+
+	reverse_proxy frontend:8501 {
+		# Streamlit usa WebSocket; Caddy passa headers Upgrade nativamente.
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# ── API (FastAPI) ────────────────────────────────────────────────────────────
+{$API_DOMAIN:api.souvi.artesp.sp.gov.br} {
+	tls internal
+	encode zstd gzip
+
+	reverse_proxy api:8000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# ── Dashboard de Qualidade (Plotly Dash) ─────────────────────────────────────
+{$DASH_DOMAIN:qualidade.souvi.artesp.sp.gov.br} {
+	tls internal
+	encode zstd gzip
+
+	reverse_proxy qualidade_dash:8050 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

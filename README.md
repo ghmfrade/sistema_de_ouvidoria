@@ -408,15 +408,42 @@ A partir da raiz do projeto, com `.env` configurado:
 docker compose up -d --build
 ```
 
-Isso sobe:
+Isso sobe **4 serviços**:
 
-| Serviço | Porta | Acesso |
+| Serviço | Função | Acesso externo |
 |---|---|---|
-| `souvi-api` | 8000 | http://localhost:8000/docs |
-| `souvi-frontend` | 8501 | http://localhost:8501 |
-| `souvi-dash` | 8050 | http://localhost:8050 |
+| `souvi-caddy` | Reverse proxy (TLS, roteamento) | 80 / 443 |
+| `souvi-api` | FastAPI | só via Caddy (`api.souvi…`) |
+| `souvi-frontend` | Streamlit | só via Caddy (`painel.souvi…`) |
+| `souvi-dash` | Plotly Dash | só via Caddy (`qualidade.souvi…`) |
 
-A API expõe um volume nomeado `uploads` em `/data/uploads` (anexos persistem entre restarts). Frontend e Dash falam com a API pela rede interna `souvi` usando o hostname `api`.
+Os serviços de aplicação **não publicam portas no host** — só o Caddy. Acesso interno entre eles passa pela rede `souvi` usando os hostnames `api`, `frontend`, `qualidade_dash`. A API expõe um volume nomeado `uploads` em `/data/uploads` (anexos persistem entre restarts).
+
+### Reverse proxy com Caddy
+
+O [Caddyfile](Caddyfile) define 3 vhosts por subdomínio (configuráveis via env vars no `.env`):
+
+| Subdomínio | Aponta para |
+|---|---|
+| `painel.souvi.artesp.sp.gov.br` | frontend Streamlit |
+| `api.souvi.artesp.sp.gov.br` | API FastAPI |
+| `qualidade.souvi.artesp.sp.gov.br` | Dashboard Dash |
+
+**TLS:** por padrão usa `tls internal` (Caddy gera certs auto-assinados na inicialização — browser vai reclamar mas funciona). Em produção, trocar no Caddyfile para:
+- `tls {$CADDY_LE_EMAIL}` — obtém cert do Let's Encrypt automaticamente (precisa que o domínio esteja resolvível publicamente e portas 80/443 acessíveis externamente)
+- `tls /certs/cert.pem /certs/key.pem` — usa cert da AC interna ARTESP (montar via volume)
+
+**Pra testar localmente** sem DNS, adicione ao seu `hosts`:
+
+```
+127.0.0.1 painel.souvi.artesp.sp.gov.br
+127.0.0.1 api.souvi.artesp.sp.gov.br
+127.0.0.1 qualidade.souvi.artesp.sp.gov.br
+```
+
+E acesse `https://painel.souvi.artesp.sp.gov.br` (aceitar o cert auto-assinado).
+
+**Pra acesso direto sem Caddy em dev** (debug), descomente os blocos `ports:` em [docker-compose.yml](docker-compose.yml) dos serviços api/frontend/qualidade_dash.
 
 ### Deploy multi-VM com volume compartilhado
 
