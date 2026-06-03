@@ -1093,7 +1093,7 @@ def register_callbacks(app):
         Input("filtro-empresa", "options"),
         Input("filtro-assunto", "value"),
         Input("filtro-tipo-local", "value"),
-        prevent_initial_call=False,
+        prevent_initial_call="initial_duplicate",
     )
     def update_kpi_cards(ano, meses, servicos, regioes, empresa_ids, empresa_opts, assuntos, tipo_local):
         vazio = "—"
