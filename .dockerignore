@@ -1,0 +1,54 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Python runtime
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# IDE / Editor
+.vscode/
+.idea/
+.claude/
+
+# Env / secrets (cada container recebe via env_file no compose)
+.env
+.env.local
+.env.*.local
+
+# Tests e docs (nao precisa no container)
+tests/
+docs/
+*.md
+
+# Scripts standalone (sao para uso administrativo, nao runtime)
+scripts/
+gerador_de_relatorios.py
+relatorio_por_autos.bat
+
+# Dados pesados na raiz (so usados por seeds; nao precisam no container de prod)
+pasta_seed/
+normalizacao_dados/
+relatorios/
+*.xlsx
+*.csv
+*.docx
+*.log
+seed_lancados.xlsx
+seed_nao_lancados.xlsx
+cruzamento_municipios.xlsx
+
+# Uploads (montado como volume — nunca deve entrar na imagem)
+api/uploads/
+
+# Misc
+*.egg-info/
+dist/
+build/

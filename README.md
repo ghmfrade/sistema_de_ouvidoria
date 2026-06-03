@@ -392,11 +392,58 @@ Saída em `relatorios/` (um arquivo por ano-base encontrado nos dados):
 - Heatmap de assuntos por empresa
 - Distribuição por tipo de serviço
 
+## Deploy com Docker
+
+O projeto está pronto para rodar containerizado em qualquer orquestrador (Docker, Compose, Swarm, Kubernetes). Cada serviço tem seu próprio `Dockerfile`:
+
+- [api/Dockerfile](api/Dockerfile) — FastAPI com `uvicorn`, roda `alembic upgrade head` na subida
+- [frontend/Dockerfile](frontend/Dockerfile) — Streamlit
+- [qualidade_dash/Dockerfile](qualidade_dash/Dockerfile) — Plotly Dash com `gunicorn`
+
+### Subir tudo com docker-compose
+
+A partir da raiz do projeto, com `.env` configurado:
+
+```bash
+docker compose up -d --build
+```
+
+Isso sobe:
+
+| Serviço | Porta | Acesso |
+|---|---|---|
+| `souvi-api` | 8000 | http://localhost:8000/docs |
+| `souvi-frontend` | 8501 | http://localhost:8501 |
+| `souvi-dash` | 8050 | http://localhost:8050 |
+
+A API expõe um volume nomeado `uploads` em `/data/uploads` (anexos persistem entre restarts). Frontend e Dash falam com a API pela rede interna `souvi` usando o hostname `api`.
+
+### Deploy multi-VM com volume compartilhado
+
+Para rodar a API replicada em mais de uma VM (orquestrador com 5 nós), os anexos precisam viver em um volume **compartilhado entre todas as instâncias da API** (NFS/NAS):
+
+1. Provisione o NAS/NFS no IP do storage.
+2. No `docker-compose.yml`, troque o volume `uploads` para o driver NFS (há um exemplo comentado no próprio arquivo).
+3. Garanta que `UPLOADS_DIR=/data/uploads` esteja apontando para o mountpoint.
+
+Frontend e Dash **não precisam** do volume — eles só falam HTTP com a API.
+
+### Atualizar dependências
+
+Cada serviço tem seu `requirements.txt`:
+
+- [api/requirements.txt](api/requirements.txt)
+- [frontend/requirements.txt](frontend/requirements.txt)
+- [qualidade_dash/requirements.txt](qualidade_dash/requirements.txt)
+
+As listas são **diretas** (apenas o que cada serviço realmente importa). O `pip` resolve as transitivas. Para gerar um lockfile reproduzível, rode `pip freeze > requirements.lock.txt` dentro de cada container.
+
 ## Segurança
 
 - Senhas armazenadas com hash bcrypt
 - Controle de acesso baseado em perfil (Gestor/Técnico)
 - Proteção contra SQL injection via SQLAlchemy ORM
+- `.env` e `api/uploads/` excluídos do build context via `.dockerignore` (segredos nunca entram em imagens)
 
 ## Contribuindo
 

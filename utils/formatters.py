@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 if TYPE_CHECKING:
-    from repositories.types import AutoDict, OuvidoriaTecnicoDict
+    from api.repositories.types import AutoDict, OuvidoriaTecnicoDict
 
 
 def formatar_atribuicoes(atribuicoes: list["OuvidoriaTecnicoDict"]) -> tuple[str, str]:

@@ -1,0 +1,73 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: souvi-api
+    env_file:
+      - .env
+    environment:
+      UPLOADS_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
+    ports:
+      - "8000:8000"
+    networks:
+      - souvi
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: souvi-frontend
+    env_file:
+      - .env
+    environment:
+      # Sobrescreve as URLs do .env para usar o nome do servico na rede docker
+      API_BASE_URL: http://api:8000
+      # API_PUBLIC_URL continua vindo do .env (endereco visivel ao browser)
+    ports:
+      - "8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - souvi
+    restart: unless-stopped
+
+  qualidade_dash:
+    build:
+      context: .
+      dockerfile: qualidade_dash/Dockerfile
+    container_name: souvi-dash
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8050:8050"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - souvi
+    restart: unless-stopped
+
+networks:
+  souvi:
+    driver: bridge
+
+volumes:
+  uploads:
+    # Em prod multi-VM, troque para um driver NFS/CIFS apontando para o NAS:
+    # driver: local
+    # driver_opts:
+    #   type: nfs
+    #   o: addr=10.x.x.x,rw
+    #   device: ":/exports/souvi/uploads"
+    driver: local
