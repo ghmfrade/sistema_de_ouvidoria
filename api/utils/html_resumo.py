@@ -54,7 +54,7 @@ def gerar_html_resumo(ouvidoria_id: int) -> str:
 <style>{_CSS}</style>
 </head>
 <body>
-<h1>📋 Resumo da Ouvidoria #{o['id']}</h1>
+<h1>Resumo da Ouvidoria #{o['id']}</h1>
 <hr>
 <div class="grid2">""")
 
@@ -131,7 +131,7 @@ def gerar_html_resumo(ouvidoria_id: int) -> str:
         w('<div class="card"><h2>Anexos</h2><ul>')
         for an in anexos:
             tamanho_kb = round(an["tamanho"] / 1024, 1) if an.get("tamanho") else "?"
-            w(f'<li>📎 {_e(an["nome_arquivo"])} ({tamanho_kb} KB)</li>')
+            w(f'<li>[Anexo] {_e(an["nome_arquivo"])} ({tamanho_kb} KB)</li>')
         w("</ul></div>")
 
     w("</body></html>")
