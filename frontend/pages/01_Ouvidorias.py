@@ -25,7 +25,7 @@ from api.client.ouvidoria_client import (
 from api.client.base import API_PUBLIC_URL
 
 
-from utils import prazo_circle_label
+from utils import prazo_circle_label, fmt_data
 from components import reduz_margem_side_bar, reduz_margem_topo_page, reduz_gap_elementos_body
 
 st.set_page_config(page_title="Ouvidorias", page_icon="📋", layout="wide")
@@ -199,7 +199,7 @@ else:
         status_label = f"{emoji_status} {status_str}"
         perm_label, perm_tip = prazo_circle_label(o.get("prazo_permissionaria"), o.get("data_resposta_perm"))
         resp_label, resp_tip = prazo_circle_label(o.get("prazo"), o.get("concluido_em"))
-        entrada = (o["criado_em"] or "")[:10] or "–"
+        entrada = fmt_data(o["criado_em"])
         confirmar_key = f"confirmar_excluir_{o['id']}"
         pode_concluir = status_str == STATUS_RETORNO_TECNICO
 

@@ -87,6 +87,12 @@ def _to_date(val) -> date | None:
     return None
 
 
+def fmt_data(val) -> str:
+    """Formata date, datetime ou string ISO para DD/MM/YYYY. Retorna '–' se inválido."""
+    d = _to_date(val)
+    return d.strftime("%d/%m/%Y") if d else "–"
+
+
 def prazo_circle_label(prazo, concluido_em=None) -> tuple[str, str]:
     """Retorna (label_curto, tooltip) para prazo.
 
