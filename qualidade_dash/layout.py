@@ -294,8 +294,19 @@ def build_layout():
             ),
             _filtros_globais(),
             dcc.Store(id="card-ativo", data=1),
-            _kpi_grid(),
-            html.Div(id="aviso-sem-dados", className="souvi-aviso"),
-            _graph_area(),
+            dcc.Store(id="store-loading", data=True),
+            html.Div(
+                className="content-wrapper",
+                children=[
+                    html.Div(
+                        id="loading-overlay",
+                        className="loading-overlay ativo",
+                        children=html.Div(className="loading-spinner"),
+                    ),
+                    _kpi_grid(),
+                    html.Div(id="aviso-sem-dados", className="souvi-aviso"),
+                    _graph_area(),
+                ],
+            ),
         ],
     )

@@ -3,6 +3,7 @@
 import pandas as pd
 import dash_bootstrap_components as dbc
 from dash import ALL, Input, Output, State, ctx, html, no_update
+from concurrent.futures import ThreadPoolExecutor
 import plotly.graph_objects as go
 
 from qualidade_dash import api_client as api
@@ -428,6 +429,30 @@ def _aviso_sem_dados():
 # ── Registro de callbacks ─────────────────────────────────────────────────────
 
 def register_callbacks(app):
+
+    # ── Ativa overlay imediatamente quando qualquer filtro muda (client-side) ──
+    app.clientside_callback(
+        "function() { return true; }",
+        Output("store-loading", "data", allow_duplicate=True),
+        Input("filtro-ano", "value"),
+        Input("filtro-meses", "value"),
+        Input("filtro-servico", "value"),
+        Input("filtro-regiao", "value"),
+        Input("filtro-empresa", "value"),
+        Input("filtro-assunto", "value"),
+        Input("filtro-tipo-local", "value"),
+        prevent_initial_call=True,
+    )
+
+    # ── Controla visibilidade do overlay conforme store-loading ───────────────
+    @app.callback(
+        Output("loading-overlay", "className"),
+        Input("store-loading", "data"),
+        prevent_initial_call=False,
+    )
+    def toggle_loading_overlay(loading):
+        base = "loading-overlay"
+        return f"{base} ativo" if loading else base
 
     # ── Inicialização de anos ─────────────────────────────────────────────────
     @app.callback(
@@ -1059,6 +1084,7 @@ def register_callbacks(app):
         Output("kpi-val-7", "children"),
         Output("kpi-sub-7", "children"),
         Output("aviso-sem-dados", "children"),
+        Output("store-loading", "data", allow_duplicate=True),
         Input("filtro-ano", "value"),
         Input("filtro-meses", "value"),
         Input("filtro-servico", "value"),
@@ -1075,7 +1101,7 @@ def register_callbacks(app):
 
         if ano is None:
             return (vazio, vazio, "", vazio, "", label_card3,
-                    vazio, "", vazio, "", vazio, "", vazio, "", "")
+                    vazio, "", vazio, "", vazio, "", vazio, "", "", False)
 
         ts = _tipo_servico_str(servicos)
         regioes_str = _tipo_servico_str(regioes)
@@ -1085,12 +1111,37 @@ def register_callbacks(app):
         tem_reg = _tem_regular(servicos)
         empresa_nomes = _empresa_nomes_from_opts(empresa_ids, empresa_opts)
         empresa_nomes_set = set(empresa_nomes)
+        ts_reg = _tipo_servico_str([s for s in (servicos or []) if s in SERVICOS_REGULAR]) if tem_reg else None
+
+        # Busca paralela de todos os endpoints necessários
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            f_resumo = ex.submit(
+                api.get_resumo, ano, meses_str, ts,
+                regioes=regioes_str, perm_ids=perm_ids, assuntos=assuntos_str,
+            )
+            f_locais = ex.submit(
+                api.get_locais_embarque, ano, meses_str, ts, tipo_local or "embarque",
+                pagina=1, regioes=regioes_str, perm_ids=perm_ids, assuntos=assuntos_str,
+            )
+            f_emp_pont = ex.submit(
+                api.get_empresas_pontuacao, ano, meses_str, ts_reg,
+                regioes=regioes_str, assuntos=assuntos_str,
+            ) if tem_reg else None
+            f_emp_irr = ex.submit(
+                api.get_empresas_irregular, ano, meses_str, ts_reg,
+                regioes=regioes_str,
+            ) if tem_reg else None
+            f_aut_pont = ex.submit(
+                api.get_autos_pontuacao, ano, meses_str, ts_reg, pagina=1,
+                regioes=regioes_str, perm_ids=perm_ids, assuntos=assuntos_str,
+            ) if tem_reg else None
+            f_aut_irr = ex.submit(
+                api.get_autos_irregular, ano, meses_str, ts_reg, pagina=1,
+                regioes=regioes_str, perm_ids=perm_ids,
+            ) if tem_reg else None
 
         # Card 1 e 2: resumo geral
-        resumo = api.get_resumo(
-            ano, meses_str, ts,
-            regioes=regioes_str, perm_ids=perm_ids, assuntos=assuntos_str,
-        )
+        resumo = f_resumo.result()
         total = resumo.get("total_reclamacoes", 0) or 0
         aviso = _aviso_sem_dados() if total == 0 else ""
         card1_val = f"{total:,}".replace(",", ".") if total else "0"
@@ -1102,10 +1153,7 @@ def register_callbacks(app):
 
         # Card 3: local crítico (embarque/desembarque)
         try:
-            resp_loc = api.get_locais_embarque(
-                ano, meses_str, ts, tipo_local or "embarque", pagina=1,
-                regioes=regioes_str, perm_ids=perm_ids, assuntos=assuntos_str,
-            )
+            resp_loc = f_locais.result()
             loc_dados = resp_loc.get("dados", [])
             if loc_dados:
                 top_loc = loc_dados[0]
@@ -1123,14 +1171,9 @@ def register_callbacks(app):
         card6_sub = card7_sub = ""
 
         if tem_reg:
-            ts_reg = _tipo_servico_str([s for s in (servicos or []) if s in SERVICOS_REGULAR])
-
-            # Card 4: empresa mais reclamada (respeita filtro de empresa)
+            # Card 4: empresa mais reclamada
             try:
-                emp_rows = api.get_empresas_pontuacao(
-                    ano, meses_str, ts_reg,
-                    regioes=regioes_str, assuntos=assuntos_str,
-                )
+                emp_rows = f_emp_pont.result()
                 if empresa_nomes_set:
                     emp_rows = [r for r in emp_rows if r.get("empresa") in empresa_nomes_set]
                 if emp_rows:
@@ -1140,11 +1183,9 @@ def register_callbacks(app):
             except Exception:
                 pass
 
-            # Card 5: empresa mais vulnerável (irregular)
+            # Card 5: empresa mais vulnerável
             try:
-                vul_rows = api.get_empresas_irregular(
-                    ano, meses_str, ts_reg, regioes=regioes_str,
-                )
+                vul_rows = f_emp_irr.result()
                 if empresa_nomes_set:
                     vul_rows = [r for r in vul_rows if r.get("empresa") in empresa_nomes_set]
                 if vul_rows:
@@ -1154,12 +1195,9 @@ def register_callbacks(app):
             except Exception:
                 pass
 
-            # Card 6: auto mais reclamado (já filtrado por perm_ids se houver)
+            # Card 6: auto mais reclamado
             try:
-                resp_a = api.get_autos_pontuacao(
-                    ano, meses_str, ts_reg, pagina=1,
-                    regioes=regioes_str, perm_ids=perm_ids, assuntos=assuntos_str,
-                )
+                resp_a = f_aut_pont.result()
                 a_dados = resp_a.get("dados", [])
                 if a_dados:
                     top6 = a_dados[0]
@@ -1174,10 +1212,7 @@ def register_callbacks(app):
 
             # Card 7: auto mais vulnerável
             try:
-                resp_i = api.get_autos_irregular(
-                    ano, meses_str, ts_reg, pagina=1,
-                    regioes=regioes_str, perm_ids=perm_ids,
-                )
+                resp_i = f_aut_irr.result()
                 i_dados = resp_i.get("dados", [])
                 if i_dados:
                     top7 = i_dados[0]
@@ -1199,6 +1234,7 @@ def register_callbacks(app):
             card6_val, card6_sub,
             card7_val, card7_sub,
             aviso,
+            False,  # desativa overlay ao concluir
         )
 
     # ── Clique em card → atualiza card-ativo ──────────────────────────────────

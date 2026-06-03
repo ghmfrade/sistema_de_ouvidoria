@@ -262,6 +262,44 @@ html, body {
     padding: 0 12px;
 }
 
+/* ── Loading overlay ─────────────────────────────────────────────────────── */
+.content-wrapper {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(238, 242, 247, 0.82);
+    z-index: 500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    pointer-events: all;
+}
+
+.loading-overlay.ativo {
+    display: flex;
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 5px solid #d0d7e3;
+    border-top-color: #1a73e8;
+    border-radius: 50%;
+    animation: souvi-spin 0.75s linear infinite;
+}
+
+@keyframes souvi-spin {
+    to { transform: rotate(360deg); }
+}
+
 /* Mantém o style antigo de tabs caso utilizado em outra parte */
 .tab--selected {
     border-bottom: none !important;
