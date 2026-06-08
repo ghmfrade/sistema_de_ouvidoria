@@ -207,6 +207,9 @@ def _fig_vazia(msg: str = "Sem dados para o período") -> go.Figure:
     return fig
 
 
+_MAX_LABEL_BARRA = 22
+
+
 def _barra_horizontal(nomes, valores, cor, n_items: int = 0,
                       xmax: float | None = None,
                       customdata=None, hovertemplate: str | None = None):
@@ -216,8 +219,13 @@ def _barra_horizontal(nomes, valores, cor, n_items: int = 0,
     if xmax:
         xaxis_cfg["range"] = [0, xmax * 1.08]
 
+    nomes_display = [
+        n[:_MAX_LABEL_BARRA] + "…" if len(n) > _MAX_LABEL_BARRA else n
+        for n in nomes
+    ]
+
     fig = go.Figure(go.Bar(
-        x=valores, y=nomes, orientation="h",
+        x=valores, y=nomes_display, orientation="h",
         marker_color=cor,
         customdata=customdata,
         hovertemplate=hovertemplate,
@@ -227,7 +235,7 @@ def _barra_horizontal(nomes, valores, cor, n_items: int = 0,
         height=height,
         yaxis=dict(autorange="reversed", showgrid=False),
         xaxis=xaxis_cfg,
-        margin=dict(t=30, b=40, l=220, r=20),
+        margin=dict(t=30, b=40, l=165, r=20),
     )
     return fig
 
@@ -442,8 +450,8 @@ def _pizza(labels: list[str], values: list[int], assunto_destaque: str | None = 
     fig.update_layout(
         **LAYOUT_PLOTLY,
         height=480,
-        margin=dict(t=40, b=40, l=40, r=180),
-        legend=dict(orientation="v", x=1.02, y=0.5),
+        margin=dict(t=40, b=100, l=40, r=40),
+        legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.1, yanchor="top"),
     )
     return fig
 
@@ -477,6 +485,28 @@ def register_callbacks(app):
         Output("loading-overlay", "className"),
         Input("store-loading", "data"),
         prevent_initial_call=False,
+    )
+
+    # ── Força relayout dos gráficos paginados após atualização de figura ──────
+    app.clientside_callback(
+        """
+        function(f1, f2, f3, f4) {
+            var ids = ['g6-autos', 'g7-irregular', 'g5-heatmap-empresa', 'g8-heatmap-auto'];
+            ids.forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el && el._fullLayout) {
+                    setTimeout(function() { Plotly.relayout(el, {autosize: true}); }, 50);
+                }
+            });
+            return '';
+        }
+        """,
+        Output("dummy-resize", "children"),
+        Input("g6-autos", "figure"),
+        Input("g7-irregular", "figure"),
+        Input("g5-heatmap-empresa", "figure"),
+        Input("g8-heatmap-auto", "figure"),
+        prevent_initial_call=True,
     )
 
     # ── Inicialização de anos ─────────────────────────────────────────────────
@@ -692,9 +722,9 @@ def register_callbacks(app):
 
         nomes = [r["empresa"] for r in rows_final]
         vals  = [r["pontuacao"] for r in rows_final]
-        cd    = [[r["linha_top"], r["assunto_top"]] for r in rows_final]
+        cd    = [[r["linha_top"], r["assunto_top"], r["empresa"]] for r in rows_final]
         hover = (
-            "<b>%{y}</b><br>Pontuação: %{x:.2f}<br>"
+            "<b>%{customdata[2]}</b><br>Pontuação: %{x:.2f}<br>"
             "Linha top: %{customdata[0]}<br>Assunto top: %{customdata[1]}<extra></extra>"
         )
         return _barra_horizontal(nomes, vals, cores, n_items=len(nomes),
@@ -759,9 +789,9 @@ def register_callbacks(app):
 
         nomes = [r["empresa"] for r in rows_final]
         vals  = [r["pontuacao"] for r in rows_final]
-        cd    = [[r["linha_top"]] for r in rows_final]
+        cd    = [[r["linha_top"], r["empresa"]] for r in rows_final]
         hover = (
-            "<b>%{y}</b><br>Pontuação Irregular: %{x:.2f}<br>"
+            "<b>%{customdata[1]}</b><br>Pontuação Irregular: %{x:.2f}<br>"
             "Linha mais prejudicada: %{customdata[0]}<extra></extra>"
         )
         return _barra_horizontal(nomes, vals, cores, n_items=len(nomes),

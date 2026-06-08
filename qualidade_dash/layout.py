@@ -308,5 +308,6 @@ def build_layout():
                     _graph_area(),
                 ],
             ),
+            html.Div(id="dummy-resize", style={"display": "none"}),
         ],
     )
