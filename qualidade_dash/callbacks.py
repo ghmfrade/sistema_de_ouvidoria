@@ -436,13 +436,21 @@ def _scatter_evolucao(rows: list[dict], cor: str = "#1a73e8") -> go.Figure:
     return fig
 
 
+_PIZZA_MIN_PCT = 0.075  # fatias menores que 7,5% não exibem rótulo
+
+
 def _pizza(labels: list[str], values: list[int],
            assunto_destaque: str | None = None,
            orientacao: str = "landscape") -> go.Figure:
     pull = [0.12 if assunto_destaque and lbl == assunto_destaque else 0 for lbl in labels]
+    total = sum(values) or 1
+    text = [
+        f"{v / total:.1%}" if v / total >= _PIZZA_MIN_PCT else ""
+        for v in values
+    ]
     fig = go.Figure(go.Pie(
         labels=labels, values=values,
-        textinfo="percent",
+        text=text, textinfo="text",
         textfont=dict(size=13),
         hovertemplate="<b>%{label}</b><br>Qtd: %{value}<br>%{percent}<extra></extra>",
         hole=0.3,
