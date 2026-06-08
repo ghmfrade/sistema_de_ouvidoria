@@ -452,6 +452,7 @@ def _pizza(labels: list[str], values: list[int],
         legend_kwargs: dict = dict(showlegend=False, margin=dict(t=40, b=40, l=40, r=40))
     else:
         legend_kwargs = dict(
+            showlegend=True,
             margin=dict(t=40, b=40, l=40, r=180),
             legend=dict(orientation="v", x=1.02, y=0.5),
         )
@@ -513,11 +514,13 @@ def register_callbacks(app):
     )
 
     # ── Detecta orientação da tela (portrait / landscape) ────────────────────
+    # prevent_initial_call=True: dispara só após 200ms (n=1), quando o browser
+    # já calculou o layout e window.innerWidth tem valor real.
     app.clientside_callback(
         "function(n) { return window.innerWidth < window.innerHeight ? 'portrait' : 'landscape'; }",
         Output("store-orientacao", "data"),
         Input("interval-orientacao", "n_intervals"),
-        prevent_initial_call=False,
+        prevent_initial_call=True,
     )
 
     # ── Inicialização de anos ─────────────────────────────────────────────────
