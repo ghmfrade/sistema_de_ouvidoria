@@ -207,14 +207,13 @@ def _fig_vazia(msg: str = "Sem dados para o período") -> go.Figure:
     return fig
 
 
-_MAX_LABEL_BARRA = 22
+_MAX_LABEL_BARRA = 14
 
 
 def _barra_horizontal(nomes, valores, cor, n_items: int = 0,
                       xmax: float | None = None,
                       customdata=None, hovertemplate: str | None = None):
     """Barras horizontais com maior valor no topo. cor pode ser str ou list."""
-    height = max(400, n_items * 32 + 120)
     xaxis_cfg = dict(showgrid=True, gridcolor="#f0f0f0", gridwidth=1)
     if xmax:
         xaxis_cfg["range"] = [0, xmax * 1.08]
@@ -232,10 +231,10 @@ def _barra_horizontal(nomes, valores, cor, n_items: int = 0,
     ))
     fig.update_layout(
         **LAYOUT_PLOTLY,
-        height=height,
+        autosize=True,
         yaxis=dict(autorange="reversed", showgrid=False),
         xaxis=xaxis_cfg,
-        margin=dict(t=30, b=40, l=165, r=20),
+        margin=dict(t=30, b=40, l=90, r=20),
     )
     return fig
 
@@ -336,7 +335,7 @@ def _heatmap_empresa(dados: list[dict], zmax: float | None = None,
         **LAYOUT_PLOTLY,
         xaxis=dict(tickangle=-45, side="bottom", showgrid=False),
         yaxis=dict(showgrid=False),
-        height=max(400, n_assuntos * 46 + 200),
+        autosize=True,
         margin=dict(t=40, b=160, l=260, r=40),
     )
 
@@ -412,7 +411,7 @@ def _heatmap_auto(dados: list[dict], zmax: float | None = None, sort_assuntos: l
         **LAYOUT_PLOTLY,
         xaxis=dict(tickangle=-45, side="bottom", showgrid=False),
         yaxis=dict(showgrid=False),
-        height=max(400, n_assuntos * 46 + 200),
+        autosize=True,
         margin=dict(t=40, b=120, l=260, r=40),
     )
     return fig
@@ -437,7 +436,9 @@ def _scatter_evolucao(rows: list[dict], cor: str = "#1a73e8") -> go.Figure:
     return fig
 
 
-def _pizza(labels: list[str], values: list[int], assunto_destaque: str | None = None) -> go.Figure:
+def _pizza(labels: list[str], values: list[int],
+           assunto_destaque: str | None = None,
+           orientacao: str = "landscape") -> go.Figure:
     pull = [0.12 if assunto_destaque and lbl == assunto_destaque else 0 for lbl in labels]
     fig = go.Figure(go.Pie(
         labels=labels, values=values,
@@ -447,12 +448,14 @@ def _pizza(labels: list[str], values: list[int], assunto_destaque: str | None = 
         hole=0.3,
         pull=pull,
     ))
-    fig.update_layout(
-        **LAYOUT_PLOTLY,
-        height=480,
-        margin=dict(t=40, b=100, l=40, r=40),
-        legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.1, yanchor="top"),
-    )
+    if orientacao == "portrait":
+        legend_kwargs: dict = dict(showlegend=False, margin=dict(t=40, b=40, l=40, r=40))
+    else:
+        legend_kwargs = dict(
+            margin=dict(t=40, b=40, l=40, r=180),
+            legend=dict(orientation="v", x=1.02, y=0.5),
+        )
+    fig.update_layout(**LAYOUT_PLOTLY, height=480, **legend_kwargs)
     return fig
 
 
@@ -507,6 +510,14 @@ def register_callbacks(app):
         Input("g5-heatmap-empresa", "figure"),
         Input("g8-heatmap-auto", "figure"),
         prevent_initial_call=True,
+    )
+
+    # ── Detecta orientação da tela (portrait / landscape) ────────────────────
+    app.clientside_callback(
+        "function(n) { return window.innerWidth < window.innerHeight ? 'portrait' : 'landscape'; }",
+        Output("store-orientacao", "data"),
+        Input("interval-orientacao", "n_intervals"),
+        prevent_initial_call=False,
     )
 
     # ── Inicialização de anos ─────────────────────────────────────────────────
@@ -646,9 +657,11 @@ def register_callbacks(app):
         Input("filtro-regiao", "value"),
         Input("filtro-empresa", "value"),
         Input("filtro-assunto", "value"),
+        Input("store-orientacao", "data"),
         prevent_initial_call=False,
     )
-    def update_pizza(ano, meses, servicos, regioes, empresa_ids, assuntos):
+    def update_pizza(ano, meses, servicos, regioes, empresa_ids, assuntos, orientacao):
+        ori = orientacao or "landscape"
         if ano is None:
             return _fig_vazia(), [], [], []
         ts = _tipo_servico_str(servicos)
@@ -661,14 +674,14 @@ def register_callbacks(app):
         labels_full = [r["assunto"] for r in rows]
         values_full = [r["total"] for r in rows]
         if not assuntos:
-            return _pizza(labels_full, values_full), opts, opts, opts
+            return _pizza(labels_full, values_full, orientacao=ori), opts, opts, opts
         if len(assuntos) == 1:
-            return _pizza(labels_full, values_full, assunto_destaque=assuntos[0]), opts, opts, opts
+            return _pizza(labels_full, values_full, assunto_destaque=assuntos[0], orientacao=ori), opts, opts, opts
         assuntos_set = set(assuntos)
         rows_sel = [r for r in rows if r["assunto"] in assuntos_set]
         if not rows_sel:
             return _fig_vazia(), opts, opts, opts
-        return _pizza([r["assunto"] for r in rows_sel], [r["total"] for r in rows_sel]), opts, opts, opts
+        return _pizza([r["assunto"] for r in rows_sel], [r["total"] for r in rows_sel], orientacao=ori), opts, opts, opts
 
     # ── G3: Empresas por pontuação ────────────────────────────────────────────
     @app.callback(

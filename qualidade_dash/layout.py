@@ -295,6 +295,8 @@ def build_layout():
             _filtros_globais(),
             dcc.Store(id="card-ativo", data=1),
             dcc.Store(id="store-loading", data=True),
+            dcc.Store(id="store-orientacao", data="landscape"),
+            dcc.Interval(id="interval-orientacao", interval=200, max_intervals=1),
             html.Div(
                 className="content-wrapper",
                 children=[
