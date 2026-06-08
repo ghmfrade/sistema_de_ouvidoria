@@ -238,6 +238,10 @@ _CORES_DESTAQUE = [
 ]
 
 
+def _abreviar_empresa(nome: str, maxlen: int = 20) -> str:
+    return nome[:maxlen].rstrip() + "…" if len(nome) > maxlen else nome
+
+
 def _heatmap_empresa(dados: list[dict], zmax: float | None = None,
                      sort_assuntos: list[str] | None = None,
                      empresas_destaque: list[str] | None = None) -> go.Figure:
@@ -272,10 +276,32 @@ def _heatmap_empresa(dados: list[dict], zmax: float | None = None,
                            aggfunc="sum", fill_value=0)
     pivot = pivot.reindex(columns=[c for c in col_order if c in pivot.columns])
 
+    # Nomes completos (antes de abreviar) para customdata e detecção de destaque
+    full_names_order = pivot.columns.tolist()
+
+    # Mapa nome_completo → abreviado (trata duplicatas com sufixo numérico)
+    abrev_map: dict[str, str] = {}
+    _seen: dict[str, int] = {}
+    for emp in full_names_order:
+        base = _abreviar_empresa(emp)
+        if base in _seen:
+            _seen[base] += 1
+            abrev_map[emp] = base[:17].rstrip() + f"…({_seen[base]})"
+        else:
+            _seen[base] = 0
+            abrev_map[emp] = base
+
     linha_lookup = {(r["empresa"], r["assunto"]): (r.get("linha_top", "–"), r.get("pts_linha", 0.0))
                     for r in dados}
-    cd = [[linha_lookup.get((emp, ass), ("–", 0.0)) for emp in pivot.columns]
-          for ass in pivot.index]
+    cd = [
+        [(linha_lookup.get((emp, ass), ("–", 0.0))[0],
+          linha_lookup.get((emp, ass), ("–", 0.0))[1],
+          emp)
+         for emp in full_names_order]
+        for ass in pivot.index
+    ]
+
+    pivot = pivot.rename(columns=abrev_map)
 
     text = [[f"{v:.1f}" for v in row] for row in pivot.values.tolist()]
 
@@ -290,7 +316,7 @@ def _heatmap_empresa(dados: list[dict], zmax: float | None = None,
         colorbar=dict(title="Pts"),
         customdata=cd,
         hovertemplate=(
-            "Empresa: <b>%{x}</b><br>"
+            "Empresa: <b>%{customdata[2]}</b><br>"
             "Assunto: <b>%{y}</b><br>"
             "Pontuação: <b>%{z:.2f}</b><br>"
             "Linha top: <b>%{customdata[0]}</b> | Pts: <b>%{customdata[1]:.2f}</b>"
@@ -310,8 +336,9 @@ def _heatmap_empresa(dados: list[dict], zmax: float | None = None,
     if empresas_destaque:
         cols_list = pivot.columns.tolist()
         for empresa, cor in zip(empresas_destaque, _CORES_DESTAQUE):
-            if empresa in cols_list:
-                idx = cols_list.index(empresa)
+            abrev = abrev_map.get(empresa, empresa)
+            if abrev in cols_list:
+                idx = cols_list.index(abrev)
                 fig.add_shape(
                     type="rect",
                     x0=idx - 0.5, x1=idx + 0.5,

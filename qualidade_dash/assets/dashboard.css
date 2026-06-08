@@ -71,16 +71,26 @@ html, body {
     flex: 0 0 auto;
 }
 
-@media (max-width: 1400px) {
-    .kpi-grid {
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-    }
+/* ── Mobile portrait (≤ 768 px, retrato) ────────────────────────────────── */
+@media (max-width: 768px) and (orientation: portrait) {
+    html, body { height: auto; overflow-y: auto; }
+    #_dash-app-content,
+    #_dash-app-content > div { height: auto; }
+    .souvi-shell     { height: auto; overflow: visible; }
+    .content-wrapper { flex: none; overflow: visible; }
+    .kpi-grid        { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .graph-area      { flex: none; height: 70vh; min-height: 380px; overflow: hidden; }
 }
 
-@media (max-width: 768px) {
-    .kpi-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
+/* ── Mobile landscape (≤ 900 px, paisagem — telefones, não tablets) ──────── */
+@media (max-width: 900px) and (orientation: landscape) {
+    html, body { height: auto; overflow-y: auto; }
+    #_dash-app-content,
+    #_dash-app-content > div { height: auto; }
+    .souvi-shell     { height: auto; overflow: visible; }
+    .content-wrapper { flex: none; overflow: visible; }
+    .kpi-grid        { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .graph-area      { flex: none; height: 100vh; min-height: 350px; overflow: hidden; }
 }
 
 /* Card-botão */
