@@ -45,8 +45,8 @@ CARD_COLORS = {
     3: "#16a085",  # Local crítico
     4: "#8e44ad",  # Empresa mais reclamada
     5: "#c0392b",  # Empresa mais vulnerável
-    6: "#2980b9",  # Auto mais reclamado
-    7: "#d35400",  # Auto mais vulnerável
+    6: "#2980b9",  # Autos mais reclamado
+    7: "#d35400",  # Autos mais vulnerável
     8: "#27ae60",  # Mapa empresas
     9: "#7f8c8d",  # Mapa autos
 }
@@ -141,12 +141,12 @@ def _kpi_grid():
                 accent_color=CARD_COLORS[5],
             ),
             kpi_card_button(
-                6, "Auto Mais Reclamado",
+                6, "Autos Mais Reclamado",
                 value_id="kpi-val-6", sub_id="kpi-sub-6", icon="🚌",
                 accent_color=CARD_COLORS[6],
             ),
             kpi_card_button(
-                7, "Auto Mais Vulnerável",
+                7, "Autos Mais Vulnerável",
                 value_id="kpi-val-7", sub_id="kpi-sub-7", icon="🛡️",
                 accent_color=CARD_COLORS[7],
             ),

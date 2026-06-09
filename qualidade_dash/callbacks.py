@@ -1280,7 +1280,7 @@ def register_callbacks(app):
                 a_dados = resp_a.get("dados", [])
                 if a_dados:
                     top6 = a_dados[0]
-                    card6_val = f"Auto {top6.get('auto', vazio)}"
+                    card6_val = f"Autos {top6.get('auto', vazio)}"
                     partes = [str(top6.get("empresa") or "")]
                     if top6.get("regiao") and top6["regiao"] != "–":
                         partes.append(str(top6["regiao"]))
@@ -1295,7 +1295,7 @@ def register_callbacks(app):
                 i_dados = resp_i.get("dados", [])
                 if i_dados:
                     top7 = i_dados[0]
-                    card7_val = f"Auto {top7.get('auto', vazio)}"
+                    card7_val = f"Autos {top7.get('auto', vazio)}"
                     partes = [str(top7.get("empresa") or "")]
                     if top7.get("regiao") and top7["regiao"] != "–":
                         partes.append(str(top7["regiao"]))
