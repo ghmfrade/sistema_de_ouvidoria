@@ -142,7 +142,10 @@ def seed_trechos(session, numero_map: dict[str, int]) -> None:
         if any(excl in carac for excl in CARACTERISTICAS_EXCLUIR):
             continue
 
-        n_autos   = str(row["N_AUTOS"]).strip()
+        n_autos_raw = str(row["N_AUTOS"]).strip()
+        # Normaliza "0395A" → "395A" para coincidir com o formato armazenado no banco.
+        m = re.match(r'^(\d+)([A-Za-z]*)$', n_autos_raw)
+        n_autos = (str(int(m.group(1))) + m.group(2)) if m else n_autos_raw
         cidade_ini = str(row["CIDADE_INI"]).strip()
         cidade_fim = str(row["CIDADE_FIM"]).strip()
 
