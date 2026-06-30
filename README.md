@@ -144,11 +144,39 @@ sistema_de_ouvidoria/
    py api/database/seed_usuarios.py
    ```
 
-   **(Opcional) Importar dados históricos** (planilha em `pasta_seed/`):
+   **(Opcional) Importar dados históricos**
+
+   O dado de entrada é `pasta_seed/Novo Modelo Base Ouvidoria 2.xlsx` (cabeçalho na 2ª linha, lido com `header=1`). Para trocar por uma planilha nova, substitua esse arquivo mantendo exatamente estas colunas:
+
+   ```
+   PROTOCOLO, N° SEI, DATA, PRAZO R., LIMITE R., SISTEMA, SUBSISTEMA, CNPJ, EMPRESA,
+   LINHA, ORIGEM, DESTINO, ASSUNTO, TRATADA POR:, DATA R., DIAS R., STATUS, ATRASO,
+   REGIONAL, SITUAÇÃO, OBS
+   ```
+
+   > **Os 3 comandos abaixo são independentes — não há encadeamento automático.** `seed_dados_antigos.py` apenas lê o CSV que `enrich_cidades.py` já deve ter gerado; ele não chama os outros scripts. Rode **um por vez, na ordem, e confira a saída de cada um antes de seguir para o próximo** — não rode tudo em sequência sem olhar:
+
+   ```bash
+   py scripts/enrich_cnpj.py
+   ```
+
+   Casa `EMPRESA` com as permissionárias do banco → CNPJ. Gera `normalizacao_dados/NOVO_MODELO_enriquecido.csv`. **Verifique antes de seguir:** confira `normalizacao_dados/nao_encontrados.csv` — se houver empresas importantes sem match, considere um override manual no dict `OVERRIDES` (topo do script) e rode de novo.
+
+   ```bash
+   py scripts/enrich_cidades.py
+   ```
+
+   Casa `ORIGEM`/`DESTINO` com municípios IBGE do banco. Gera `dados_antigos_tratado_empresa_e_cidades.csv` (em `normalizacao_dados/` e cópia em `pasta_seed/`). **Verifique antes de seguir:** confira `normalizacao_dados/mun_dados_antigos_not_find.csv` — municípios não encontrados ficam sem `ORIGEM_IBGE`/`DESTINO_IBGE` e podem fazer linhas serem puladas no seed.
 
    ```bash
    py api/database/seed_dados_antigos.py
    ```
+
+   Lê o CSV tratado e insere no banco (ver aviso de TRUNCATE abaixo). **Verifique depois:** confira o resumo impresso no terminal (inseridas/puladas/duplicadas/erros) e os arquivos `seed_lancados.xlsx` / `seed_nao_lancados.xlsx` gerados na raiz.
+
+   > **Atenção:** `seed_dados_antigos.py` executa `TRUNCATE TABLE ouvidorias CASCADE` antes de inserir — **apaga todas as ouvidorias existentes** (e registros derivados: reclamações, respostas, anexos) sem pedir confirmação. Faça backup do banco antes de rodar se os dados atuais importam.
+   >
+   > Empresas e municípios que não casarem automaticamente caem em `normalizacao_dados/nao_encontrados.csv` e `normalizacao_dados/mun_dados_antigos_not_find.csv` — veja [scripts/README.md](scripts/README.md) para overrides manuais. Linhas com `ASSUNTO` sem mapeamento em `normalizacao_dados/CATEGORIA NOVA X CATEGORIA ANTIGA.xlsx` são puladas e listadas em `seed_nao_lancados.xlsx` (gerado na raiz após a importação).
 
 6. **Inicie o backend FastAPI** (precisa estar de pé para o frontend e o Dash funcionarem)
 

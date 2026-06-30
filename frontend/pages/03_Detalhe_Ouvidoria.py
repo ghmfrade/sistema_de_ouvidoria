@@ -26,6 +26,7 @@ from api.client.ouvidoria_client import (
     excluir_ouvidoria,
     add_anexo,
 )
+from api.client.base import API_PUBLIC_URL
 from utils import prazo_circle_label
 from utils.formatters import TC_REGIOES
 from components import reduz_margem_side_bar, reduz_margem_topo_page
@@ -97,6 +98,8 @@ if ouvidoria.get("concluido_em"):
     cols_m[4].metric("Concluída em", (ouvidoria["concluido_em"] or "")[:10])
 if ouvidoria.get("prazo_permissionaria"):
     cols_m[3].metric("Prazo Permissionária", ouvidoria["prazo_permissionaria"])
+
+st.link_button("📋 Resumo da Ouvidoria", url=f"{API_PUBLIC_URL}/ouvidorias/{ouvidoria_id}/resumo-html")
 
 # ── Dialog para editar ────────────────────────────────────────────────────────
 @st.dialog("Editar Ouvidoria", width="large")

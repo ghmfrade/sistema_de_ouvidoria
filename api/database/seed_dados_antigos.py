@@ -142,11 +142,17 @@ def build_lookups(session) -> tuple:
         r[0] for r in session.query(Ouvidoria.protocolo).all()
     )
 
-    admin = session.query(Usuario).first()
+    admin = session.query(Usuario).filter_by(email="admin@artesp.sp.gov.br").first()
     if admin is None:
-        raise RuntimeError("Nenhum usuário encontrado — execute seed_all.py primeiro.")
+        raise RuntimeError("Admin não encontrado — execute seed_all.py primeiro.")
 
-    return sub_map, perm_by_cnpj, perm_by_nome, existing, admin.id
+    dados_legados = session.query(Usuario).filter(
+        Usuario.nome.ilike("Dados Legados")
+    ).first()
+    if dados_legados is None:
+        raise RuntimeError("Usuário 'Dados Legados' não encontrado — execute seed_usuarios.py primeiro.")
+
+    return sub_map, perm_by_cnpj, perm_by_nome, existing, admin.id, dados_legados.id
 
 
 # ── Mapeamento de tipo de serviço ─────────────────────────────────────────────
@@ -198,7 +204,7 @@ def seed_dados_antigos():
 
     # ── Fase 1: carregar lookups uma única vez ────────────────────────────────
     with db_session() as session:
-        sub_map, perm_by_cnpj, perm_by_nome, existing, admin_id = build_lookups(session)
+        sub_map, perm_by_cnpj, perm_by_nome, existing, admin_id, tecnico_legados_id = build_lookups(session)
     print(f"Referências carregadas: {len(sub_map)} subcategorias, "
           f"{len(perm_by_cnpj)} CNPJs, {len(existing)} protocolos já existentes.\n")
 
@@ -211,6 +217,9 @@ def seed_dados_antigos():
 
         # ── 1. Protocolo ──────────────────────────────────────────────────────
         protocolo = _val(row, "PROTOCOLO")
+        # Remove sufixo ".0" gerado pelo Excel ao converter número para float
+        if protocolo and protocolo.endswith(".0"):
+            protocolo = protocolo[:-2]
         if not protocolo:
             _pula("Protocolo vazio")
             continue
@@ -385,7 +394,7 @@ def seed_dados_antigos():
 
                 session.add(RespostaTecnica(
                     ouvidoria_id=ouvidoria.id,
-                    tecnico_id=admin_id,
+                    tecnico_id=tecnico_legados_id,
                     data_resposta=data_resposta,
                     texto_resposta="SEM DADOS",
                 ))

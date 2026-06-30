@@ -19,6 +19,16 @@ Lê uma planilha bruta de ouvidorias antigas, casa o campo `EMPRESA` com a tabel
 | **Grava** | `normalizacao_dados/NOVO_MODELO_enriquecido.csv` |
 | **Grava** | `normalizacao_dados/nao_encontrados.csv` (empresas sem match) |
 
+**Colunas exigidas na planilha de entrada** (cabeçalho na 2ª linha, daí `header=1`):
+
+```
+PROTOCOLO, N° SEI, DATA, PRAZO R., LIMITE R., SISTEMA, SUBSISTEMA, CNPJ, EMPRESA,
+LINHA, ORIGEM, DESTINO, ASSUNTO, TRATADA POR:, DATA R., DIAS R., STATUS, ATRASO,
+REGIONAL, SITUAÇÃO, OBS
+```
+
+Para importar uma planilha nova de dados antigos, substitua `pasta_seed/Novo Modelo Base Ouvidoria 2.xlsx` mantendo exatamente esses nomes de coluna. Empresas que não casarem com nenhuma permissionária do banco (por nome, fantasia ou pelas estratégias de similaridade) caem em `nao_encontrados.csv`; casos ambíguos podem precisar de um override manual no dict `OVERRIDES` (topo do script).
+
 Como rodar:
 
 ```bash
@@ -52,6 +62,14 @@ py scripts/enrich_cnpj.py        # produz NOVO_MODELO_enriquecido.csv
 py scripts/enrich_cidades.py     # produz dados_antigos_tratado_empresa_e_cidades.csv (em duas pastas)
 py api/database/seed_dados_antigos.py   # importa o CSV no banco
 ```
+
+> **Os 3 comandos são independentes entre si — não há encadeamento automático.** Nenhum deles chama os outros: `seed_dados_antigos.py` só lê o CSV que `enrich_cidades.py` já deve ter gerado em `pasta_seed/`. Rode **um por vez, na ordem acima, e confira a saída de cada etapa antes de seguir para a próxima**:
+>
+> 1. `enrich_cnpj.py` → confira `normalizacao_dados/nao_encontrados.csv` (empresas sem match). Casos importantes sem match podem precisar de override manual no dict `OVERRIDES` no topo do script, seguido de nova execução.
+> 2. `enrich_cidades.py` → confira `normalizacao_dados/mun_dados_antigos_not_find.csv` (municípios sem match). Município não encontrado vira `ORIGEM_IBGE`/`DESTINO_IBGE` vazio e pode fazer a linha ser pulada no seed.
+> 3. `seed_dados_antigos.py` → confira o resumo impresso no terminal (inseridas/puladas/duplicadas/erros) e os arquivos `seed_lancados.xlsx`/`seed_nao_lancados.xlsx` gerados na raiz.
+>
+> **Atenção:** `seed_dados_antigos.py` roda `TRUNCATE TABLE ouvidorias CASCADE` antes de inserir — apaga **todas** as ouvidorias existentes (e reclamações, respostas e anexos derivados) sem confirmação. Faça backup do banco antes de rodar o pipeline se os dados atuais importam. Linhas cujo `ASSUNTO` não tiver mapeamento em `normalizacao_dados/CATEGORIA NOVA X CATEGORIA ANTIGA.xlsx`, ou cuja empresa/município não tenha sido resolvido nas etapas anteriores, são puladas e listadas em `seed_nao_lancados.xlsx`. Veja [docs/seed_dados_antigos.md](../docs/seed_dados_antigos.md) para as regras de negócio completas (REGULAR vs FRETAMENTO, vínculo de autos, etc).
 
 ---
 
