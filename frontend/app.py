@@ -25,7 +25,7 @@ def pagina_login():
         st.subheader("Sistema de Ouvidorias da SUCOL")
         st.divider()
         with st.form("form_login"):
-            email = st.text_input("E-mail", placeholder="usuario@artesp.sp.gov.br")
+            email = st.text_input("Login", placeholder="seu_login")
             senha = st.text_input("Senha", type="password")
             entrar = st.form_submit_button("Entrar", use_container_width=True)
 
