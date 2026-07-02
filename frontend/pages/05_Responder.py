@@ -21,11 +21,10 @@ from api.client.ouvidoria_client import (
     atualizar_reclamacoes,
     carregar_ouvidoria_para_resposta_tecnica,
     deletar_resposta_permissionaria,
-    download_anexo,
     registrar_resposta_permissionaria,
     registrar_resposta_tecnica,
 )
-from components import reduz_margem_side_bar, reduz_margem_topo_page
+from components import reduz_margem_side_bar, reduz_margem_topo_page, secao_anexos
 from components.reclamacoes import secao_nova_reclamacao, secao_vincular_autos
 from utils.formatters import TC_REGIOES
 
@@ -161,18 +160,10 @@ tab_responder, tab_editar = st.tabs(["✍️ Responder", "✏️ Editar Ouvidori
 # Tab: Responder
 # ════════════════════════════════════════════════════════════════════════════
 with tab_responder:
-    # ── Anexos (somente leitura) ─────────────────────────────────────────────
-    if anexos_data:
-        with st.expander(f"Anexos ({len(anexos_data)})", expanded=False):
-            for an in anexos_data:
-                tamanho_kb = round(an["tamanho"] / 1024, 1) if an.get("tamanho") else "?"
-                st.download_button(
-                    f"📎 {an['nome_arquivo']} ({tamanho_kb} KB)",
-                    data=download_anexo(ouvidoria_id, an["id"]),
-                    file_name=an["nome_arquivo"],
-                    mime=an.get("tipo_mime") or "application/octet-stream",
-                    key=f"dl_anexo_{an['id']}",
-                )
+    # ── Anexos ─────────────────────────────────────────────────────────────
+    st.markdown(f"#### 📎 Anexos ({len(anexos_data)})")
+    secao_anexos(ouvidoria_id, anexos_data, key_prefix="resp_")
+    st.divider()
 
     # ── Verificar se já respondeu ─────────────────────────────────────────────
     todas_respostas = ouvidoria.get("respostas_tecnicas", [])

@@ -1,6 +1,5 @@
 """Detalhe, edição e ações sobre uma Ouvidoria específica."""
 
-import mimetypes
 import os
 import sys
 import uuid
@@ -20,16 +19,13 @@ from api.client.ouvidoria_client import (
     atribuir_tecnico,
     atualizar_prazo_permissionaria,
     concluir_ouvidoria,
-    delete_anexo,
-    download_anexo,
     editar_ouvidoria,
     excluir_ouvidoria,
-    add_anexo,
 )
 from api.client.base import API_PUBLIC_URL
 from utils import prazo_circle_label
 from utils.formatters import TC_REGIOES
-from components import reduz_margem_side_bar, reduz_margem_topo_page
+from components import reduz_margem_side_bar, reduz_margem_topo_page, secao_anexos
 
 st.set_page_config(page_title="Detalhe Ouvidoria", page_icon="🔍", layout="wide")
 st.markdown('<style>[data-testid="stSidebar"]{width:220px!important;min-width:220px!important;}</style>', unsafe_allow_html=True)
@@ -37,12 +33,6 @@ auth.require_auth()
 
 u = usuario_logado()
 reduz_margem_topo_page()
-
-ALLOWED_MIMES = {
-    "application/pdf",
-    "image/png", "image/jpeg", "image/gif", "image/bmp",
-    "video/mp4", "video/x-msvideo", "video/quicktime", "video/x-matroska", "video/webm",
-}
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 reduz_margem_side_bar()
@@ -235,42 +225,7 @@ with col_dir:
 
         st.divider()
         st.markdown("### 📎 Anexos")
-        if ouvidoria["anexos"]:
-            for an in ouvidoria["anexos"]:
-                tamanho_kb = round(an["tamanho"] / 1024, 1) if an.get("tamanho") else "?"
-                col_info, col_dl, col_del = st.columns([3, 1, 1])
-                col_info.write(f"📎 **{an['nome_arquivo']}** ({tamanho_kb} KB)")
-                col_dl.download_button(
-                    "⬇",
-                    data=download_anexo(ouvidoria_id, an["id"]),
-                    file_name=an["nome_arquivo"],
-                    mime=an.get("tipo_mime") or "application/octet-stream",
-                    key=f"dl_{an['id']}",
-                    use_container_width=True,
-                )
-                if u.get("tipo") == TIPO_USUARIO_GESTOR:
-                    if col_del.button("🗑", key=f"del_anexo_{an['id']}", use_container_width=True):
-                        delete_anexo(ouvidoria_id, an["id"])
-                        st.toast("Anexo excluído."); st.rerun()
-        else:
-            st.info("Nenhum anexo.")
-
-        if u.get("tipo") == TIPO_USUARIO_GESTOR:
-            with st.expander("➕ Adicionar Anexos"):
-                novos_anexos = st.file_uploader(
-                    "Selecione arquivos",
-                    accept_multiple_files=True,
-                    type=["pdf", "png", "jpg", "jpeg", "gif", "bmp", "mp4", "avi", "mov", "mkv", "webm"],
-                    key="det_upload", label_visibility="collapsed",
-                )
-                if novos_anexos and st.button("📤 Enviar", use_container_width=True):
-                    for arq in novos_anexos:
-                        mime = arq.type or mimetypes.guess_type(arq.name)[0] or ""
-                        if mime not in ALLOWED_MIMES:
-                            st.error(f"Arquivo '{arq.name}' não é um tipo permitido.")
-                            continue
-                        add_anexo(ouvidoria_id, arq.getbuffer().tobytes(), arq.name, arq.type)
-                    st.success("Anexos enviados."); st.rerun()
+        secao_anexos(ouvidoria_id, ouvidoria["anexos"], key_prefix="det_")
 
 # ── Ações finais (gestor) ──────────────────────────────────────────────────
 st.divider()
