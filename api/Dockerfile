@@ -12,9 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY api/requirements.txt ./api/requirements.txt
 RUN pip install --no-cache-dir -r api/requirements.txt
 
-# Copia codigo (api/ + utils/ compartilhado)
+# Copia codigo (api/ + utils/ + storage_remoto/ compartilhado)
 COPY api/ ./api/
 COPY utils/ ./utils/
+COPY storage_remoto/ ./storage_remoto/
 
 # Cria diretorio de uploads (sera sobreposto por volume em runtime)
 RUN mkdir -p /data/uploads
