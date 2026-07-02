@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from api import storage
 from api.deps import usuario_corrente, requer_gestor
@@ -225,7 +225,7 @@ async def upload_anexo(
     if arquivo.content_type not in _ALLOWED_MIMES:
         raise HTTPException(status_code=422, detail=f"Tipo de arquivo não permitido: {arquivo.content_type}")
     conteudo = await arquivo.read()
-    nome_storage = storage.save_bytes(conteudo, arquivo.filename or "arquivo")
+    nome_storage = storage.save_bytes(conteudo, arquivo.filename or "arquivo", arquivo.content_type or "application/octet-stream")
     from api.repositories.ouvidoria_write_repo import add_anexos
     add_anexos(ouvidoria_id, [{
         "nome_arquivo": arquivo.filename or nome_storage,
@@ -248,10 +248,11 @@ def download_anexo(
         raise HTTPException(status_code=404, detail="Anexo não encontrado")
     if not storage.exists(anexo["nome_storage"]):
         raise HTTPException(status_code=410, detail="Arquivo não disponível no storage")
-    return FileResponse(
-        path=storage.path_for(anexo["nome_storage"]),
-        media_type=anexo["tipo_mime"],
-        filename=anexo["nome_arquivo"],
+    conteudo = storage.get_bytes(anexo["nome_storage"])
+    return Response(
+        content=conteudo,
+        media_type=anexo["tipo_mime"] or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{anexo["nome_arquivo"]}"'},
     )
 
 
