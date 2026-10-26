@@ -6,6 +6,11 @@ WORKDIR /app
 COPY frontend/requirements.txt ./frontend/requirements.txt
 RUN pip install --no-cache-dir -r frontend/requirements.txt
 
+# Streamlit serve <html lang="en"> e o Chrome traduz a interface sozinho,
+# alucinando os termos do dominio ("Ouvidoria" -> "sandoria"/"Oleoria").
+COPY frontend/patch_notranslate.py ./frontend/patch_notranslate.py
+RUN python frontend/patch_notranslate.py
+
 # Copia codigo do frontend + dependencias compartilhadas
 COPY frontend/ ./frontend/
 COPY utils/ ./utils/
