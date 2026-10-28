@@ -132,8 +132,8 @@ metadata:
   name: $APPLICATION_NAME_UI
   namespace: $K8S_NAMESPACE
   annotations:
-    # padrao do nginx e 1m; 200m e o limite de upload do streamlit
-    nginx.ingress.kubernetes.io/proxy-body-size: "200m"
+    # padrao do nginx e 1m; anexos vao ate 10 MB (MAX_UPLOAD_MB) + folga do multipart
+    nginx.ingress.kubernetes.io/proxy-body-size: "12m"
 spec:
   ingressClassName: nginx
   rules:

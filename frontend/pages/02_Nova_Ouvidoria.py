@@ -15,6 +15,7 @@ from api.client.enums import STATUS_AGUARDANDO_ACOES, STATUS_AGUARDANDO_PERMISSI
 from api.client.ouvidoria_client import add_anexo
 from api.client.base import post
 from components import reduz_margem_side_bar, reduz_margem_topo_page
+from components.anexos import MAX_UPLOAD_MB
 from components.reclamacoes import secao_nova_reclamacao, secao_vincular_autos
 
 st.set_page_config(page_title="Nova Ouvidoria", page_icon="➕", layout="wide")
@@ -75,9 +76,10 @@ if enviado_permissionaria:
 
 st.markdown("#### Anexos")
 arquivos_upload = st.file_uploader(
-    "Anexar arquivos (PDF, fotos ou vídeos)",
+    f"Anexar arquivos (PDF, fotos ou vídeos) — máximo de {MAX_UPLOAD_MB} MB por arquivo",
     accept_multiple_files=True,
     type=["pdf", "png", "jpg", "jpeg", "gif", "bmp", "mp4", "avi", "mov", "mkv", "webm"],
+    max_upload_size=MAX_UPLOAD_MB,
 )
 
 st.divider()

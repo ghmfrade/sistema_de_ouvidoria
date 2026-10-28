@@ -13,6 +13,7 @@ ALLOWED_MIMES = {
     "video/mp4", "video/x-msvideo", "video/quicktime", "video/x-matroska", "video/webm",
 }
 ALLOWED_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "gif", "bmp", "mp4", "avi", "mov", "mkv", "webm"]
+MAX_UPLOAD_MB = 10
 
 
 def _nome_download(nome: str) -> str:
@@ -49,10 +50,12 @@ def secao_anexos(ouvidoria_id: int, anexos: list[dict], key_prefix: str) -> None
         st.info("Nenhum anexo.")
 
     with st.expander("➕ Adicionar Anexos"):
+        st.caption(f"Tamanho máximo: {MAX_UPLOAD_MB} MB por arquivo.")
         novos_anexos = st.file_uploader(
             "Selecione arquivos",
             accept_multiple_files=True,
             type=ALLOWED_EXTENSIONS,
+            max_upload_size=MAX_UPLOAD_MB,
             key=f"{key_prefix}upload", label_visibility="collapsed",
         )
         if novos_anexos and st.button("📤 Enviar", key=f"{key_prefix}enviar_anexos", use_container_width=True):
