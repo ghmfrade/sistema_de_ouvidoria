@@ -135,6 +135,8 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/use-regex: "true"
+    # padrao do nginx e 1m; anexos vao ate 10 MB (MAX_UPLOAD_MB) + folga do multipart
+    nginx.ingress.kubernetes.io/proxy-body-size: "12m"
 spec:
   ingressClassName: nginx
   rules:
