@@ -161,3 +161,16 @@ def estiliza_tabela_usuarios():
     }
     </style>
     """, unsafe_allow_html=True)
+
+def afasta_erro_upload():
+    # O tooltip de erro do file_uploader (ex.: arquivo acima do limite) abre
+    # em cima do arquivo e esconde o X de remover. Sobe o tooltip e deixa o
+    # clique passar.
+    st.markdown("""
+    <style>
+    div[data-baseweb="tooltip"]:has([data-testid="stTooltipErrorContent"]) {
+        translate: 0 -3.5rem;
+        pointer-events: none;
+    }
+    </style>
+    """, unsafe_allow_html=True)

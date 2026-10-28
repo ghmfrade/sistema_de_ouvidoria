@@ -14,7 +14,7 @@ from auth import usuario_logado
 from api.client.enums import STATUS_AGUARDANDO_ACOES, STATUS_AGUARDANDO_PERMISSIONARIA
 from api.client.ouvidoria_client import add_anexo
 from api.client.base import post
-from components import reduz_margem_side_bar, reduz_margem_topo_page
+from components import afasta_erro_upload, reduz_margem_side_bar, reduz_margem_topo_page
 from components.anexos import MAX_UPLOAD_MB
 from components.reclamacoes import secao_nova_reclamacao, secao_vincular_autos
 
@@ -75,6 +75,7 @@ if enviado_permissionaria:
     prazo_permissionaria = st.date_input("Prazo de resposta da permissionária", value=date.today() + timedelta(days=30), format="DD/MM/YYYY")
 
 st.markdown("#### Anexos")
+afasta_erro_upload()
 arquivos_upload = st.file_uploader(
     f"Anexar arquivos (PDF, fotos ou vídeos) — máximo de {MAX_UPLOAD_MB} MB por arquivo",
     accept_multiple_files=True,

@@ -6,6 +6,7 @@ import unicodedata
 import streamlit as st
 
 from api.client.ouvidoria_client import add_anexo, delete_anexo, download_anexo
+from .estilo_css import afasta_erro_upload
 
 ALLOWED_MIMES = {
     "application/pdf",
@@ -51,6 +52,7 @@ def secao_anexos(ouvidoria_id: int, anexos: list[dict], key_prefix: str) -> None
 
     with st.expander("➕ Adicionar Anexos"):
         st.caption(f"Tamanho máximo: {MAX_UPLOAD_MB} MB por arquivo.")
+        afasta_erro_upload()
         novos_anexos = st.file_uploader(
             "Selecione arquivos",
             accept_multiple_files=True,
