@@ -4,6 +4,7 @@ Uso nas pages Streamlit:
     from api.client.base import get, post, patch, delete, ApiError
 """
 import os
+import time
 from typing import Any
 
 import httpx
@@ -15,6 +16,9 @@ load_dotenv()
 API_BASE = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000")
 API_PUBLIC_URL = os.environ.get("API_PUBLIC_URL", API_BASE)
 _TIMEOUT = 20.0
+# Renova o token quando faltar menos que isso para expirar. Deve ser menor que
+# JWT_EXPIRE_MINUTES da API (padrão 120), senão renova a cada requisição.
+_RENOVAR_ANTES_S = 60 * 60
 
 
 class ApiError(Exception):
@@ -29,6 +33,13 @@ def _token() -> str:
     if not sess or "token" not in sess:
         st.session_state.pop("api_session", None)
         st.rerun()
+    if sess.get("expira_em", 0) - time.time() < _RENOVAR_ANTES_S:
+        from api.client.auth_client import renovar
+        try:
+            sess = renovar(sess["token"])
+            st.session_state["api_session"] = sess
+        except (ApiError, httpx.HTTPError):
+            pass  # segue com o token atual; se já expirou, o 401 leva ao login
     return sess["token"]
 
 
@@ -41,6 +52,7 @@ def _raise_if_error(r: httpx.Response) -> None:
         if r.status_code == 401:
             # Token expirado ou inválido — limpa sessão e volta para o login
             st.session_state.pop("api_session", None)
+            st.session_state["_limpar_cookie"] = True
             st.rerun()
         try:
             detail = r.json().get("detail", r.text)

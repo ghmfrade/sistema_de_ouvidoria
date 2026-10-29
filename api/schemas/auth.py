@@ -8,6 +8,7 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     token: str
+    expira_em: int  # epoch do `exp` do token, para o frontend saber quando renovar
     usuario_id: int
     nome: str
     tipo: str

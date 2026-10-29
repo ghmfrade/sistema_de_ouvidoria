@@ -134,6 +134,9 @@ metadata:
   annotations:
     # padrao do nginx e 1m; anexos vao ate 10 MB (MAX_UPLOAD_MB) + folga do multipart
     nginx.ingress.kubernetes.io/proxy-body-size: "12m"
+    # padrao e 60s; o websocket do streamlit ocioso caia e a sessao se perdia
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   ingressClassName: nginx
   rules:
