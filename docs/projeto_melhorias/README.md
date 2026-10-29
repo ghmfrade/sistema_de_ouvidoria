@@ -20,8 +20,9 @@ Estado em [STATUS.md](STATUS.md); histórico em `revisoes/`.
 | T02 | Ouvidoria sai da tela do técnico depois que ele responde; gestor pode devolver para complementação | [tasks/T02_tecnico_sai_apos_responder.md](tasks/T02_tecnico_sai_apos_responder.md) |
 | T03 | Técnico pode inserir, alterar e apagar o prazo da permissionária | [tasks/T03_tecnico_prazo_permissionaria.md](tasks/T03_tecnico_prazo_permissionaria.md) |
 | T04 | Lista de ouvidorias: trocar Coord./Gerência por Assuntos | [tasks/T04_coluna_assuntos.md](tasks/T04_coluna_assuntos.md) |
+| T05 | Lista de ouvidorias: remover, ver quem respondeu e devolver técnico no popover 👤 | [tasks/T05_popover_tecnicos_lista.md](tasks/T05_popover_tecnicos_lista.md) |
 
-As tasks são sequenciais (T02 e T04 mexem na mesma página que T01/T03).
+As tasks são sequenciais (T02 e T04 mexem na mesma página que T01/T03; T05 mexe na mesma página que T04).
 
 ## Decisões de projeto
 
@@ -41,6 +42,9 @@ As tasks são sequenciais (T02 e T04 mexem na mesma página que T01/T03).
    (página 03, em "Já responderam"): a atribuição volta a `respondido=False` e o status a `Em análise técnica`.
    Pode se repetir; cada resposta é uma linha nova em `respostas_tecnicas`. Mudar o status para `Em análise técnica`
    sem nenhum técnico pendente reabre todos os que responderam (mantém o hábito atual do gestor).
+
+7. **Popover 👤 da lista (T05)** segue as mesmas regras da página 03 para remover/devolver/atribuir. Símbolos:
+   ⏳ aguardando, ✅ respondeu, 🗑 remover, 🔄 devolver, ✔️ confirmar atribuição. A página 03 não muda.
 
 ## Como os testes rodam
 `.venv/Scripts/python.exe -m pytest <arquivos> -q --tb=short` — os testes usam o banco de dev do `.env`

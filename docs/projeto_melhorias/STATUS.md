@@ -8,3 +8,4 @@ Atualizado pelo orquestrador. Valores: `PENDENTE`, `EM EXECUÇÃO (tentativa N)`
 | T02 | APROVADA | 1 | .env ainda aponta para 13515 (inexistente) |
 | T03 | PENDENTE | 0 | |
 | T04 | PENDENTE | 0 | |
+| T05 | APROVADA | 1 | Largura do popover via CSS (stPopoverBody); não conferido visualmente na 1.58 |

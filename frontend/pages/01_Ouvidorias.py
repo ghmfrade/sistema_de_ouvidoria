@@ -21,6 +21,7 @@ from api.client.catalogo_client import carregar_categorias, carregar_subcategori
 from api.client.ouvidoria_client import (
     listar_ouvidorias, atribuir_tecnico, editar_ouvidoria,
     concluir_ouvidoria, excluir_ouvidoria,
+    remover_tecnico, devolver_ao_tecnico,
 )
 from api.client.base import API_PUBLIC_URL
 
@@ -33,6 +34,13 @@ st.set_page_config(page_title="Ouvidorias", page_icon="📋", layout="wide")
 reduz_margem_topo_page()
 reduz_gap_elementos_body()
 auth.require_auth()
+
+# Painel dos popovers mais largo (nome do técnico + botão na mesma linha).
+# st.popover(width=) só controla o botão, não o painel; o CSS vale para todos os popovers da página.
+st.markdown(
+    "<style>[data-testid='stPopoverBody']{min-width:min(420px,90vw);}</style>",
+    unsafe_allow_html=True,
+)
 
 st.session_state.setdefault("ov_cache_buster", 0)
 u = usuario_logado()
@@ -234,18 +242,50 @@ else:
         if u.get("tipo") == TIPO_USUARIO_GESTOR:
             with cols[8]:
                 with st.popover("👤"):
-                    if todos_tecs:
-                        tec_nomes = [n for _, n in todos_tecs]
-                        tec_sel = st.selectbox("Técnico", tec_nomes, key=f"atr_tec_{o['id']}")
-                        tec_id = {n: tid for tid, n in todos_tecs}.get(tec_sel)
-                        if st.button("Atribuir", key=f"atr_btn_{o['id']}"):
+                    st.write("**Técnicos responsáveis**")
+                    atribuicoes_ordenadas = (
+                        [a for a in o["atribuicoes"] if not a.get("respondido")]
+                        + [a for a in o["atribuicoes"] if a.get("respondido")]
+                    )
+                    if not atribuicoes_ordenadas:
+                        st.caption("Nenhum técnico atribuído.")
+                    for a in atribuicoes_ordenadas:
+                        tid = a["tecnico_id"]
+                        col_nome, col_acao = st.columns([5, 1])
+                        if not a.get("respondido"):
+                            col_nome.write(f"⏳ {a['tecnico_nome']}")
+                            if col_acao.button("🗑", key=f"rem_tec_{o['id']}_{tid}", help="Remover técnico"):
+                                remover_tecnico(o["id"], tid)
+                                st.toast("Técnico removido.")
+                                st.session_state["ov_cache_buster"] += 1; st.rerun()
+                        else:
+                            col_nome.write(f"✅ {a['tecnico_nome']}")
+                            if status_str != STATUS_CONCLUIDO and col_acao.button(
+                                "🔄", key=f"dev_tec_{o['id']}_{tid}", help="Devolver para complementação"
+                            ):
+                                devolver_ao_tecnico(o["id"], tid)
+                                st.toast("Ouvidoria devolvida ao técnico.")
+                                st.session_state["ov_cache_buster"] += 1; st.rerun()
+
+                    st.divider()
+                    st.write("**Atribuir técnico**")
+                    ids_pendentes = {a["tecnico_id"] for a in o["atribuicoes"] if not a.get("respondido")}
+                    tecs_disponiveis = [(tid, n) for tid, n in todos_tecs if tid not in ids_pendentes]
+                    if tecs_disponiveis:
+                        col_sel, col_ok = st.columns([5, 1])
+                        tec_nomes = [n for _, n in tecs_disponiveis]
+                        tec_sel = col_sel.selectbox(
+                            "Técnico", tec_nomes, key=f"atr_tec_{o['id']}", label_visibility="collapsed"
+                        )
+                        tec_id = {n: tid for tid, n in tecs_disponiveis}.get(tec_sel)
+                        if col_ok.button("✔️", key=f"atr_btn_{o['id']}", help="Atribuir técnico"):
                             if atribuir_tecnico(o["id"], tec_id):
                                 st.toast(f"Técnico {tec_sel} atribuído!", icon="✅")
                                 st.session_state["ov_cache_buster"] += 1; st.rerun()
                             else:
                                 st.warning("Técnico já atribuído.")
                     else:
-                        st.write("Nenhum técnico disponível.")
+                        st.caption("Nenhum técnico disponível.")
 
         with cols[9]:
             with st.popover("🛠️"):
