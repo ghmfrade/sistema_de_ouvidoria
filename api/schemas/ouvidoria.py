@@ -114,6 +114,8 @@ class OuvidoriaResumoSchema(BaseModel):
     criado_em: datetime | None = None
     concluido_em: datetime | None = None
     atribuicoes: list[AtribuicaoTecnicoSchema] = []
+    assuntos: list[str] = []
+    marcacao: str | None = None
 
     model_config = {"from_attributes": True}
 

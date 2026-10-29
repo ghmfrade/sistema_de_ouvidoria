@@ -100,6 +100,12 @@ def patch(path: str, json: dict | None = None) -> Any:
     return r.json()
 
 
+def put(path: str, json: dict | None = None) -> Any:
+    r = httpx.put(f"{API_BASE}{path}", headers=_headers(), json=json, timeout=_TIMEOUT)
+    _raise_if_error(r)
+    return r.json()
+
+
 def delete(path: str) -> Any:
     r = httpx.delete(f"{API_BASE}{path}", headers=_headers(), timeout=_TIMEOUT)
     _raise_if_error(r)

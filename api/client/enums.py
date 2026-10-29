@@ -23,3 +23,9 @@ TIPO_SERVICO = [
 
 TIPO_USUARIO_GESTOR  = "gestor"
 TIPO_USUARIO_TECNICO = "tecnico"
+
+CORES_MARCACAO = ["vermelho", "laranja", "amarelo", "verde", "azul", "roxo", "marrom"]
+EMOJI_COR = {
+    "vermelho": "🔴", "laranja": "🟠", "amarelo": "🟡", "verde": "🟢",
+    "azul": "🔵", "roxo": "🟣", "marrom": "🟤",
+}

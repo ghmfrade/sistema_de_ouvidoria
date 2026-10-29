@@ -170,6 +170,13 @@ class OuvidoriaResumoDict(TypedDict):
     criado_em: datetime | None
     concluido_em: datetime | None
     atribuicoes: list[OuvidoriaTecnicoDict]
+    assuntos: list[str]     # categorias das reclamações, na ordem do item, sem repetição
+    marcacao: str | None    # cor marcada pelo usuário logado (CorMarcacao.value)
+
+
+class LegendaItemDict(TypedDict):
+    cor: str
+    rotulo: str             # "" quando o usuário não nomeou a cor
 
 
 class OuvidoriaDetalheDict(TypedDict):

@@ -21,8 +21,11 @@ Estado em [STATUS.md](STATUS.md); histórico em `revisoes/`.
 | T03 | Técnico pode inserir, alterar e apagar o prazo da permissionária | [tasks/T03_tecnico_prazo_permissionaria.md](tasks/T03_tecnico_prazo_permissionaria.md) |
 | T04 | Lista de ouvidorias: trocar Coord./Gerência por Assuntos | [tasks/T04_coluna_assuntos.md](tasks/T04_coluna_assuntos.md) |
 | T05 | Lista de ouvidorias: remover, ver quem respondeu e devolver técnico no popover 👤 | [tasks/T05_popover_tecnicos_lista.md](tasks/T05_popover_tecnicos_lista.md) |
+| T06 | Marcação por cores: banco e API (cor por ouvidoria por login + legenda) | [tasks/T06_marcacao_cores_api.md](tasks/T06_marcacao_cores_api.md) |
+| T07 | Marcação por cores: coluna, filtro e popover 🎨 Legenda na lista | [tasks/T07_marcacao_cores_lista.md](tasks/T07_marcacao_cores_lista.md) |
 
-As tasks são sequenciais (T02 e T04 mexem na mesma página que T01/T03; T05 mexe na mesma página que T04).
+As tasks são sequenciais (T02 e T04 mexem na mesma página que T01/T03; T05 mexe na mesma página que T04;
+T07 depende da T04 e da T06).
 
 ## Decisões de projeto
 
@@ -45,6 +48,11 @@ As tasks são sequenciais (T02 e T04 mexem na mesma página que T01/T03; T05 mex
 
 7. **Popover 👤 da lista (T05)** segue as mesmas regras da página 03 para remover/devolver/atribuir. Símbolos:
    ⏳ aguardando, ✅ respondeu, 🗑 remover, 🔄 devolver, ✔️ confirmar atribuição. A página 03 não muda.
+8. **Marcação por cores (T06/T07).** O login do técnico é compartilhado por um núcleo; a cor é escolhida à mão
+   (o sistema não sabe qual pessoa clicou). Uma cor por ouvidoria **por login**, visível só para esse login;
+   legenda (nome de cada cor) também por login. Paleta fixa de 7 cores. A marcação fica numa tabela própria,
+   independente de `ouvidoria_tecnicos`: não se perde ao responder, devolver, remover/reatribuir técnico ou
+   concluir — só com "sem cor" ou exclusão da ouvidoria. Sem índice/dashboard por pessoa. Só na página 01.
 
 ## Como os testes rodam
 `.venv/Scripts/python.exe -m pytest <arquivos> -q --tb=short` — os testes usam o banco de dev do `.env`

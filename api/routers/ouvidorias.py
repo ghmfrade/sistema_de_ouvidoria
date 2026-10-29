@@ -12,6 +12,11 @@ from api.schemas.ouvidoria import (
     AtualizarReclamacoesRequest, RegistrarRespostaPermissionariaRequest,
     OuvidoriaIdResponse, RespostaTecnicaConcluidaResponse,
 )
+from api.schemas.marcacao import DefinirMarcacaoRequest
+from api.repositories.marcacao_repo import (
+    definir_marcacao as _definir_marcacao,
+    remover_marcacao as _remover_marcacao,
+)
 from api.repositories.ouvidoria_repo import (
     get_ouvidorias, get_ouvidoria_completa, get_id_por_protocolo,
     get_ouvidoria_permissionaria, get_atribuicao_tecnico, get_respostas_tecnico,
@@ -35,7 +40,7 @@ def listar_ouvidorias(
     filtro_subcategoria_id: Optional[int] = None,
     filtro_tipo_servico: Optional[str] = None,
     filtrar_apenas_atribuidas: bool = True,
-    _=Depends(usuario_corrente),
+    payload: dict = Depends(usuario_corrente),
 ):
     return get_ouvidorias(
         filtro_status=filtro_status,
@@ -48,6 +53,7 @@ def listar_ouvidorias(
         filtro_subcategoria_id=filtro_subcategoria_id,
         filtro_tipo_servico=filtro_tipo_servico,
         filtrar_apenas_atribuidas=filtrar_apenas_atribuidas,
+        marcador_usuario_id=int(payload["sub"]),
     )
 
 
@@ -123,6 +129,20 @@ def editar_ouvidoria(
     return {"ok": True}
 
 
+@router.put("/{ouvidoria_id}/marcacao")
+def definir_marcacao(ouvidoria_id: int, body: DefinirMarcacaoRequest,
+                     payload: dict = Depends(usuario_corrente)):
+    if not _definir_marcacao(ouvidoria_id, int(payload["sub"]), body.cor.value):
+        raise HTTPException(status_code=404, detail="Ouvidoria não encontrada")
+    return {"ok": True}
+
+
+@router.delete("/{ouvidoria_id}/marcacao")
+def remover_marcacao(ouvidoria_id: int, payload: dict = Depends(usuario_corrente)):
+    _remover_marcacao(ouvidoria_id, int(payload["sub"]))
+    return {"ok": True}
+
+
 @router.delete("/{ouvidoria_id}")
 def excluir_ouvidoria(ouvidoria_id: int, _=Depends(requer_gestor)):
     from api.repositories.ouvidoria_write_repo import excluir_ouvidoria as _excluir
@@ -179,7 +199,7 @@ def devolver_ao_tecnico(ouvidoria_id: int, tecnico_id: int, _=Depends(requer_ges
 def atualizar_prazo_permissionaria(
     ouvidoria_id: int,
     body: AtualizarPrazoPermissionariaRequest,
-    _=Depends(requer_gestor),
+    _=Depends(usuario_corrente),
 ):
     from api.repositories.ouvidoria_write_repo import atualizar_prazo_permissionaria as _prazo
     _prazo(ouvidoria_id, body.prazo)

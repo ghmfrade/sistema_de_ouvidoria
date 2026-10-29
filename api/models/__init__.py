@@ -14,6 +14,7 @@ from .resposta_permissionaria import RespostaPermissionaria
 from .anexo_ouvidoria import AnexoOuvidoria
 from .trecho_auto_linha import TrechoAutoLinha
 from .municipio import Municipio
+from .marcacao import CorMarcacao, OuvidoriaMarcacao, MarcadorLegenda
 
 __all__ = [
     "Base",
@@ -36,4 +37,7 @@ __all__ = [
     "AnexoOuvidoria",
     "TrechoAutoLinha",
     "Municipio",
+    "CorMarcacao",
+    "OuvidoriaMarcacao",
+    "MarcadorLegenda",
 ]

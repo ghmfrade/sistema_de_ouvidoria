@@ -1,5 +1,6 @@
 """Lista de Ouvidorias – visão geral com filtros."""
 
+import html
 import os
 import sys
 from datetime import date
@@ -15,13 +16,16 @@ from api.client.enums import (
     STATUS_CONCLUIDO, STATUS_RETORNO_TECNICO,
     STATUS_EM_ANALISE_TECNICA, STATUS_AGUARDANDO_ACOES,
     STATUS_AGUARDANDO_PERMISSIONARIA,
-    TIPO_USUARIO_GESTOR,
+    TIPO_USUARIO_GESTOR, CORES_MARCACAO, EMOJI_COR,
 )
 from api.client.catalogo_client import carregar_categorias, carregar_subcategorias, carregar_tecnicos_disponiveis
 from api.client.ouvidoria_client import (
     listar_ouvidorias, atribuir_tecnico, editar_ouvidoria,
     concluir_ouvidoria, excluir_ouvidoria,
     remover_tecnico, devolver_ao_tecnico,
+)
+from api.client.marcacao_client import (
+    definir_marcacao, remover_marcacao, carregar_legenda, salvar_legenda,
 )
 from api.client.base import API_PUBLIC_URL
 
@@ -54,16 +58,15 @@ STATUS_EMOJI = {
 }
 
 
-def _coord_ger(atribuicoes: list) -> str:
-    partes = set()
-    for a in atribuicoes:
-        c = a.get("coordenacao_nome") or ""
-        g = a.get("gerencia_nome") or ""
-        if c:
-            partes.add(c)
-        elif g:
-            partes.add(g)
-    return ", ".join(sorted(partes)) or "–"
+def _assuntos_html(assuntos: list) -> str:
+    """Um assunto por linha; o que não couber na largura termina com reticências."""
+    if not assuntos:
+        return "–"
+    estilo = "white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+    return "".join(
+        f'<div style="{estilo}" title="{html.escape(a, quote=True)}">{html.escape(a)}</div>'
+        for a in assuntos
+    )
 
 
 def _responsaveis(atribuicoes: list) -> str:
@@ -71,6 +74,14 @@ def _responsaveis(atribuicoes: list) -> str:
         a["tecnico_nome"] for a in atribuicoes
         if a.get("tecnico_nome") and not a.get("respondido")
     ) or "–"
+
+
+_legenda = {i["cor"]: i["rotulo"] for i in carregar_legenda(cache_buster=st.session_state["ov_cache_buster"])}
+
+
+def _rotulo_cor(cor: str) -> str:
+    """'🔴 Ana' quando a cor tem nome na legenda; '🔴 vermelho' quando não."""
+    return f"{EMOJI_COR[cor]} {_legenda.get(cor) or cor}"
 
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
@@ -84,9 +95,29 @@ with st.sidebar:
         st.rerun()
 
 # ── Filtros ──────────────────────────────────────────────────────────────────
-_col_tit, _col_tipo = st.columns([2, 2])
+_col_tit, _col_cor, _col_leg, _col_tipo = st.columns([1.6, 1.2, 0.6, 1.6])
 with _col_tit:
     st.title("📋 Ouvidorias")
+with _col_cor:
+    st.write("")
+    _opcoes_cor = [("", "Todas as cores")] + [(c, _rotulo_cor(c)) for c in CORES_MARCACAO] + [("sem", "⬜ Sem cor")]
+    _sel_cor = st.selectbox("Cor", _opcoes_cor, format_func=lambda x: x[1], label_visibility="collapsed")
+    _filtro_cor = _sel_cor[0]
+with _col_leg:
+    st.write("")
+    with st.popover("🎨 Legenda"):
+        st.caption("Dê um nome a cada cor. Vale para todos que usam este login.")
+        for cor in CORES_MARCACAO:
+            st.text_input(EMOJI_COR[cor], value=_legenda.get(cor, ""), max_chars=40, key=f"leg_{cor}")
+        if st.button("💾 Salvar", key="leg_salvar"):
+            try:
+                salvar_legenda([
+                    {"cor": cor, "rotulo": st.session_state.get(f"leg_{cor}", "").strip()}
+                    for cor in CORES_MARCACAO
+                ])
+                st.session_state["ov_cache_buster"] += 1; st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao salvar legenda: {e}")
 with _col_tipo:
     st.write("")
     _opcoes_tipo = [("", "Todos os Tipos")] + [(ts, ts) for ts in TIPO_SERVICO]
@@ -141,6 +172,11 @@ ouvidorias = listar_ouvidorias(
     cache_buster=st.session_state["ov_cache_buster"],
 )
 
+if _filtro_cor == "sem":
+    ouvidorias = [o for o in ouvidorias if o.get("marcacao") is None]
+elif _filtro_cor:
+    ouvidorias = [o for o in ouvidorias if o.get("marcacao") == _filtro_cor]
+
 st.divider()
 
 # ── Paginação ─────────────────────────────────────────────────────────────────
@@ -148,7 +184,7 @@ st.session_state.setdefault("pag_atual", 1)
 st.session_state.setdefault("por_pagina", 15)
 st.session_state.setdefault("filtros_hash_anterior", None)
 
-filtros_hash = hash((_filtro_cat_id, _filtro_sub_id, _filtro_tipo, ocultar_concluidos,
+filtros_hash = hash((_filtro_cat_id, _filtro_sub_id, _filtro_tipo, _filtro_cor, ocultar_concluidos,
                      usar_periodo, data_ini if usar_periodo else None, data_fim if usar_periodo else None))
 if st.session_state.filtros_hash_anterior != filtros_hash:
     st.session_state.pag_atual = 1
@@ -192,9 +228,9 @@ if ouvidorias:
 if not ouvidorias:
     st.info("Nenhuma ouvidoria encontrada com os filtros aplicados.")
 else:
-    col_sizes = [1.1, 1.6, 2.5, 1, 2.5, 2.5, 1.4, 1.4, 0.7, 0.7]
-    headers = ["**#**", "**Entrada**", "**Protocolo**", "**Status**",
-               "**Coord./Gerência**", "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**", "", ""]
+    col_sizes = [0.6, 1.1, 1.6, 2.5, 1, 3.0, 1.8, 1.0, 1.4, 0.7, 0.7]
+    headers = ["**Cor**", "**#**", "**Entrada**", "**Protocolo**", "**Status**",
+               "**Assuntos**", "**Responsáveis**", "**Prazo Perm.**", "**Prazo Resp.**", "", ""]
     cols_h = st.columns(col_sizes)
     for idx, h in enumerate(headers):
         if h:
@@ -215,11 +251,31 @@ else:
         pode_concluir = status_str == STATUS_RETORNO_TECNICO
 
         cols = st.columns(col_sizes)
-        cols[0].write(o["id"])
-        cols[1].write(entrada)
-        cols[2].write(o["protocolo"])
+        cor_atual = o.get("marcacao")
+        with cols[0].popover(
+            EMOJI_COR[cor_atual] if cor_atual else "⬜", use_container_width=True,
+            help=_rotulo_cor(cor_atual) if cor_atual else "Sem cor",
+        ):
+            for cor in CORES_MARCACAO:
+                if st.button(_rotulo_cor(cor), key=f"cor_{o['id']}_{cor}",
+                             type="primary" if cor == cor_atual else "secondary"):
+                    try:
+                        definir_marcacao(o["id"], cor)
+                        st.session_state["ov_cache_buster"] += 1; st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao marcar: {e}")
+            if st.button("✖ Sem cor", key=f"cor_{o['id']}_nenhuma", disabled=not cor_atual):
+                try:
+                    remover_marcacao(o["id"])
+                    st.session_state["ov_cache_buster"] += 1; st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao remover cor: {e}")
 
-        with cols[3].popover(emoji_status, use_container_width=True, help=status_label):
+        cols[1].write(o["id"])
+        cols[2].write(entrada)
+        cols[3].write(o["protocolo"])
+
+        with cols[4].popover(emoji_status, use_container_width=True, help=status_label):
             if u.get("tipo") == TIPO_USUARIO_GESTOR:
                 st.write("**Alterar Status**")
                 novo_status_str = st.selectbox("Novo status:", options=STATUS_OUVIDORIA,
@@ -231,16 +287,16 @@ else:
             else:
                 st.write(status_label)
 
-        cols[4].write(_coord_ger(o["atribuicoes"]))
-        cols[5].write(_responsaveis(o["atribuicoes"]))
+        cols[5].markdown(_assuntos_html(o.get("assuntos") or []), unsafe_allow_html=True)
+        cols[6].write(_responsaveis(o["atribuicoes"]))
         if perm_tip:
-            cols[6].button(perm_label, key=f"pperm_{o['id']}", disabled=True, help=perm_tip)
+            cols[7].button(perm_label, key=f"pperm_{o['id']}", disabled=True, help=perm_tip)
         else:
-            cols[6].write(perm_label)
-        cols[7].button(resp_label, key=f"presp_{o['id']}", disabled=True, help=resp_tip)
+            cols[7].write(perm_label)
+        cols[8].button(resp_label, key=f"presp_{o['id']}", disabled=True, help=resp_tip)
 
         if u.get("tipo") == TIPO_USUARIO_GESTOR:
-            with cols[8]:
+            with cols[9]:
                 with st.popover("👤"):
                     st.write("**Técnicos responsáveis**")
                     atribuicoes_ordenadas = (
@@ -287,7 +343,7 @@ else:
                     else:
                         st.caption("Nenhum técnico disponível.")
 
-        with cols[9]:
+        with cols[10]:
             with st.popover("🛠️"):
                 st.link_button(
                     "📋 Resumo da Ouvidoria",

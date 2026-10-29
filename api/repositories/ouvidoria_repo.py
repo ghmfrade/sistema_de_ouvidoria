@@ -17,6 +17,7 @@ from api.models import (
     TipoUsuario,
     Usuario,
 )
+from api.repositories.marcacao_repo import get_marcacoes_usuario
 from api.repositories.types import (
     AnexoDict,
     AtribuicaoScalarDict,
@@ -249,13 +250,23 @@ def get_id_por_protocolo(protocolo: str) -> int | None:
         return row[0] if row else None
 
 
+def _assuntos(o: Ouvidoria) -> list[str]:
+    """Nomes das categorias das reclamações, na ordem do item, sem repetição."""
+    nomes: list[str] = []
+    for r in sorted(o.reclamacoes, key=lambda rec: rec.numero_item):
+        if r.categoria and r.categoria.nome not in nomes:
+            nomes.append(r.categoria.nome)
+    return nomes
+
+
 def get_ouvidorias(filtro_status=None, filtro_de=None, filtro_ate=None,
                    ocultar_concluidos=True,
                    usuario_id: int | None = None, usuario_tipo: str | None = None,
                    filtro_categoria_id: int | None = None,
                    filtro_subcategoria_id: int | None = None,
                    filtro_tipo_servico: str | None = None,
-                   filtrar_apenas_atribuidas: bool = True) -> list[OuvidoriaResumoDict]:
+                   filtrar_apenas_atribuidas: bool = True,
+                   marcador_usuario_id: int | None = None) -> list[OuvidoriaResumoDict]:
     """Lista de ouvidorias com filtros e atribuições. Retorna list[OuvidoriaResumoDict]."""
     with db_session() as s:
         q = (
@@ -268,6 +279,7 @@ def get_ouvidorias(filtro_status=None, filtro_de=None, filtro_ate=None,
                     .joinedload(OuvidoriaTecnico.tecnico)
                     .joinedload(Usuario.coordenacao),
                 joinedload(Ouvidoria.respostas_permissionaria),
+                joinedload(Ouvidoria.reclamacoes).joinedload(Reclamacao.categoria),
             )
         )
         if usuario_id and usuario_tipo == TipoUsuario.tecnico.value and filtrar_apenas_atribuidas:
@@ -299,6 +311,10 @@ def get_ouvidorias(filtro_status=None, filtro_de=None, filtro_ate=None,
                 Reclamacao.tipo_servico == filtro_tipo_servico
             ))
         ouvidorias = q.order_by(Ouvidoria.criado_em.desc(), Ouvidoria.id.desc()).all()
+        marcacoes = (
+            get_marcacoes_usuario(marcador_usuario_id, [o.id for o in ouvidorias])
+            if marcador_usuario_id is not None else {}
+        )
         return [
             OuvidoriaResumoDict(
                 id=o.id,
@@ -314,6 +330,8 @@ def get_ouvidorias(filtro_status=None, filtro_de=None, filtro_ate=None,
                 criado_em=o.criado_em,
                 concluido_em=o.concluido_em,
                 atribuicoes=[_to_atribuicao_dict(at) for at in o.atribuicoes],
+                assuntos=_assuntos(o),
+                marcacao=marcacoes.get(o.id),
             )
             for o in ouvidorias
         ]

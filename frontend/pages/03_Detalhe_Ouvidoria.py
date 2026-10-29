@@ -114,36 +114,36 @@ def dialog_editar():
     if st.button("Cancelar", use_container_width=True):
         st.rerun()
 
-# ── Botões de ação (gestor) ──────────────────────────────────────────────────
+# ── Botões de ação (gestor e técnico) ────────────────────────────────────────
+col_editar, col_prazo_perm, col_apagar_prazo, col_espaco = st.columns([1, 2, 2, 5])
 if u.get("tipo") == TIPO_USUARIO_GESTOR:
-    col_editar, col_prazo_perm, col_apagar_prazo, col_espaco = st.columns([1, 2, 2, 5])
     if col_editar.button("✏️ Editar", use_container_width=True):
         dialog_editar()
 
-    prazo_perm_atual = ouvidoria.get("prazo_permissionaria")
-    with col_prazo_perm.popover("📅 Prazo Permissionária", use_container_width=True):
-        if prazo_perm_atual:
-            data_resp_perm = max(
-                (r["data_resposta"] for r in ouvidoria["respostas_permissionaria"] if r.get("data_resposta")),
-                default=None,
-            )
-            perm_label, _ = prazo_circle_label(prazo_perm_atual, data_resp_perm)
-            st.markdown(f"**Prazo atual:** {prazo_perm_atual} {perm_label}")
-        else:
-            st.markdown("**Prazo atual:** não definido")
-        if st.button("✏️ Alterar data", key="btn_alterar_prazo_perm", use_container_width=True):
-            st.session_state["alterar_prazo_perm"] = True
-        if st.session_state.get("alterar_prazo_perm"):
-            prazo_perm_default = date.fromisoformat(prazo_perm_atual) if prazo_perm_atual else date.today()
-            novo_prazo_perm = st.date_input("Nova data", value=prazo_perm_default, label_visibility="collapsed", format="DD/MM/YYYY")
-            if st.button("💾 Salvar", key="btn_salvar_prazo_perm", use_container_width=True):
-                atualizar_prazo_permissionaria(ouvidoria_id, novo_prazo_perm)
-                st.session_state.pop("alterar_prazo_perm", None)
-                st.toast("Prazo da permissionária atualizado."); st.rerun()
+prazo_perm_atual = ouvidoria.get("prazo_permissionaria")
+with col_prazo_perm.popover("📅 Prazo Permissionária", use_container_width=True):
     if prazo_perm_atual:
-        if col_apagar_prazo.button("🗑 Apagar prazo da Permissionária", use_container_width=True):
-            atualizar_prazo_permissionaria(ouvidoria_id, None)
-            st.toast("Prazo da permissionária removido."); st.rerun()
+        data_resp_perm = max(
+            (r["data_resposta"] for r in ouvidoria["respostas_permissionaria"] if r.get("data_resposta")),
+            default=None,
+        )
+        perm_label, _ = prazo_circle_label(prazo_perm_atual, data_resp_perm)
+        st.markdown(f"**Prazo atual:** {prazo_perm_atual} {perm_label}")
+    else:
+        st.markdown("**Prazo atual:** não definido")
+    if st.button("✏️ Alterar data", key="btn_alterar_prazo_perm", use_container_width=True):
+        st.session_state["alterar_prazo_perm"] = True
+    if st.session_state.get("alterar_prazo_perm"):
+        prazo_perm_default = date.fromisoformat(prazo_perm_atual) if prazo_perm_atual else date.today()
+        novo_prazo_perm = st.date_input("Nova data", value=prazo_perm_default, label_visibility="collapsed", format="DD/MM/YYYY")
+        if st.button("💾 Salvar", key="btn_salvar_prazo_perm", use_container_width=True):
+            atualizar_prazo_permissionaria(ouvidoria_id, novo_prazo_perm)
+            st.session_state.pop("alterar_prazo_perm", None)
+            st.toast("Prazo da permissionária atualizado."); st.rerun()
+if prazo_perm_atual:
+    if col_apagar_prazo.button("🗑 Apagar prazo da Permissionária", use_container_width=True):
+        atualizar_prazo_permissionaria(ouvidoria_id, None)
+        st.toast("Prazo da permissionária removido."); st.rerun()
 
 # ── Layout de 2 colunas ─────────────────────────────────────────────────────
 col_esq, col_dir = st.columns([2, 1])
