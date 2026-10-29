@@ -152,6 +152,29 @@ def atribuir_tecnico(
     return {"ok": True}
 
 
+@router.delete("/{ouvidoria_id}/tecnicos/{tecnico_id}")
+def remover_tecnico(ouvidoria_id: int, tecnico_id: int, _=Depends(requer_gestor)):
+    from api.repositories.ouvidoria_write_repo import remover_tecnico as _remover
+    if not _remover(ouvidoria_id, tecnico_id):
+        raise HTTPException(status_code=404, detail="Técnico não atribuído a esta ouvidoria")
+    return {"ok": True}
+
+
+@router.post("/{ouvidoria_id}/tecnicos/{tecnico_id}/devolver")
+def devolver_ao_tecnico(ouvidoria_id: int, tecnico_id: int, _=Depends(requer_gestor)):
+    from api.repositories.ouvidoria_write_repo import (
+        DEVOLUCAO_CONCLUIDA,
+        DEVOLUCAO_NAO_ATRIBUIDO,
+        devolver_ao_tecnico as _devolver,
+    )
+    resultado = _devolver(ouvidoria_id, tecnico_id)
+    if resultado == DEVOLUCAO_NAO_ATRIBUIDO:
+        raise HTTPException(status_code=404, detail="Técnico não atribuído a esta ouvidoria")
+    if resultado == DEVOLUCAO_CONCLUIDA:
+        raise HTTPException(status_code=409, detail="Ouvidoria concluída")
+    return {"ok": True}
+
+
 @router.patch("/{ouvidoria_id}/prazo-permissionaria")
 def atualizar_prazo_permissionaria(
     ouvidoria_id: int,

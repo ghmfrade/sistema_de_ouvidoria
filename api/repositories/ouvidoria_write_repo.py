@@ -113,6 +113,13 @@ def editar_ouvidoria(
             novo_status = StatusOuvidoria(status)
             o.status = novo_status
 
+            if novo_status == StatusOuvidoria.EM_ANALISE_TECNICA:
+                atribuicoes = s.query(OuvidoriaTecnico).filter_by(ouvidoria_id=oid).all()
+                if not any(not a.respondido for a in atribuicoes):
+                    for a in atribuicoes:
+                        a.respondido = False
+                        a.respondido_em = None
+
             if novo_status == StatusOuvidoria.CONCLUIDO:
                 o.concluido_em = datetime.now()
             else:
@@ -127,18 +134,94 @@ def atualizar_prazo_permissionaria(oid: int, prazo: date | None):
             o.prazo_permissionaria = prazo
 
 
+DEVOLUCAO_OK = "ok"
+DEVOLUCAO_NAO_ATRIBUIDO = "nao_atribuido"
+DEVOLUCAO_CONCLUIDA = "concluida"
+
+
+def _devolver_na_sessao(s, ouvidoria_id: int, tecnico_id: int) -> str:
+    """Reabre a atribuição respondida de um técnico (sessão já aberta).
+
+    Retorna DEVOLUCAO_OK, DEVOLUCAO_NAO_ATRIBUIDO ou DEVOLUCAO_CONCLUIDA.
+    """
+    atribuicao = s.query(OuvidoriaTecnico).filter_by(
+        ouvidoria_id=ouvidoria_id, tecnico_id=tecnico_id
+    ).first()
+    if not atribuicao:
+        return DEVOLUCAO_NAO_ATRIBUIDO
+    o = s.query(Ouvidoria).filter_by(id=ouvidoria_id).first()
+    if o and o.status == StatusOuvidoria.CONCLUIDO:
+        return DEVOLUCAO_CONCLUIDA
+    if atribuicao.respondido:
+        atribuicao.respondido = False
+        atribuicao.respondido_em = None
+    if o:
+        o.status = StatusOuvidoria.EM_ANALISE_TECNICA
+        o.concluido_em = None
+    return DEVOLUCAO_OK
+
+
+def devolver_ao_tecnico(ouvidoria_id: int, tecnico_id: int) -> str:
+    """Devolve a ouvidoria a um técnico que já respondeu, para complementação.
+
+    Idempotente se a atribuição já está pendente. Retorna DEVOLUCAO_OK,
+    DEVOLUCAO_NAO_ATRIBUIDO ou DEVOLUCAO_CONCLUIDA (não devolve concluídas).
+    """
+    with db_session() as s:
+        return _devolver_na_sessao(s, ouvidoria_id, tecnico_id)
+
+
 def atribuir_tecnico(ouvidoria_id: int, tecnico_id: int):
-    """Atribui técnico a ouvidoria. Retorna False se já atribuído."""
+    """Atribui técnico a ouvidoria. Retorna False se já atribuído e pendente.
+
+    Se o técnico já respondeu, a atribuição é reaberta (equivale a devolver).
+    """
     with db_session() as s:
         existe = s.query(OuvidoriaTecnico).filter_by(
             ouvidoria_id=ouvidoria_id, tecnico_id=tecnico_id
         ).first()
         if existe:
-            return False
+            if not existe.respondido:
+                return False
+            return _devolver_na_sessao(s, ouvidoria_id, tecnico_id) == DEVOLUCAO_OK
         s.add(OuvidoriaTecnico(ouvidoria_id=ouvidoria_id, tecnico_id=tecnico_id))
         o = s.query(Ouvidoria).filter_by(id=ouvidoria_id).first()
-        if o and o.status == StatusOuvidoria.AGUARDANDO_ACOES:
+        if o and o.status in (
+            StatusOuvidoria.AGUARDANDO_ACOES, StatusOuvidoria.RETORNO_TECNICO
+        ):
             o.status = StatusOuvidoria.EM_ANALISE_TECNICA
+    return True
+
+
+def remover_tecnico(ouvidoria_id: int, tecnico_id: int) -> bool:
+    """Remove a atribuição de um técnico. Retorna False se não existir.
+
+    Respostas técnicas já registradas são mantidas. Se a ouvidoria estava em
+    análise técnica e não restou atribuição pendente, o status é reajustado.
+    """
+    with db_session() as s:
+        atribuicao = s.query(OuvidoriaTecnico).filter_by(
+            ouvidoria_id=ouvidoria_id, tecnico_id=tecnico_id
+        ).first()
+        if not atribuicao:
+            return False
+        s.delete(atribuicao)
+        s.flush()
+
+        o = s.query(Ouvidoria).filter_by(id=ouvidoria_id).first()
+        if o and o.status == StatusOuvidoria.EM_ANALISE_TECNICA:
+            pendentes = s.query(OuvidoriaTecnico).filter_by(
+                ouvidoria_id=ouvidoria_id, respondido=False
+            ).count()
+            if pendentes == 0:
+                tem_resposta = s.query(RespostaTecnica).filter_by(
+                    ouvidoria_id=ouvidoria_id
+                ).count() > 0
+                o.status = (
+                    StatusOuvidoria.RETORNO_TECNICO
+                    if tem_resposta
+                    else StatusOuvidoria.AGUARDANDO_ACOES
+                )
     return True
 
 

@@ -59,7 +59,10 @@ def _coord_ger(atribuicoes: list) -> str:
 
 
 def _responsaveis(atribuicoes: list) -> str:
-    return ", ".join(a["tecnico_nome"] for a in atribuicoes if a.get("tecnico_nome")) or "–"
+    return ", ".join(
+        a["tecnico_nome"] for a in atribuicoes
+        if a.get("tecnico_nome") and not a.get("respondido")
+    ) or "–"
 
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────

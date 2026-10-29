@@ -273,7 +273,10 @@ def get_ouvidorias(filtro_status=None, filtro_de=None, filtro_ate=None,
         if usuario_id and usuario_tipo == TipoUsuario.tecnico.value and filtrar_apenas_atribuidas:
             q = (
                 q.join(OuvidoriaTecnico, OuvidoriaTecnico.ouvidoria_id == Ouvidoria.id)
-                .filter(OuvidoriaTecnico.tecnico_id == usuario_id)
+                .filter(
+                    OuvidoriaTecnico.tecnico_id == usuario_id,
+                    OuvidoriaTecnico.respondido.is_(False),
+                )
             )
         if filtro_status:
             q = q.filter(Ouvidoria.status == filtro_status)

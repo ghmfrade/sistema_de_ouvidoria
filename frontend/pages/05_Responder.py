@@ -12,7 +12,7 @@ import auth
 from auth import usuario_logado
 from api.client.enums import (
     TIPO_USUARIO_GESTOR, TIPO_USUARIO_TECNICO,
-    STATUS_EM_ANALISE_TECNICA, STATUS_CONCLUIDO,
+    STATUS_CONCLUIDO,
 )
 from api.client.catalogo_client import carregar_categorias, carregar_subcategorias
 from api.client.autos_client import carregar_cidades_atendidas, carregar_cidades_destino
@@ -177,13 +177,11 @@ with tab_responder:
                 st.write(f"**Texto:** {rt['texto_resposta']}")
                 st.divider()
 
-    resposta_existente = historico[0] if historico else None
-    if resposta_existente and atribuicao and atribuicao.get("respondido"):
-        if ouvidoria["status"] != STATUS_EM_ANALISE_TECNICA:
-            st.success("Você já registrou sua resposta técnica para esta ouvidoria.")
-            st.stop()
-        else:
-            st.info("O gestor retornou esta ouvidoria para análise técnica. Você pode registrar uma nova resposta.")
+    if atribuicao and atribuicao.get("respondido"):
+        st.success("Você já registrou sua resposta técnica para esta ouvidoria.")
+        st.stop()
+    elif atribuicao and historico:
+        st.info("O gestor devolveu esta ouvidoria para complementação. Registre uma nova resposta.")
 
     # ── Respostas da Permissionária ──────────────────────────────────────────
     st.subheader("Respostas da Permissionária")

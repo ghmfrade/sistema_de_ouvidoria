@@ -142,6 +142,14 @@ def atribuir_tecnico(oid: int, tecnico_id: int) -> bool:
         raise
 
 
+def remover_tecnico(oid: int, tecnico_id: int) -> None:
+    delete(f"/ouvidorias/{oid}/tecnicos/{tecnico_id}")
+
+
+def devolver_ao_tecnico(oid: int, tecnico_id: int) -> None:
+    post(f"/ouvidorias/{oid}/tecnicos/{tecnico_id}/devolver")
+
+
 def concluir_ouvidoria(oid: int) -> None:
     post(f"/ouvidorias/{oid}/concluir")
 

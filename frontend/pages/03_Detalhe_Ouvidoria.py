@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth
 from auth import usuario_logado
-from api.client.enums import STATUS_OUVIDORIA, STATUS_RETORNO_TECNICO, TIPO_USUARIO_GESTOR
+from api.client.enums import STATUS_CONCLUIDO, STATUS_OUVIDORIA, STATUS_RETORNO_TECNICO, TIPO_USUARIO_GESTOR
 from api.client.catalogo_client import carregar_tecnicos_disponiveis
 from api.client.ouvidoria_client import (
     buscar_ouvidoria_por_protocolo,
@@ -19,8 +19,10 @@ from api.client.ouvidoria_client import (
     atribuir_tecnico,
     atualizar_prazo_permissionaria,
     concluir_ouvidoria,
+    devolver_ao_tecnico,
     editar_ouvidoria,
     excluir_ouvidoria,
+    remover_tecnico,
 )
 from api.client.base import API_PUBLIC_URL
 from utils import prazo_circle_label
@@ -71,6 +73,8 @@ ouvidoria = view
 # Indexar rec_autos por rec_id e tecnicos_info por tecnico_id
 rec_autos = {r["id"]: r["autos"] for r in ouvidoria["reclamacoes"]}
 tecnicos_info = {a["tecnico_id"]: a for a in ouvidoria["atribuicoes"]}
+tecnicos_pendentes = {tid: a for tid, a in tecnicos_info.items() if not a["respondido"]}
+tecnicos_respondidos = {tid: a for tid, a in tecnicos_info.items() if a["respondido"]}
 
 # ── Cabeçalho ─────────────────────────────────────────────────────────────────
 st.title(f"🔍 Ouvidoria #{ouvidoria['id']}")
@@ -169,7 +173,7 @@ with col_esq:
             data = resp.get("data_resposta") or "?"
             with st.expander(f"{resp['tecnico_nome']} – {data}"):
                 st.markdown(resp["texto_resposta"].replace("\n", "\n\n"))
-    if u.get("tipo") != TIPO_USUARIO_GESTOR and u["usuario_id"] in tecnicos_info:
+    if u.get("tipo") != TIPO_USUARIO_GESTOR and u["usuario_id"] in tecnicos_pendentes:
         if st.button("✍️ Inserir Resposta Técnica", type="primary"):
             st.switch_page("pages/05_Responder.py")
 
@@ -202,16 +206,36 @@ with col_dir:
 
         st.divider()
         st.markdown("### 👥 Técnicos Responsáveis")
-        if tecnicos_info:
-            for tid, info in tecnicos_info.items():
-                status = "✅" if info["respondido"] else "⏳"
-                st.write(f"{status} {info['tecnico_nome']}")
+        if tecnicos_pendentes:
+            for tid, info in tecnicos_pendentes.items():
+                if u.get("tipo") == TIPO_USUARIO_GESTOR:
+                    col_nome, col_rem = st.columns([6, 1])
+                    col_nome.write(f"⏳ {info['tecnico_nome']}")
+                    if col_rem.button("🗑", key=f"rem_tec_{tid}", help="Remover técnico"):
+                        remover_tecnico(ouvidoria_id, tid)
+                        st.toast("Técnico removido.")
+                        st.rerun()
+                else:
+                    st.write(f"⏳ {info['tecnico_nome']}")
         else:
-            st.info("Nenhum técnico atribuído.")
+            st.info("Nenhum técnico responsável pendente.")
+
+        if tecnicos_respondidos:
+            st.caption("Já responderam")
+            for tid, info in tecnicos_respondidos.items():
+                if u.get("tipo") == TIPO_USUARIO_GESTOR and ouvidoria["status"] != STATUS_CONCLUIDO:
+                    col_nome, col_dev = st.columns([6, 2])
+                    col_nome.write(f"✅ {info['tecnico_nome']}")
+                    if col_dev.button("↩ Devolver", key=f"dev_tec_{tid}", help="Devolver para complementação"):
+                        devolver_ao_tecnico(ouvidoria_id, tid)
+                        st.toast("Ouvidoria devolvida ao técnico.")
+                        st.rerun()
+                else:
+                    st.write(f"✅ {info['tecnico_nome']}")
 
         if u.get("tipo") == TIPO_USUARIO_GESTOR:
             todos_tecs = carregar_tecnicos_disponiveis()
-            ja_atribuidos = set(tecnicos_info.keys())
+            ja_atribuidos = set(tecnicos_pendentes.keys())
             disponiveis = [(tid, nome) for tid, nome in todos_tecs if tid not in ja_atribuidos]
             if disponiveis:
                 with st.popover("➕ Atribuir Técnico", use_container_width=True):
