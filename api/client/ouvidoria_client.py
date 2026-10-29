@@ -16,6 +16,8 @@ def listar_ouvidorias(
     filtro_categoria_id: int | None = None,
     filtro_subcategoria_id: int | None = None,
     filtro_tipo_servico: str | None = None,
+    filtro_permissionaria_id: int | None = None,
+    filtro_auto_id: int | None = None,
     filtrar_apenas_atribuidas: bool = True,
     cache_buster: int = 0,
 ) -> list[dict]:
@@ -36,6 +38,10 @@ def listar_ouvidorias(
         params["filtro_subcategoria_id"] = filtro_subcategoria_id
     if filtro_tipo_servico:
         params["filtro_tipo_servico"] = filtro_tipo_servico
+    if filtro_permissionaria_id:
+        params["filtro_permissionaria_id"] = filtro_permissionaria_id
+    if filtro_auto_id:
+        params["filtro_auto_id"] = filtro_auto_id
     return get("/ouvidorias", params=params)
 
 

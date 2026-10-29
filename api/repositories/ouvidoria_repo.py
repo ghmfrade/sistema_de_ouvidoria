@@ -267,6 +267,8 @@ def get_ouvidorias(filtro_status=None, filtro_de=None, filtro_ate=None,
                    filtro_categoria_id: int | None = None,
                    filtro_subcategoria_id: int | None = None,
                    filtro_tipo_servico: str | None = None,
+                   filtro_permissionaria_id: int | None = None,
+                   filtro_auto_id: int | None = None,
                    filtrar_apenas_atribuidas: bool = True,
                    marcador_usuario_id: int | None = None) -> list[OuvidoriaResumoDict]:
     """Lista de ouvidorias com filtros e atribuições. Retorna list[OuvidoriaResumoDict]."""
@@ -312,6 +314,16 @@ def get_ouvidorias(filtro_status=None, filtro_de=None, filtro_ate=None,
         if filtro_tipo_servico:
             q = q.filter(Ouvidoria.reclamacoes.any(
                 Reclamacao.tipo_servico == filtro_tipo_servico
+            ))
+        if filtro_permissionaria_id:
+            q = q.filter(Ouvidoria.reclamacoes.any(
+                Reclamacao.autos_vinculados.any(
+                    ReclamacaoAuto.auto.has(AutoLinha.permissionaria_id == filtro_permissionaria_id)
+                )
+            ))
+        if filtro_auto_id:
+            q = q.filter(Ouvidoria.reclamacoes.any(
+                Reclamacao.autos_vinculados.any(ReclamacaoAuto.auto_id == filtro_auto_id)
             ))
         ouvidorias = q.order_by(Ouvidoria.criado_em.desc(), Ouvidoria.id.desc()).all()
         marcacoes = (

@@ -13,4 +13,4 @@ Atualizado pelo orquestrador. Valores: `PENDENTE`, `EM EXECUÇÃO (tentativa N)`
 | T07 | APROVADA | 1 | C6 (cor persiste no fluxo) e layout só conferíveis manualmente |
 | T08 | APROVADA | 1 | Revisa a T04 (subcategoria em vez de categoria) |
 | T09 | APROVADA | 1 | UI (alinhamento do filtro Cor) não conferida no navegador |
-| T10 | PENDENTE | 0 | |
+| T10 | APROVADA | 1 | UI (filtros Empresa/Auto) não conferida no navegador; testes cobrem só o repo |

@@ -27,10 +27,11 @@ from api.client.ouvidoria_client import (
 from api.client.marcacao_client import (
     definir_marcacao, remover_marcacao, carregar_legenda, salvar_legenda,
 )
+from api.client.autos_client import carregar_permissionarias, carregar_todos_autos
 from api.client.base import API_PUBLIC_URL
 
-
 from utils import prazo_circle_label, fmt_data
+from utils.formatters import fmt_auto
 from components import reduz_margem_side_bar, reduz_margem_topo_page, reduz_gap_elementos_body
 
 st.set_page_config(page_title="Ouvidorias", page_icon="📋", layout="wide")
@@ -48,6 +49,9 @@ st.markdown(
 
 st.session_state.setdefault("ov_cache_buster", 0)
 u = usuario_logado()
+
+ABREV_TIPO_REGULAR = {"Regular – Metropolitano": "Metro", "Regular – Intermunicipal": "Inter"}
+TIPOS_REGULARES = list(ABREV_TIPO_REGULAR)
 
 STATUS_EMOJI = {
     STATUS_AGUARDANDO_ACOES:          "🔴",
@@ -155,6 +159,35 @@ with col_nova:
 _filtro_cat_id = sel_categoria[0] if sel_categoria[0] else None
 _filtro_sub_id = sel_subcategoria[0] if sel_subcategoria[0] else None
 
+# Empresa / Auto de linha: só para tipos regulares; dependem do Tipo de Serviço (e o Auto, da Empresa).
+_filtro_perm_id = _filtro_auto_id = None
+if _filtro_tipo is None or _filtro_tipo in TIPOS_REGULARES:
+    _tipos_opcoes = [_filtro_tipo] if _filtro_tipo else TIPOS_REGULARES
+    _opcoes_empresa = [(0, "Todas as empresas")]
+    _perms_por_id: dict = {}
+    for _t in _tipos_opcoes:
+        for _p in carregar_permissionarias(_t):
+            _perms_por_id.setdefault(_p["id"], _p.get("nome_fantasia") or _p["nome"])
+    _opcoes_empresa += sorted(_perms_por_id.items(), key=lambda par: par[1].casefold())
+
+    _col_emp, _col_auto, _ = st.columns([1.8, 1.8, 6.3])
+    if st.session_state.get("filtro_empresa") not in _opcoes_empresa:
+        st.session_state["filtro_empresa"] = _opcoes_empresa[0]
+    with _col_emp:
+        _sel_empresa = st.selectbox("Empresa", _opcoes_empresa, format_func=lambda x: x[1], key="filtro_empresa")
+    _filtro_perm_id = _sel_empresa[0] or None
+
+    _opcoes_auto = [(0, "Todos os autos")]
+    for _t in _tipos_opcoes:
+        _prefixo = f"[{ABREV_TIPO_REGULAR[_t]}] " if _filtro_tipo is None else ""
+        for _a in carregar_todos_autos(_t, perm_id=_filtro_perm_id):
+            _opcoes_auto.append((_a["id"], _prefixo + fmt_auto(_a)))
+    if st.session_state.get("filtro_auto") not in _opcoes_auto:
+        st.session_state["filtro_auto"] = _opcoes_auto[0]
+    with _col_auto:
+        _sel_auto = st.selectbox("Auto de linha", _opcoes_auto, format_func=lambda x: x[1], key="filtro_auto")
+    _filtro_auto_id = _sel_auto[0] or None
+
 ouvidorias = listar_ouvidorias(
     filtro_de=data_ini if usar_periodo else None,
     filtro_ate=data_fim if usar_periodo else None,
@@ -164,6 +197,8 @@ ouvidorias = listar_ouvidorias(
     filtro_categoria_id=_filtro_cat_id,
     filtro_subcategoria_id=_filtro_sub_id,
     filtro_tipo_servico=_filtro_tipo,
+    filtro_permissionaria_id=_filtro_perm_id,
+    filtro_auto_id=_filtro_auto_id,
     filtrar_apenas_atribuidas=_filtrar_apenas_atribuidas,
     cache_buster=st.session_state["ov_cache_buster"],
 )
@@ -192,7 +227,8 @@ st.session_state.setdefault("pag_atual", 1)
 st.session_state.setdefault("por_pagina", 15)
 st.session_state.setdefault("filtros_hash_anterior", None)
 
-filtros_hash = hash((_filtro_cat_id, _filtro_sub_id, _filtro_tipo, _filtro_cor, ocultar_concluidos,
+filtros_hash = hash((_filtro_cat_id, _filtro_sub_id, _filtro_tipo, _filtro_cor,
+                     _filtro_perm_id, _filtro_auto_id, ocultar_concluidos,
                      usar_periodo, data_ini if usar_periodo else None, data_fim if usar_periodo else None))
 if st.session_state.filtros_hash_anterior != filtros_hash:
     st.session_state.pag_atual = 1

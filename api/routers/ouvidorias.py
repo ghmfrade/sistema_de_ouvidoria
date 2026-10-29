@@ -39,6 +39,8 @@ def listar_ouvidorias(
     filtro_categoria_id: Optional[int] = None,
     filtro_subcategoria_id: Optional[int] = None,
     filtro_tipo_servico: Optional[str] = None,
+    filtro_permissionaria_id: Optional[int] = None,
+    filtro_auto_id: Optional[int] = None,
     filtrar_apenas_atribuidas: bool = True,
     payload: dict = Depends(usuario_corrente),
 ):
@@ -52,6 +54,8 @@ def listar_ouvidorias(
         filtro_categoria_id=filtro_categoria_id,
         filtro_subcategoria_id=filtro_subcategoria_id,
         filtro_tipo_servico=filtro_tipo_servico,
+        filtro_permissionaria_id=filtro_permissionaria_id,
+        filtro_auto_id=filtro_auto_id,
         filtrar_apenas_atribuidas=filtrar_apenas_atribuidas,
         marcador_usuario_id=int(payload["sub"]),
     )
