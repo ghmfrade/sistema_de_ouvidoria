@@ -251,11 +251,13 @@ def get_id_por_protocolo(protocolo: str) -> int | None:
 
 
 def _assuntos(o: Ouvidoria) -> list[str]:
-    """Nomes das categorias das reclamações, na ordem do item, sem repetição."""
+    """Subcategoria de cada reclamação (ou a categoria, se não houver subcategoria),
+    na ordem do item, sem repetição."""
     nomes: list[str] = []
     for r in sorted(o.reclamacoes, key=lambda rec: rec.numero_item):
-        if r.categoria and r.categoria.nome not in nomes:
-            nomes.append(r.categoria.nome)
+        origem = r.subcategoria or r.categoria
+        if origem and origem.nome not in nomes:
+            nomes.append(origem.nome)
     return nomes
 
 
@@ -280,6 +282,7 @@ def get_ouvidorias(filtro_status=None, filtro_de=None, filtro_ate=None,
                     .joinedload(Usuario.coordenacao),
                 joinedload(Ouvidoria.respostas_permissionaria),
                 joinedload(Ouvidoria.reclamacoes).joinedload(Reclamacao.categoria),
+                joinedload(Ouvidoria.reclamacoes).joinedload(Reclamacao.subcategoria),
             )
         )
         if usuario_id and usuario_tipo == TipoUsuario.tecnico.value and filtrar_apenas_atribuidas:

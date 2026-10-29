@@ -77,6 +77,7 @@ def _responsaveis(atribuicoes: list) -> str:
 
 
 _legenda = {i["cor"]: i["rotulo"] for i in carregar_legenda(cache_buster=st.session_state["ov_cache_buster"])}
+_cores_nomeadas = [c for c in CORES_MARCACAO if (_legenda.get(c) or "").strip()]
 
 
 def _rotulo_cor(cor: str) -> str:
@@ -98,11 +99,6 @@ with st.sidebar:
 _col_tit, _col_cor, _col_leg, _col_tipo = st.columns([1.6, 1.2, 0.6, 1.6])
 with _col_tit:
     st.title("📋 Ouvidorias")
-with _col_cor:
-    st.write("")
-    _opcoes_cor = [("", "Todas as cores")] + [(c, _rotulo_cor(c)) for c in CORES_MARCACAO] + [("sem", "⬜ Sem cor")]
-    _sel_cor = st.selectbox("Cor", _opcoes_cor, format_func=lambda x: x[1], label_visibility="collapsed")
-    _filtro_cor = _sel_cor[0]
 with _col_leg:
     st.write("")
     with st.popover("🎨 Legenda"):
@@ -171,6 +167,18 @@ ouvidorias = listar_ouvidorias(
     filtrar_apenas_atribuidas=_filtrar_apenas_atribuidas,
     cache_buster=st.session_state["ov_cache_buster"],
 )
+
+# Filtro Cor (desenhado aqui para usar as cores em uso na lista; fica na coluna _col_cor, no topo)
+_cores_em_uso = {o.get("marcacao") for o in ouvidorias if o.get("marcacao")}
+_opcoes_cor = (
+    [("", "Todas as cores")]
+    + [(c, _rotulo_cor(c)) for c in CORES_MARCACAO if c in _cores_nomeadas or c in _cores_em_uso]
+    + [("sem", "- Sem cor")]
+)
+with _col_cor:
+    st.write("")
+    _sel_cor = st.selectbox("Cor", _opcoes_cor, format_func=lambda x: x[1], label_visibility="collapsed")
+    _filtro_cor = _sel_cor[0]
 
 if _filtro_cor == "sem":
     ouvidorias = [o for o in ouvidorias if o.get("marcacao") is None]
@@ -253,10 +261,13 @@ else:
         cols = st.columns(col_sizes)
         cor_atual = o.get("marcacao")
         with cols[0].popover(
-            EMOJI_COR[cor_atual] if cor_atual else "⬜", use_container_width=True,
+            EMOJI_COR[cor_atual] if cor_atual else "-", use_container_width=True,
             help=_rotulo_cor(cor_atual) if cor_atual else "Sem cor",
         ):
-            for cor in CORES_MARCACAO:
+            _cores_oferta = [c for c in CORES_MARCACAO if c in _cores_nomeadas or c == cor_atual]
+            if not _cores_oferta:
+                st.caption("Dê nome às cores em 🎨 Legenda para usá-las.")
+            for cor in _cores_oferta:
                 if st.button(_rotulo_cor(cor), key=f"cor_{o['id']}_{cor}",
                              type="primary" if cor == cor_atual else "secondary"):
                     try:

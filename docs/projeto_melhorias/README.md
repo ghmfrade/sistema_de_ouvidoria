@@ -23,9 +23,12 @@ Estado em [STATUS.md](STATUS.md); histórico em `revisoes/`.
 | T05 | Lista de ouvidorias: remover, ver quem respondeu e devolver técnico no popover 👤 | [tasks/T05_popover_tecnicos_lista.md](tasks/T05_popover_tecnicos_lista.md) |
 | T06 | Marcação por cores: banco e API (cor por ouvidoria por login + legenda) | [tasks/T06_marcacao_cores_api.md](tasks/T06_marcacao_cores_api.md) |
 | T07 | Marcação por cores: coluna, filtro e popover 🎨 Legenda na lista | [tasks/T07_marcacao_cores_lista.md](tasks/T07_marcacao_cores_lista.md) |
+| T08 | Coluna Assuntos: mostrar a subcategoria em vez da categoria (revisão da T04) | [tasks/T08_assuntos_subcategoria.md](tasks/T08_assuntos_subcategoria.md) |
+| T09 | Marcação por cores: só cores nomeadas na seleção e "sem cor" como - (revisão da T07) | [tasks/T09_cores_so_nomeadas.md](tasks/T09_cores_so_nomeadas.md) |
+| T10 | Lista de ouvidorias: filtros por Empresa e Auto de linha, dependentes do Tipo de Serviço | [tasks/T10_filtro_empresa_auto.md](tasks/T10_filtro_empresa_auto.md) |
 
 As tasks são sequenciais (T02 e T04 mexem na mesma página que T01/T03; T05 mexe na mesma página que T04;
-T07 depende da T04 e da T06).
+T07 depende da T04 e da T06; T08 revisa a T04; T09 revisa a T07; T10 mexe na mesma página que T09).
 
 ## Decisões de projeto
 
@@ -53,6 +56,15 @@ T07 depende da T04 e da T06).
    legenda (nome de cada cor) também por login. Paleta fixa de 7 cores. A marcação fica numa tabela própria,
    independente de `ouvidoria_tecnicos`: não se perde ao responder, devolver, remover/reatribuir técnico ou
    concluir — só com "sem cor" ou exclusão da ouvidoria. Sem índice/dashboard por pessoa. Só na página 01.
+9. **Assuntos (T08, revisa a T04).** A coluna Assuntos mostra a **subcategoria** de cada reclamação (a categoria,
+   ex.: RECLAMAÇÃO, dizia pouco). Sem subcategoria → mostra a categoria; sem as duas → ignorada.
+10. **Cores nomeadas (T09, revisa a T07).** Só as cores com nome na legenda aparecem para marcar e no filtro
+   (a cor atual de uma ouvidoria aparece mesmo se perdeu o nome; no filtro, cores sem nome ainda em uso também
+   aparecem). O nome é da cor: apagar mantém a marcação; renomear vale para todas. A legenda continua com as 7.
+   "Sem cor" = `-`.
+11. **Filtros Empresa/Auto (T10).** Empresa = permissionária, ligada à ouvidoria pelos autos vinculados às
+   reclamações (`empresa_fretamento` não entra). As opções dependem do Tipo de Serviço (só tipos regulares;
+   "Todos" = os dois regulares) e o Auto depende da Empresa. Com tipo Fretamento os dois filtros somem.
 
 ## Como os testes rodam
 `.venv/Scripts/python.exe -m pytest <arquivos> -q --tb=short` — os testes usam o banco de dev do `.env`
